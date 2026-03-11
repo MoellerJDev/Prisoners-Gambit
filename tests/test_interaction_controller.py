@@ -236,8 +236,14 @@ def test_floor_summary_snapshot_uses_structured_entries() -> None:
 
 
 def test_run_session_can_resume_with_submitted_action() -> None:
-    renderer = NewRendererStub()
-    controller = InteractionController(renderer=renderer)
+    class CoopRendererStub:
+        def show_run_header(self, seed: int | None) -> None:
+            pass
+
+        def resolve_featured_round_decision(self, state: FeaturedRoundDecisionState) -> ChooseRoundMoveAction:
+            return ChooseRoundMoveAction(mode="manual_move", move=COOPERATE)
+
+    controller = InteractionController(renderer=CoopRendererStub())
     prompt = FeaturedMatchPrompt(
         floor_number=1,
         masked_opponent_label="Unknown",
@@ -251,12 +257,6 @@ def test_run_session_can_resume_with_submitted_action() -> None:
         roster_entries=[],
     )
 
-    controller.session.begin_decision(
-        FeaturedRoundDecisionState(prompt=prompt),
-        (ChooseRoundMoveAction, ChooseRoundAutopilotAction),
-        controller.snapshot,
-    )
-    controller.session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     move = controller.choose_round_move(FeaturedRoundDecisionState(prompt=prompt))
 
     assert move == COOPERATE
@@ -264,8 +264,18 @@ def test_run_session_can_resume_with_submitted_action() -> None:
 
 
 def test_stance_action_applies_across_multiple_rounds() -> None:
-    renderer = NewRendererStub()
-    controller = InteractionController(renderer=renderer)
+    class StanceRendererStub:
+        def show_run_header(self, seed: int | None) -> None:
+            pass
+
+        def resolve_featured_round_decision(self, state: FeaturedRoundDecisionState) -> ChooseRoundStanceAction:
+            return ChooseRoundStanceAction(
+                mode="set_round_stance",
+                stance="follow_autopilot_for_n_rounds",
+                rounds=2,
+            )
+
+    controller = InteractionController(renderer=StanceRendererStub())
     prompt = FeaturedMatchPrompt(
         floor_number=1,
         masked_opponent_label="Unknown",
@@ -279,18 +289,6 @@ def test_stance_action_applies_across_multiple_rounds() -> None:
         roster_entries=[],
     )
 
-    controller.session.begin_decision(
-        FeaturedRoundDecisionState(prompt=prompt),
-        (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction),
-        controller.snapshot,
-    )
-    controller.session.submit_action(
-        ChooseRoundStanceAction(
-            mode="set_round_stance",
-            stance="follow_autopilot_for_n_rounds",
-            rounds=2,
-        )
-    )
     first = controller.choose_round_move(FeaturedRoundDecisionState(prompt=prompt))
     assert first == DEFECT
     assert controller.snapshot.active_featured_stance is not None
@@ -335,12 +333,8 @@ def test_manual_override_clears_active_stance() -> None:
         suggested_move=COOPERATE,
         roster_entries=[],
     )
-    controller.session.begin_decision(
-        FeaturedRoundDecisionState(prompt=prompt),
-        (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction),
-        controller.snapshot,
-    )
-    controller.session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=DEFECT))
+    # NewRendererStub.resolve_featured_round_decision returns ChooseRoundMoveAction(move=DEFECT),
+    # which should clear the active stance.
     move = controller.choose_round_move(FeaturedRoundDecisionState(prompt=prompt))
 
     assert move == DEFECT
@@ -348,7 +342,18 @@ def test_manual_override_clears_active_stance() -> None:
 
 
 def test_duration_based_stance_requires_positive_rounds() -> None:
-    controller = InteractionController(renderer=NewRendererStub())
+    class BadStanceRendererStub:
+        def show_run_header(self, seed: int | None) -> None:
+            pass
+
+        def resolve_featured_round_decision(self, state: FeaturedRoundDecisionState) -> ChooseRoundStanceAction:
+            return ChooseRoundStanceAction(
+                mode="set_round_stance",
+                stance="follow_autopilot_for_n_rounds",
+                rounds=0,
+            )
+
+    controller = InteractionController(renderer=BadStanceRendererStub())
     prompt = FeaturedMatchPrompt(
         floor_number=1,
         masked_opponent_label="Unknown",
@@ -360,18 +365,6 @@ def test_duration_based_stance_requires_positive_rounds() -> None:
         opp_match_score=0,
         suggested_move=COOPERATE,
         roster_entries=[],
-    )
-    controller.session.begin_decision(
-        FeaturedRoundDecisionState(prompt=prompt),
-        (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction),
-        controller.snapshot,
-    )
-    controller.session.submit_action(
-        ChooseRoundStanceAction(
-            mode="set_round_stance",
-            stance="follow_autopilot_for_n_rounds",
-            rounds=0,
-        )
     )
 
     with pytest.raises(ValueError, match="requires rounds > 0"):

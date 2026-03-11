@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Sequence
 
 from prisoners_gambit.core.analysis import analyze_agent_identity
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
@@ -16,6 +16,7 @@ from prisoners_gambit.core.interaction import (
     ChooseSuccessorAction,
     DecisionState,
     FeaturedRoundDecisionState,
+    FeaturedRoundResult,
     FeaturedRoundStanceView,
     FloorRosterEntryView,
     FloorRosterState,
@@ -28,6 +29,7 @@ from prisoners_gambit.core.interaction import (
     PlayerAction,
     PowerupChoiceState,
     PowerupOfferView,
+    RosterEntry,
     RunCompletion,
     RunHeaderState,
     RunSnapshot,
@@ -67,6 +69,7 @@ class RunSession:
         self.status = "awaiting_decision"
         self.current_decision = state
         self._expected_action_types = expected_types
+        self._queued_action = None
         self.latest_snapshot = snapshot
 
     def submit_action(self, action: PlayerAction) -> None:
@@ -128,7 +131,7 @@ class InteractionController:
         self.snapshot.current_phase = phase
         self._sync_session_snapshot()
 
-    def set_floor_roster(self, floor_number: int, roster_entries) -> None:
+    def set_floor_roster(self, floor_number: int, roster_entries: Sequence[RosterEntry]) -> None:
         self.snapshot.floor_roster = FloorRosterState(
             floor_number=floor_number,
             roster_entries=[
@@ -330,7 +333,7 @@ class InteractionController:
             raise ValueError("Successor choice index out of range.")
         return candidates[action.candidate_index]
 
-    def set_latest_round_result(self, result) -> None:
+    def set_latest_round_result(self, result: FeaturedRoundResult) -> None:
         self.snapshot.latest_featured_round = result
         self._sync_session_snapshot()
 
