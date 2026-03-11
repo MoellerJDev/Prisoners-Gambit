@@ -245,7 +245,7 @@ The event model is designed so future listeners can be added for:
 - replay exports
 - debug dashboards
 - statistics aggregation
-- alternate UI synchronization
+- alternate UI synchronization (the web prototype currently polls `RunSnapshot` directly rather than subscribing to events, but an event-driven client is a natural next step)
 
 ## Event Design Principles
 
@@ -290,9 +290,11 @@ Potential payload:
 - chosen move
 - opponent move
 - score delta
+- breakdown (directive resolution and per-perk adjustments)
 
 Use case:
 - full replay reconstruction
+- the `RoundResolutionBreakdown` structure already exists in `core.interaction` and is surfaced through the UI, making this a natural next event to publish
 
 ### ai_powerup_granted
 

@@ -107,6 +107,17 @@ The intended feel is:
 - the player gives tactical intervention
 - perks bend rules around both
 
+### Featured match stances
+
+To reduce repetitive input without removing skill expression, the player can set a stance for the current featured match. Available stances:
+
+- **Cooperate until betrayed** — cooperate each round until the opponent defects, then defect
+- **Defect until punished** — defect each round until the opponent retaliates with defection, then cooperate
+- **Follow autopilot for N rounds** — delegate to the genome suggestion for a fixed number of rounds
+- **Lock last manual move for N rounds** — hold the most recent manual choice for a fixed number of rounds
+
+Any manual move overrides the active stance immediately.
+
 ## Genome Design
 
 Each genome currently contains:
@@ -149,6 +160,18 @@ The design rule is:
 - if equal highest-priority directives conflict, defection wins
 
 This creates predictable resolution and avoids ambiguous behavior.
+
+## Round Breakdown and Score Transparency
+
+After each featured round, the player sees a breakdown that shows:
+
+- the genome's intended move for each side before directives applied
+- which directives fired and the final move they produced
+- the base payoff
+- each perk's score adjustment, labeled by source
+- the final point totals for both sides
+
+This makes perk effects explicit rather than hidden. A player can always answer: "Why did my score change by that amount?"
 
 ## Referendum System
 
@@ -295,21 +318,19 @@ The current design already has:
 ## Current Friction Points
 
 The most likely friction areas are:
-- too much repetitive featured-match input
-- some build effects being hard to read in the moment
+- some build effects still needing better live explanation in the terminal
 - some genome edit choices feeling too opaque
-- perk interactions needing clearer explanation in results
+- succession comparison not yet rich enough
 
-These are presentation and pacing issues more than mechanical problems.
+The round breakdown and stance system address the pacing and transparency concerns that were most acute. The remaining friction is about presentation depth more than mechanical problems.
 
 ## Design Priorities Going Forward
 
 The next layers should focus on:
-- better pacing in featured matches
 - richer branch comparison tools
 - more meaningful between-floor resource decisions
-- improved explanation of why score swings happened
 - stronger endgame identity in civil war
+- expanded web UI beyond the featured match prototype
 
 ## Summary
 

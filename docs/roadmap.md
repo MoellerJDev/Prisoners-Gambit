@@ -16,6 +16,10 @@ The project now has a strong prototype foundation with:
   - ecosystem survival
   - civil war
 - build identity tags and descriptors
+- typed interaction system with `InteractionController` and `RunSession`
+- rich round breakdown with directive reasons and per-perk score adjustments
+- featured match stance system (cooperate until betrayed, defect until punished, follow autopilot for N rounds, lock last manual move for N rounds)
+- web prototype UI for playing featured matches through a browser
 - broad automated test coverage
 
 That is enough to say the project is beyond a toy simulation and into real game-prototype territory.
@@ -36,19 +40,13 @@ The simulation already has enough mechanics that readability now matters more th
 
 ## Phase A: Readability and Feedback
 
-### A1. Explain why score changed
+### A1. Explain why score changed ✓
 
 Goal:
 Make featured match results tell the player which perks fired and why.
 
-Why it matters:
-The game is becoming more systemic, and hidden calculations are now a real readability problem.
-
-Desired outcome:
-A player should be able to look at a round result and understand:
-- base outcome
-- perk changes
-- final delta
+Status:
+**Complete.** `RoundResolutionBreakdown` now surfaces the directive resolution trace and per-perk `ScoreAdjustment` list. The view layer formats this for both the terminal and the web prototype.
 
 ### A2. Show stronger build comparison in successor selection
 
@@ -74,29 +72,25 @@ Potential additions:
 
 ## Phase B: Pacing Improvements
 
-### B1. Featured match fast-forward
+### B1. Featured match fast-forward ✓
 
 Goal:
 Reduce repetitive input without removing skill expression.
 
-Examples:
-- follow autopilot for N rounds
+Status:
+**Complete.** The stance system handles this:
 - cooperate until betrayed
 - defect until punished
-- trust current pattern to match end
+- follow autopilot for N rounds
+- lock last manual move for N rounds
 
-Why it matters:
-The strategy is good, but the terminal pacing can become grindy.
-
-### B2. Smarter autopilot interaction
+### B2. Smarter autopilot interaction ✓
 
 Goal:
 Make it easier to use the genome as a real assistant rather than just a suggestion source.
 
-Potential additions:
-- quick override modes
-- repeat last manual stance
-- lock into temporary behavior templates
+Status:
+**Complete.** The `InteractionController` supports `ChooseRoundAutopilotAction` (single-round and full-match autopilot), and `ChooseRoundStanceAction` for duration-bound behavior templates.
 
 ## Phase C: Between-Floor Economy
 
@@ -252,12 +246,13 @@ Possible additions:
 
 ### G2. Richer non-terminal UI
 
-Long-term direction:
-- desktop
-- web
-- or hybrid client
+Status:
+**In progress.** A web prototype for featured matches is available in `web/`. It serves an interactive HTML page at `http://127.0.0.1:8765` and drives `FeaturedMatchWebSession` over JSON.
 
-This should only happen after the gameplay loop is more mature and stable.
+Long-term direction:
+- expand web client to the full run loop
+- desktop or hybrid client
+- or a dedicated graphical front end
 
 ## Phase H: Balance and Design Tuning
 
@@ -288,11 +283,11 @@ Focus:
 
 My recommended short-term order:
 
-1. Better featured-round explanation
-2. Fast-forward or stance controls for featured matches
-3. Better successor-comparison information
-4. Reroll or small economy layer
-5. Civil-war-specific perk/content pass
+1. Better successor-comparison information
+2. Reroll or small economy layer
+3. Civil-war-specific perk/content pass
+4. Expanded web UI beyond featured match prototype
+5. Saveable run transcripts or replay logs
 
 That order improves feel before it expands complexity too much.
 
