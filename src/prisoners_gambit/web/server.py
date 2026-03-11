@@ -473,9 +473,11 @@ class Handler(BaseHTTPRequestHandler):
             if length < 0:
                 raise ValueError("Content-Length cannot be negative")
         except ValueError:
+            self.close_connection = True
             self._json({"error": "invalid Content-Length"}, status=400)
             return
         if length > _MAX_REQUEST_BODY_BYTES:
+            self.close_connection = True
             self._json({"error": "request body too large"}, status=413)
             return
         raw = self.rfile.read(length).decode("utf-8") if length else "{}"
