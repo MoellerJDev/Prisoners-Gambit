@@ -585,7 +585,7 @@ class Handler(BaseHTTPRequestHandler):
                     session.advance()
                     payload = session.view()
                     status = 200
-        except (ValueError, RuntimeError) as exc:
+        except (ValueError, TypeError, RuntimeError) as exc:
             _log.warning("Client error in /api/action: %s", exc)
             self._json({"error": "invalid request"}, status=400)
             return
