@@ -1,0 +1,1 @@
+"""Static and semi-static game content for Prisoner's Gambit."""

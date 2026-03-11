@@ -1,0 +1,1 @@
+"""External adapters for logging, recording, and future integrations."""

@@ -1,0 +1,1 @@
+"""User interface adapters for Prisoner's Gambit."""

@@ -1,0 +1,1 @@
+"""Configuration package for Prisoner's Gambit."""

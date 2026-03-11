@@ -1,0 +1,1 @@
+"""Core domain objects and rules for Prisoner's Gambit."""
