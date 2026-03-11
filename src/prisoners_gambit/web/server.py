@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import dataclasses
 import json
+import logging
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
@@ -12,8 +15,19 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundMoveAction,
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
+    FeaturedRoundDecisionState,
+    ROUND_STANCES_REQUIRING_ROUNDS,
 )
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
+
+_log = logging.getLogger(__name__)
+
+_stance_options_default: tuple[str, ...] = next(
+    (f.default for f in dataclasses.fields(FeaturedRoundDecisionState) if f.name == "stance_options"),  # type: ignore[assignment]
+    (),
+)
+_ROUND_STANCE_OPTIONS = set(_stance_options_default)
+_ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
 
 
 HTML = """<!doctype html>
@@ -400,6 +414,7 @@ async function sendStanceN(stance){
 
 class _State:
     session: FeaturedMatchWebSession | None = None
+    lock = threading.RLock()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -417,55 +432,97 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(HTML.encode("utf-8"))
             return
         if self.path == "/api/state":
-            if _State.session is None:
-                self._json({"status": "not_started", "decision": None, "decision_type": None, "snapshot": {}}, status=200)
-                return
-            self._json(_State.session.view())
+            with _State.lock:
+                if _State.session is None:
+                    payload = {"status": "not_started", "decision": None, "decision_type": None, "snapshot": {}}
+                else:
+                    payload = _State.session.view()
+            self._json(payload)
             return
         self._json({"error": "not found"}, status=404)
 
     def do_POST(self) -> None:
         if self.path == "/api/run/start":
-            _State.session = FeaturedMatchWebSession(seed=7, rounds=3)
-            _State.session.start()
-            self._json(_State.session.view())
+            with _State.lock:
+                _State.session = FeaturedMatchWebSession(seed=7, rounds=3)
+                _State.session.start()
+                payload = _State.session.view()
+            self._json(payload)
             return
 
         if self.path == "/api/advance":
-            if _State.session is None:
-                self._json({"error": "session not started"}, status=400)
-                return
-            _State.session.advance()
-            self._json(_State.session.view())
+            with _State.lock:
+                if _State.session is None:
+                    payload = {"error": "session not started"}
+                    status = 400
+                else:
+                    _State.session.advance()
+                    payload = _State.session.view()
+                    status = 200
+            self._json(payload, status=status)
             return
 
         if self.path != "/api/action":
             self._json({"error": "not found"}, status=404)
             return
 
-        if _State.session is None:
-            self._json({"error": "session not started"}, status=400)
-            return
-
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length).decode("utf-8") if length else "{}"
-        payload = json.loads(raw)
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            self._json({"error": "invalid JSON"}, status=400)
+            return
+        if not isinstance(payload, dict):
+            self._json({"error": "invalid action payload"}, status=400)
+            return
         action_type = payload.get("type")
 
         try:
             if action_type == "manual_move":
-                move = COOPERATE if payload.get("move") == "C" else DEFECT
+                move_str = payload.get("move")
+                if move_str not in ("C", "D"):
+                    self._json({"error": "invalid move; expected 'C' or 'D'"}, status=400)
+                    return
+                move = COOPERATE if move_str == "C" else DEFECT
                 action = ChooseRoundMoveAction(mode="manual_move", move=move)
             elif action_type in {"autopilot_round", "autopilot_match"}:
                 action = ChooseRoundAutopilotAction(mode=action_type)
             elif action_type == "set_round_stance":
+                stance = payload.get("stance")
+                if stance not in _ROUND_STANCE_OPTIONS:
+                    self._json({"error": "invalid stance"}, status=400)
+                    return
+                rounds = None
+                raw_rounds = payload.get("rounds")
+                if raw_rounds is not None:
+                    if isinstance(raw_rounds, bool):
+                        self._json({"error": "invalid rounds"}, status=400)
+                        return
+                    if isinstance(raw_rounds, int):
+                        rounds = raw_rounds
+                    elif isinstance(raw_rounds, str) and raw_rounds.isdigit():
+                        rounds = int(raw_rounds)
+                    else:
+                        self._json({"error": "invalid rounds"}, status=400)
+                        return
+                    if rounds <= 0:
+                        self._json({"error": "invalid rounds"}, status=400)
+                        return
+                if stance in _ROUND_STANCES_REQUIRING_ROUNDS and rounds is None:
+                    self._json({"error": "rounds required for selected stance"}, status=400)
+                    return
                 action = ChooseRoundStanceAction(
                     mode="set_round_stance",
-                    stance=payload.get("stance"),
-                    rounds=payload.get("rounds"),
+                    stance=stance,
+                    rounds=rounds,
                 )
             elif action_type == "manual_vote":
-                vote = COOPERATE if payload.get("vote") == "C" else DEFECT
+                vote_raw = payload.get("vote")
+                if vote_raw not in ("C", "D"):
+                    self._json({"error": "invalid vote; expected 'C' or 'D'"}, status=400)
+                    return
+                vote = COOPERATE if vote_raw == "C" else DEFECT
                 action = ChooseFloorVoteAction(mode="manual_vote", vote=vote)
             elif action_type == "autopilot_vote":
                 action = ChooseFloorVoteAction(mode="autopilot_vote")
@@ -479,18 +536,30 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "invalid action"}, status=400)
                 return
 
-            _State.session.submit_action(action)
-            _State.session.advance()
-        except Exception as exc:  # noqa: BLE001
-            self._json({"error": str(exc)}, status=400)
+            with _State.lock:
+                if _State.session is None:
+                    payload = {"error": "session not started"}
+                    status = 400
+                else:
+                    _State.session.submit_action(action)
+                    _State.session.advance()
+                    payload = _State.session.view()
+                    status = 200
+        except (ValueError, RuntimeError) as exc:
+            _log.warning("Client error in /api/action: %s", exc)
+            self._json({"error": "invalid request"}, status=400)
+            return
+        except Exception:  # noqa: BLE001
+            _log.exception("Unhandled error in /api/action")
+            self._json({"error": "internal server error"}, status=500)
             return
 
-        self._json(_State.session.view())
+        self._json(payload, status=status)
 
 
-def run_server(port: int = 8765) -> None:
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"Web slice running at http://localhost:{port}")
+def run_server(port: int = 8765, host: str = "127.0.0.1") -> None:
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"Web slice running at http://{host}:{port}")
     server.serve_forever()
 
 

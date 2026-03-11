@@ -81,6 +81,12 @@ class TerminalRenderer(Renderer):
         action = self.resolve_featured_round_decision(FeaturedRoundDecisionState(prompt=prompt))
         if isinstance(action, ChooseRoundMoveAction):
             return action.move
+        if isinstance(action, ChooseRoundAutopilotAction):
+            if action.mode == "autopilot_match":
+                print("Note: Match autopilot requires an interaction controller. Using the suggested move for this round.")
+            return prompt.suggested_move
+        if isinstance(action, ChooseRoundStanceAction):
+            print("Note: Stance choices require an interaction controller; using the suggested move for this round.")
         return prompt.suggested_move
 
     def resolve_featured_round_decision(

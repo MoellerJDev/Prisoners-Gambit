@@ -1,5 +1,8 @@
-from prisoners_gambit.core.constants import COOPERATE
+from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
+    ChooseRoundAutopilotAction,
+    ChooseRoundStanceAction,
+    FeaturedMatchPrompt,
     GenomeEditChoiceState,
     GenomeEditOfferView,
     PowerupChoiceState,
@@ -71,3 +74,59 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
     assert "Tags: Cooperative, Retaliatory" in out
     assert "Build: Open C, retaliate D" in out
     assert "Powerups: Trust Dividend" in out
+
+
+def test_choose_round_action_warns_when_match_autopilot_unavailable(monkeypatch, capsys) -> None:
+    renderer = TerminalRenderer()
+    monkeypatch.setattr(
+        renderer,
+        "resolve_featured_round_decision",
+        lambda state: ChooseRoundAutopilotAction(mode="autopilot_match"),
+    )
+
+    move = renderer.choose_round_action(
+        FeaturedMatchPrompt(
+            floor_number=1,
+            masked_opponent_label="Unknown",
+            round_index=0,
+            total_rounds=3,
+            my_history=[],
+            opp_history=[],
+            my_match_score=0,
+            opp_match_score=0,
+            suggested_move=COOPERATE,
+            roster_entries=[],
+        )
+    )
+
+    out = capsys.readouterr().out
+    assert move == COOPERATE
+    assert "Match autopilot requires an interaction controller" in out
+
+
+def test_choose_round_action_warns_when_stance_unavailable(monkeypatch, capsys) -> None:
+    renderer = TerminalRenderer()
+    monkeypatch.setattr(
+        renderer,
+        "resolve_featured_round_decision",
+        lambda state: ChooseRoundStanceAction(mode="set_round_stance", stance="cooperate_until_betrayed"),
+    )
+
+    move = renderer.choose_round_action(
+        FeaturedMatchPrompt(
+            floor_number=1,
+            masked_opponent_label="Unknown",
+            round_index=0,
+            total_rounds=3,
+            my_history=[],
+            opp_history=[],
+            my_match_score=0,
+            opp_match_score=0,
+            suggested_move=DEFECT,
+            roster_entries=[],
+        )
+    )
+
+    out = capsys.readouterr().out
+    assert move == DEFECT
+    assert "Stance choices require an interaction controller" in out

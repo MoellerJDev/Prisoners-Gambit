@@ -382,7 +382,8 @@ class TournamentEngine:
             player_history.append(player_move)
             opponent_history.append(opponent_move)
 
-            if self.renderer:
+            round_result = None
+            if self.renderer or self.interaction_controller:
                 round_result = FeaturedRoundResult(
                     masked_opponent_label=masked_opponent_label,
                     round_index=round_index,
@@ -407,9 +408,10 @@ class TournamentEngine:
                         final_opponent_points=round_opponent_points,
                     ),
                 )
+            if round_result is not None and self.renderer:
                 self.renderer.show_round_result(round_result)
-                if self.interaction_controller:
-                    self.interaction_controller.set_latest_round_result(round_result)
+            if round_result is not None and self.interaction_controller:
+                self.interaction_controller.set_latest_round_result(round_result)
 
         if self.interaction_controller:
             self.interaction_controller.reset_featured_match_autopilot()
@@ -433,7 +435,7 @@ class TournamentEngine:
                 current_floor_score=agent.score,
             )
 
-            if agent.is_player and self.renderer:
+            if agent.is_player and (self.renderer or self.interaction_controller):
                 prompt = FloorVotePrompt(
                     floor_number=floor_number,
                     floor_label=floor_config.label,
@@ -480,7 +482,7 @@ class TournamentEngine:
         else:
             reward = 0
 
-        if player and self.renderer:
+        if player and (self.renderer or self.interaction_controller):
             player_vote = votes[player.agent_id]
             player_reward = 0
             if cooperation_prevailed and player_vote == COOPERATE:
@@ -507,7 +509,8 @@ class TournamentEngine:
                 player_vote=player_vote,
                 player_reward=player_reward if cooperation_prevailed and player_vote == COOPERATE else 0,
             )
-            self.renderer.show_referendum_result(vote_result)
+            if self.renderer:
+                self.renderer.show_referendum_result(vote_result)
             if self.interaction_controller:
                 self.interaction_controller.set_floor_vote_result(vote_result)
 

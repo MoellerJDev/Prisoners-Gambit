@@ -331,6 +331,7 @@ class InteractionController:
         self._autopilot_featured_match = False
         self._featured_stance = None
         self.snapshot.active_featured_stance = None
+        self._sync_session_snapshot()
 
     @property
     def should_autopilot_featured_match(self) -> bool:
