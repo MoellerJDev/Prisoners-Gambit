@@ -230,11 +230,12 @@ HTML = """<!doctype html>
 let latest = null;
 let previousTotals = null;
 
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 function moveLabel(v){ return v === 0 ? 'C' : 'D'; }
-function effectToken(label){ return `<span class='token effect'>✦ ${label}</span>`; }
-function branchToken(label){ return `<span class='token branch'>⎇ ${label}</span>`; }
-function powerupToken(label){ return `<span class='token powerup'>⚡ ${label}</span>`; }
-function genomeToken(label){ return `<span class='token genome'>🧬 ${label}</span>`; }
+function effectToken(label){ return `<span class='token effect'>✦ ${escapeHtml(label)}</span>`; }
+function branchToken(label){ return `<span class='token branch'>⎇ ${escapeHtml(label)}</span>`; }
+function powerupToken(label){ return `<span class='token powerup'>⚡ ${escapeHtml(label)}</span>`; }
+function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtml(label)}</span>`; }
 
 function renderDecision(data){
   const decision = data.decision;
@@ -268,7 +269,7 @@ function renderDecision(data){
   if (t === 'FloorVoteDecisionState') {
     const p = decision.prompt;
     document.getElementById('decisionView').innerHTML = `
-      <div>Floor</div><div>${p.floor_number} (${p.floor_label})</div>
+      <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
       <div>Suggested Vote</div><div>${effectToken(`Model suggests ${moveLabel(p.suggested_vote)}`)}</div>
       <div>Floor Score</div><div>${p.current_floor_score}</div>
       <div>Powerups</div><div>${(p.powerups || []).map(powerupToken).join(' ') || 'none'}</div>`;
@@ -369,7 +370,7 @@ function renderSnapshot(snapshot){
 
   const summary = snapshot.floor_summary?.entries || [];
   document.getElementById('floorSummary').innerHTML = summary.length
-    ? summary.map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${entry.descriptor}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('')
+    ? summary.map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('')
     : '<li>No summary yet.</li>';
 
   const successors = snapshot.successor_options?.candidates || [];
@@ -536,6 +537,9 @@ class Handler(BaseHTTPRequestHandler):
                 if stance in _ROUND_STANCES_REQUIRING_ROUNDS and rounds is None:
                     self._json({"error": "rounds required for selected stance"}, status=400)
                     return
+                # Non-duration stances run until cleared; ignore any provided rounds.
+                if stance not in _ROUND_STANCES_REQUIRING_ROUNDS:
+                    rounds = None
                 action = ChooseRoundStanceAction(
                     mode="set_round_stance",
                     stance=stance,
