@@ -414,12 +414,20 @@ async function sendStanceN(stance){
 """
 
 
-class _State:
-    session: FeaturedMatchWebSession | None = None
-    lock = threading.RLock()
-
-
 class Handler(BaseHTTPRequestHandler):
+    def _state_lock(self) -> threading.RLock:
+        lock = getattr(self.server, "_prisoners_gambit_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            setattr(self.server, "_prisoners_gambit_lock", lock)
+        return lock
+
+    def _get_session(self) -> FeaturedMatchWebSession | None:
+        return getattr(self.server, "_prisoners_gambit_session", None)
+
+    def _set_session(self, session: FeaturedMatchWebSession | None) -> None:
+        setattr(self.server, "_prisoners_gambit_session", session)
+
     def _json(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
@@ -440,32 +448,35 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if self.path == "/api/state":
-            with _State.lock:
-                if _State.session is None:
+            with self._state_lock():
+                session = self._get_session()
+                if session is None:
                     payload = {"status": "not_started", "decision": None, "decision_type": None, "snapshot": {}}
                 else:
-                    payload = _State.session.view()
+                    payload = session.view()
             self._json(payload)
             return
         self._json({"error": "not found"}, status=404)
 
     def do_POST(self) -> None:
         if self.path == "/api/run/start":
-            with _State.lock:
-                _State.session = FeaturedMatchWebSession(seed=7, rounds=3)
-                _State.session.start()
-                payload = _State.session.view()
+            with self._state_lock():
+                session = FeaturedMatchWebSession(seed=7, rounds=3)
+                session.start()
+                self._set_session(session)
+                payload = session.view()
             self._json(payload)
             return
 
         if self.path == "/api/advance":
-            with _State.lock:
-                if _State.session is None:
+            with self._state_lock():
+                session = self._get_session()
+                if session is None:
                     payload = {"error": "session not started"}
                     status = 400
                 else:
-                    _State.session.advance()
-                    payload = _State.session.view()
+                    session.advance()
+                    payload = session.view()
                     status = 200
             self._json(payload, status=status)
             return
@@ -564,14 +575,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "invalid action"}, status=400)
                 return
 
-            with _State.lock:
-                if _State.session is None:
+            with self._state_lock():
+                session = self._get_session()
+                if session is None:
                     payload = {"error": "session not started"}
                     status = 400
                 else:
-                    _State.session.submit_action(action)
-                    _State.session.advance()
-                    payload = _State.session.view()
+                    session.submit_action(action)
+                    session.advance()
+                    payload = session.view()
                     status = 200
         except (ValueError, RuntimeError) as exc:
             _log.warning("Client error in /api/action: %s", exc)
@@ -587,6 +599,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def run_server(port: int = 8765, host: str = "127.0.0.1") -> None:
     server = ThreadingHTTPServer((host, port), Handler)
+    setattr(server, "_prisoners_gambit_session", None)
+    setattr(server, "_prisoners_gambit_lock", threading.RLock())
     print(f"Web slice running at http://{host}:{port}")
     server.serve_forever()
 
