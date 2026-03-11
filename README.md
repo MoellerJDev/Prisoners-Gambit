@@ -1,201 +1,150 @@
 # Prisoner's Gambit
 
-Prisoner's Gambit is a strategy roguelike built on an iterated prisoner's dilemma simulation.
+Prisoner's Gambit is a strategy roguelike built around repeated prisoner's dilemma tournaments.
 
-You do not control a single permanent character. You control a lineage of strategies.
+You do **not** play one permanent character. You play a **lineage**. If your current host is eliminated but your branch survives, you continue as a descendant.
 
-Each floor, a population of agents plays a full tournament. Agents are ranked, the weaker half is eliminated, and the survivors shape the next generation. If your current host dies but your lineage survives, you assume one of your descendants and continue the run.
+---
 
-The run has two phases:
+## What a run feels like
 
-- Ecosystem phase: your lineage competes against outside strategies
-- Civil war phase: once all outsiders are gone, only your lineage remains and the surviving branches fight until one final branch is left
+Each floor has two big layers:
 
-## Current features
+1. **Featured matches (you make decisions)**
+   - You get masked opponents (`Unknown Opponent N`) and decide actions round-by-round.
+   - You can manually play a move, follow autopilot, or use stances to automate behavior for a few rounds.
 
-- Seeded deterministic runs
-- Full round-robin floor tournaments
-- Featured player matches with hidden-opponent inference
-- Procedurally varied strategy genomes
-- Powerups that change scoring, move control, and referendum behavior
-- Genome edit choices between floors
-- Lineage inheritance and host succession
-- Better descendant naming for player branches
-- Build identity tags and descriptors
-- Global floor referendum layer
-- Civil war endgame
-- Typed interaction system with `InteractionController` and `RunSession` for queuing, inspecting, and auto-resolving player decisions
-- Featured match stance system: cooperate until betrayed, defect until punished, follow autopilot for N rounds, or lock last manual move for N rounds
-- Rich round breakdown showing directive resolution reasons and per-perk score adjustments
-- Web prototype UI for playing featured matches through a browser
-- Broad automated test coverage
+2. **Full floor tournament (everyone plays everyone)**
+   - After featured decisions, all agents resolve a full round-robin tournament.
+   - Rankings are computed from score (with wins as tiebreak support in summaries).
+   - The bottom portion is eliminated.
 
-## Core gameplay loop
+Between floors you:
+- pick 1 powerup,
+- pick 1 genome edit,
+- continue with survivors (or choose a successor if your host died).
 
-1. Create a population of agents
-2. Mark one agent as the player host
-3. Run a full floor tournament
-4. Rank agents by score and wins
-5. Eliminate the lower portion
-6. If your current host died but lineage survives, choose a successor
-7. Choose 1 powerup from a set of offers
-8. Choose 1 autopilot genome edit
-9. Grant some AI survivors random powerups
-10. Repopulate during ecosystem phase
-11. Transition to civil war once all outsiders are gone
-12. Continue until your lineage is destroyed or one final branch survives
+The run starts in the **ecosystem phase** (your lineage vs outsiders), then transitions to **civil war** once outsiders are gone (your surviving branches fight until one remains).
 
-## Project structure
+---
 
-    prisoners-gambit/
-    ├── README.md
-    ├── pyproject.toml
-    ├── .gitignore
-    ├── docs/
-    │   ├── architecture.md
-    │   ├── gameplay-design.md
-    │   ├── powerup-design.md
-    │   ├── event-model.md
-    │   └── roadmap.md
-    ├── src/
-    │   └── prisoners_gambit/
-    │       ├── __init__.py
-    │       ├── __main__.py
-    │       ├── app/
-    │       │   ├── __init__.py
-    │       │   ├── bootstrap.py
-    │       │   ├── interaction_controller.py
-    │       │   ├── run_application.py
-    │       │   └── service_container.py
-    │       ├── config/
-    │       │   ├── __init__.py
-    │       │   ├── settings.py
-    │       │   └── logging_config.py
-    │       ├── core/
-    │       │   ├── __init__.py
-    │       │   ├── analysis.py
-    │       │   ├── constants.py
-    │       │   ├── events.py
-    │       │   ├── genome_edits.py
-    │       │   ├── interaction.py
-    │       │   ├── models.py
-    │       │   ├── powerups.py
-    │       │   ├── scoring.py
-    │       │   └── strategy.py
-    │       ├── systems/
-    │       │   ├── __init__.py
-    │       │   ├── evolution.py
-    │       │   ├── genome_offers.py
-    │       │   ├── offers.py
-    │       │   ├── population.py
-    │       │   ├── progression.py
-    │       │   └── tournament.py
-    │       ├── content/
-    │       │   ├── __init__.py
-    │       │   ├── archetypes.py
-    │       │   ├── genome_edit_templates.py
-    │       │   ├── names.py
-    │       │   └── powerup_templates.py
-    │       ├── ui/
-    │       │   ├── __init__.py
-    │       │   ├── renderers.py
-    │       │   ├── terminal.py
-    │       │   └── view_models.py
-    │       ├── web/
-    │       │   ├── __init__.py
-    │       │   ├── server.py
-    │       │   └── web_slice.py
-    │       ├── adapters/
-    │       │   ├── __init__.py
-    │       │   ├── json_event_recorder.py
-    │       │   └── logging_event_listener.py
-    │       └── utils/
-    │           ├── __init__.py
-    │           ├── formatting.py
-    │           └── random_tools.py
-    ├── tests/
-    │   ├── test_analysis.py
-    │   ├── test_civil_war_phase.py
-    │   ├── test_content_generation.py
-    │   ├── test_events.py
-    │   ├── test_evolution.py
-    │   ├── test_genome_edits.py
-    │   ├── test_interaction_controller.py
-    │   ├── test_lineage_rules.py
-    │   ├── test_population.py
-    │   ├── test_powerups.py
-    │   ├── test_progression.py
-    │   ├── test_regressions.py
-    │   ├── test_run_application.py
-    │   ├── test_run_session.py
-    │   ├── test_scoring.py
-    │   ├── test_strategy.py
-    │   ├── test_terminal_renderer.py
-    │   ├── test_tournament.py
-    │   ├── test_view_models.py
-    │   └── test_web_slice.py
-    └── scripts/
-        ├── run_dev.sh
-        └── run_dev.bat
+## Quick start
 
-## Installation
+### 1) Create and activate a virtual environment
 
-Create and activate a virtual environment, then install the project in editable mode.
+#### Bash
 
-### PowerShell
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+```
 
-    python -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    pip install -e .[dev]
+#### PowerShell
 
-### Bash
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .[dev]
+```
 
-    python -m venv .venv
-    source .venv/bin/activate
-    pip install -e .[dev]
+### 2) Run the game
 
-## Running the game
+```bash
+python -m prisoners_gambit
+```
 
-Run the project with:
+If you prefer not to install first, a local fallback is:
 
-    python -m prisoners_gambit
+```bash
+PYTHONPATH=src python -m prisoners_gambit
+```
 
-## Seeding runs
+---
 
-Runs are deterministic when given the same seed.
+## Tutorial: your first terminal run
 
-If no seed is provided, the game generates one automatically and prints it at the start and end of the run.
+When a run starts, you'll see:
+- the run seed,
+- a floor roster with visible descriptors,
+- featured matches with masked opponents,
+- per-round breakdowns (planned moves, directive reasons, payoff modifiers).
 
-### PowerShell
+During featured rounds, you will typically choose between:
+- manual **Cooperate** or **Defect**,
+- stance controls (short-term behavioral locks),
+- autopilot-driven options.
 
-    $env:PG_SEED="123456789"
-    python -m prisoners_gambit
+After featured matches, you vote in a floor referendum, then see floor results, eliminations, and post-floor choices (powerup + genome edit).
 
-### Bash
+### Deterministic replay
 
-    export PG_SEED="123456789"
-    python -m prisoners_gambit
+Use a seed to replay a run:
 
-Use the printed seed to replay interesting runs.
+```bash
+PG_SEED=123456789 python -m prisoners_gambit
+```
 
-## Web prototype
+PowerShell:
 
-A browser-based prototype for playing featured matches is included.
+```powershell
+$env:PG_SEED="123456789"
+python -m prisoners_gambit
+```
 
-To start the web server:
+---
 
-    python -m prisoners_gambit.web.server
+## Autoplay mode (great for smoke tests)
 
-Then open `http://127.0.0.1:8765` in a browser.
+If you want to verify a full flow without manual input:
 
-The web UI runs a single `FeaturedMatchWebSession` driven over JSON. It exercises the full typed decision API and shows round results including the perk breakdown.
+```bash
+PG_SEED=20260311 \
+PG_FLOORS=3 \
+PG_AUTO_CHOOSE_POWERUPS=1 \
+PG_AUTO_CHOOSE_ROUND_ACTIONS=1 \
+PG_AUTO_CHOOSE_GENOME_EDITS=1 \
+PG_AUTO_CHOOSE_FLOOR_VOTE=1 \
+python -m prisoners_gambit
+```
 
-> **Note:** This is an early prototype. It is not a full game client — only featured match play is exposed through the browser interface.
+This is useful for quickly validating installs or sharing reproducible outcomes.
 
-## Useful environment variables
+---
 
-The game currently supports a handful of environment-driven settings.
+## Web prototype (new UI)
 
+A browser-based prototype is included for the decision flow.
+
+Start it with:
+
+```bash
+python -m prisoners_gambit.web.server
+```
+
+Then open:
+
+- `http://127.0.0.1:8765`
+
+### Web UI walkthrough
+
+1. Click **Start Run**.
+2. In **Current Decision**, choose available actions (manual move / stance / offers / edits / successor).
+3. Use **Continue Screen** when a non-decision panel is pending.
+4. Track updates in:
+   - **Latest Round Result**,
+   - **Floor Referendum**,
+   - **Floor Summary**,
+   - **Run Completion**,
+   - **Raw State** JSON panel.
+
+The web prototype is a full-run decision surface over typed state/actions, but it is still a prototype UI rather than a complete production client.
+
+---
+
+## Key environment variables
+
+### Core run configuration
 - `PG_SEED`
 - `PG_POPULATION_SIZE`
 - `PG_ROUNDS_PER_MATCH`
@@ -206,130 +155,44 @@ The game currently supports a handful of environment-driven settings.
 - `PG_FLOORS`
 - `PG_MUTATION_RATE`
 - `PG_DESCENDANT_MUTATION_BONUS`
+
+### Auto-choice helpers
 - `PG_AUTO_CHOOSE_POWERUPS`
 - `PG_AUTO_CHOOSE_ROUND_ACTIONS`
 - `PG_AUTO_CHOOSE_GENOME_EDITS`
 - `PG_AUTO_CHOOSE_FLOOR_VOTE`
+
+### Logging
 - `PG_LOG_LEVEL`
 - `PG_LOG_TO_CONSOLE`
 - `PG_LOG_TO_FILE`
 - `PG_LOG_FILE`
 
-Example:
+---
 
-    $env:PG_SEED="987654321"
-    $env:PG_POPULATION_SIZE="12"
-    $env:PG_ROUNDS_PER_MATCH="7"
-    python -m prisoners_gambit
+## Why keep a tiny architecture map?
 
-## Current mechanical layers
+A giant tree dump is noisy in a gameplay-first README, but a **minimal map** helps contributors quickly find behavior:
 
-### Strategy genome
+- `src/prisoners_gambit/app/` — run orchestration and interaction flow
+- `src/prisoners_gambit/core/` — models, scoring, interaction contracts
+- `src/prisoners_gambit/systems/` — tournaments, evolution, progression logic
+- `src/prisoners_gambit/ui/` — terminal rendering/view models
+- `src/prisoners_gambit/web/` — web prototype server + web slice
+- `tests/` — regression and system behavior coverage
 
-Each agent has an autopilot genome with:
-- first move
-- response to C/C
-- response to C/D
-- response to D/C
-- response to D/D
-- noise
+If you're only here to play, you can ignore this section.
 
-### Powerups
+---
 
-Perks can:
-- alter scores
-- force or redirect moves
-- shape referendum outcomes
-- create control-heavy or tempo-heavy builds
+## Current status
 
-### Genome edits
-
-Between floors, the player modifies the current host's autopilot in small but meaningful ways.
-
-### Build identity
-
-Agents are analyzed into readable tags and descriptors such as:
-- Cooperative
-- Aggressive
-- Retaliatory
-- Exploitative
-- Control
-- Referendum
-- Consensus
-- Punishing
-- Precise
-- Unstable
-
-These are used to make roster reading and successor selection more meaningful.
-
-### Referendum
-
-Once per floor, all agents participate in a global cooperation/defection vote.
-
-- If cooperation reaches majority or tie, cooperators get rewarded
-- If defection has majority, nobody gets rewarded
-
-### Succession
-
-If your current host is eliminated but descendants remain, you choose which surviving branch to become next.
-
-### Civil war
-
-When all outsiders are gone, the game enters a final civil war between surviving branches of your own lineage.
-
-## Testing
-
-Run the full test suite with:
-
-    python -m pytest -q
-
-At the current stage, the tests cover:
-- scoring
-- powerups
-- strategy genomes
-- genome edits
-- tournament logic and round breakdowns
-- evolution
-- progression
-- lineage transfer rules
-- civil war behavior
-- event model
-- content generation
-- view formatting
-- interaction controller and session state
-- terminal renderer decision flows
-- web slice handlers
-- regressions from previously discovered bugs
-
-## Design direction
-
-The project is moving toward a strategy roguelike where the most important decisions are not just tactical round inputs, but:
-
-- how you shape your lineage
-- which descendant you assume after death
-- how you read hidden opponents from incomplete information
-- whether you optimize for pairwise play, referendum play, or late civil war dominance
-
-## Documentation
-
-See the docs folder for more detailed design and architecture notes:
-
-- `docs/architecture.md`
-- `docs/event-model.md`
-- `docs/gameplay-design.md`
-- `docs/powerup-design.md`
-- `docs/roadmap.md`
-
-## Next likely features
-
-The strongest near-term candidates are:
-
-- stronger successor comparison tools
-- between-floor reroll or economy systems
-- more civil-war-specific content
-- saveable run transcripts or replay logs
-- expanded web UI beyond the featured match prototype
-
-## Notes
-
-The project started as terminal-first, but the simulation core is intentionally decoupled from any UI. The `InteractionController` and typed decision API now make it straightforward to drive the run from a terminal, a web browser, or any other front end. A web prototype for featured matches is already included in `web/`.
+Implemented and actively exercised in tests:
+- deterministic seeded runs,
+- full floor tournaments,
+- masked featured matches with typed decision states,
+- powerup + genome edit progression,
+- lineage succession,
+- referendum layer,
+- ecosystem-to-civil-war transition,
+- terminal UI and web prototype flows.
