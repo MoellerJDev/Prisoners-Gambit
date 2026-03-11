@@ -405,3 +405,10 @@ def test_reset_featured_match_autopilot_syncs_session_snapshot() -> None:
     assert controller.snapshot.active_featured_stance is None
     assert session.latest_snapshot.active_featured_stance is None
     assert session.update_calls == 1
+
+
+def test_set_floor_context_rejects_unknown_phase() -> None:
+    controller = InteractionController(renderer=NewRendererStub())
+
+    with pytest.raises(ValueError, match="Invalid phase"):
+        controller.set_floor_context(floor_number=2, phase="unknown")

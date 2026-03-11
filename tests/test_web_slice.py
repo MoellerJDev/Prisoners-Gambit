@@ -396,3 +396,36 @@ def test_run_server_defaults_to_loopback_host(monkeypatch) -> None:
     assert captured["address"] == ("127.0.0.1", 9999)
     assert captured["handler"] is Handler
     assert captured["served"] is True
+
+
+def test_web_api_keeps_session_state_isolated_per_server_instance() -> None:
+    from http.server import ThreadingHTTPServer
+
+    server_a = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server_b = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port_a = server_a.server_address[1]
+    port_b = server_b.server_address[1]
+    thread_a = threading.Thread(target=server_a.serve_forever, daemon=True)
+    thread_b = threading.Thread(target=server_b.serve_forever, daemon=True)
+    thread_a.start()
+    thread_b.start()
+
+    try:
+        req = Request(f"http://127.0.0.1:{port_a}/api/run/start", method="POST")
+        with urlopen(req) as resp:
+            started = json.loads(resp.read().decode("utf-8"))
+        assert started["status"] == "awaiting_decision"
+
+        with urlopen(f"http://127.0.0.1:{port_a}/api/state") as resp:
+            state_a = json.loads(resp.read().decode("utf-8"))
+        with urlopen(f"http://127.0.0.1:{port_b}/api/state") as resp:
+            state_b = json.loads(resp.read().decode("utf-8"))
+
+        assert state_a["status"] == "awaiting_decision"
+        assert state_b["status"] == "not_started"
+        assert state_b["decision_type"] is None
+    finally:
+        server_a.shutdown()
+        server_a.server_close()
+        server_b.shutdown()
+        server_b.server_close()

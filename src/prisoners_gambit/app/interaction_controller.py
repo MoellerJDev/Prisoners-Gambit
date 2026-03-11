@@ -120,8 +120,10 @@ class InteractionController:
         self.renderer.show_run_header(seed)
 
     def set_floor_context(self, floor_number: int, phase: str) -> None:
+        if phase not in {"ecosystem", "civil_war"}:
+            raise ValueError(f"Invalid phase: {phase}. Must be 'ecosystem' or 'civil_war'.")
         self.snapshot.current_floor = floor_number
-        self.snapshot.current_phase = "civil_war" if phase == "civil_war" else "ecosystem"
+        self.snapshot.current_phase = phase
         self._sync_session_snapshot()
 
     def set_floor_roster(self, floor_number: int, roster_entries) -> None:
@@ -358,36 +360,55 @@ class InteractionController:
         self.session.update_snapshot(self.snapshot)
 
     def _resolve_featured_round_decision(self, state: DecisionState) -> PlayerAction:
-        assert isinstance(state, FeaturedRoundDecisionState)
-        if hasattr(self.renderer, "resolve_featured_round_decision"):
-            return self.renderer.resolve_featured_round_decision(state)
+        if not isinstance(state, FeaturedRoundDecisionState):
+            raise TypeError(f"Expected FeaturedRoundDecisionState, got {type(state).__name__}")
+        resolver = getattr(self.renderer, "resolve_featured_round_decision", None)
+        if callable(resolver):
+            return resolver(state)
         legacy_move = self.renderer.choose_round_action(state.prompt)
         return ChooseRoundMoveAction(mode="manual_move", move=legacy_move)
 
     def _resolve_floor_vote_decision(self, state: DecisionState) -> PlayerAction:
-        assert isinstance(state, FloorVoteDecisionState)
-        if hasattr(self.renderer, "resolve_floor_vote_decision"):
-            return self.renderer.resolve_floor_vote_decision(state)
+        if not isinstance(state, FloorVoteDecisionState):
+            raise TypeError(f"Expected FloorVoteDecisionState, got {type(state).__name__}")
+        resolver = getattr(self.renderer, "resolve_floor_vote_decision", None)
+        if callable(resolver):
+            return resolver(state)
         legacy_vote = self.renderer.choose_floor_vote(state.prompt)
         return ChooseFloorVoteAction(mode="manual_vote", vote=legacy_vote)
 
     def _resolve_powerup_choice(self, state: DecisionState, offers: list[Powerup]) -> PlayerAction:
-        assert isinstance(state, PowerupChoiceState)
-        if hasattr(self.renderer, "resolve_powerup_choice"):
-            return self.renderer.resolve_powerup_choice(state)
+        if not isinstance(state, PowerupChoiceState):
+            raise TypeError(f"Expected PowerupChoiceState, got {type(state).__name__}")
+        resolver = getattr(self.renderer, "resolve_powerup_choice", None)
+        if callable(resolver):
+            return resolver(state)
         chosen = self.renderer.choose_powerup(offers)
-        return ChoosePowerupAction(offer_index=offers.index(chosen))
+        for index, offer in enumerate(offers):
+            if offer == chosen:
+                return ChoosePowerupAction(offer_index=index)
+        raise ValueError(f"Renderer returned an unknown powerup choice: {chosen!r}")
 
     def _resolve_genome_edit_choice(self, state: DecisionState, offers: list[GenomeEdit]) -> PlayerAction:
-        assert isinstance(state, GenomeEditChoiceState)
-        if hasattr(self.renderer, "resolve_genome_edit_choice"):
-            return self.renderer.resolve_genome_edit_choice(state)
+        if not isinstance(state, GenomeEditChoiceState):
+            raise TypeError(f"Expected GenomeEditChoiceState, got {type(state).__name__}")
+        resolver = getattr(self.renderer, "resolve_genome_edit_choice", None)
+        if callable(resolver):
+            return resolver(state)
         chosen = self.renderer.choose_genome_edit(offers, current_summary=state.current_summary)
-        return ChooseGenomeEditAction(offer_index=offers.index(chosen))
+        for index, offer in enumerate(offers):
+            if offer == chosen:
+                return ChooseGenomeEditAction(offer_index=index)
+        raise ValueError(f"Renderer returned an unknown genome edit choice: {chosen!r}")
 
     def _resolve_successor_choice(self, state: DecisionState, candidates: list[Agent]) -> PlayerAction:
-        assert isinstance(state, SuccessorChoiceState)
-        if hasattr(self.renderer, "resolve_successor_choice"):
-            return self.renderer.resolve_successor_choice(state)
+        if not isinstance(state, SuccessorChoiceState):
+            raise TypeError(f"Expected SuccessorChoiceState, got {type(state).__name__}")
+        resolver = getattr(self.renderer, "resolve_successor_choice", None)
+        if callable(resolver):
+            return resolver(state)
         chosen = self.renderer.choose_successor(candidates)
-        return ChooseSuccessorAction(candidate_index=candidates.index(chosen))
+        for index, candidate in enumerate(candidates):
+            if candidate == chosen:
+                return ChooseSuccessorAction(candidate_index=index)
+        raise ValueError(f"Renderer returned an unknown successor choice: {chosen!r}")
