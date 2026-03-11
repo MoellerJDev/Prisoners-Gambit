@@ -82,6 +82,8 @@ class RunSession:
 
         if self._queued_action is not None:
             action = self._queued_action
+            if self._expected_action_types and not isinstance(action, self._expected_action_types):
+                raise ValueError(f"Queued action type is invalid for current decision: {type(action).__name__}")
             self._queued_action = None
         else:
             action = default_resolver(self.current_decision)
@@ -167,8 +169,10 @@ class InteractionController:
         self._sync_session_snapshot()
 
     def complete_run(self, outcome: str, floor_number: int, player_name: str, seed: int | None) -> None:
+        if outcome not in {"victory", "eliminated"}:
+            raise ValueError(f"Invalid outcome: {outcome}. Must be 'victory' or 'eliminated'.")
         completion = RunCompletion(
-            outcome="victory" if outcome == "victory" else "eliminated",
+            outcome=outcome,
             floor_number=floor_number,
             player_name=player_name,
             seed=seed,

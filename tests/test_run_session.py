@@ -92,3 +92,19 @@ def test_invalid_action_rejected_for_wrong_decision_type() -> None:
         assert False, "Expected ValueError for wrong action type"
     except ValueError:
         pass
+
+
+def test_session_revalidates_stale_queued_action_after_decision_changes() -> None:
+    session = RunSession()
+    snap = RunSnapshot()
+    session.start(snap)
+
+    session.begin_decision(_round_state(), (ChooseRoundMoveAction,), snap)
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.begin_decision(_round_state(), (ChooseFloorVoteAction,), snap)
+
+    try:
+        session.resolve_current_decision(lambda _: ChooseFloorVoteAction(mode="autopilot_vote"))
+        assert False, "Expected ValueError for stale queued action"
+    except ValueError as exc:
+        assert "Queued action type is invalid for current decision" in str(exc)
