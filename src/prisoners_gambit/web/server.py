@@ -28,6 +28,7 @@ _stance_options_default: tuple[str, ...] = next(
 )
 _ROUND_STANCE_OPTIONS = set(_stance_options_default)
 _ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
+_MAX_REQUEST_BODY_BYTES = 16 * 1024
 
 
 HTML = """<!doctype html>
@@ -466,7 +467,17 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, status=404)
             return
 
-        length = int(self.headers.get("Content-Length", "0"))
+        try:
+            raw_length = self.headers.get("Content-Length", "0")
+            length = int(raw_length)
+            if length < 0:
+                raise ValueError
+        except ValueError:
+            self._json({"error": "invalid Content-Length"}, status=400)
+            return
+        if length > _MAX_REQUEST_BODY_BYTES:
+            self._json({"error": "request body too large"}, status=413)
+            return
         raw = self.rfile.read(length).decode("utf-8") if length else "{}"
         try:
             payload = json.loads(raw)

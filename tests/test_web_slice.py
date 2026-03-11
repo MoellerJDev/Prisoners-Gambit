@@ -1,7 +1,10 @@
 import json
+import http.client
 import threading
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
+import pytest
 
 from prisoners_gambit.core.constants import COOPERATE
 from prisoners_gambit.core.interaction import (
@@ -43,6 +46,21 @@ def test_featured_match_web_session_supports_stance_actions() -> None:
     )
     session.advance()
     assert session.view()["snapshot"]["active_featured_stance"] is not None
+
+
+def test_featured_match_web_session_rejects_duration_stance_without_rounds() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=3)
+    session.start()
+    session.submit_action(
+        ChooseRoundStanceAction(
+            mode="set_round_stance",
+            stance="follow_autopilot_for_n_rounds",
+            rounds=0,
+        )
+    )
+
+    with pytest.raises(ValueError, match="requires rounds > 0"):
+        session.advance()
 
 
 def test_web_session_advances_through_full_run_loop() -> None:
@@ -218,6 +236,47 @@ def test_web_api_rejects_invalid_vote_and_stance_payloads() -> None:
             body = json.loads(exc.read().decode("utf-8"))
             assert exc.code == 400
             assert body["error"] == "rounds required for selected stance"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_web_api_rejects_invalid_and_oversized_content_length() -> None:
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port)
+        conn.putrequest("POST", "/api/action")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", "abc")
+        conn.endheaders()
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 400
+        assert body["error"] == "invalid Content-Length"
+        conn.close()
+
+        oversized_body = json.dumps({"type": "manual_move", "move": "C", "padding": "x" * 20000}).encode("utf-8")
+        conn = http.client.HTTPConnection("127.0.0.1", port)
+        conn.request(
+            "POST",
+            "/api/action",
+            body=oversized_body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(oversized_body)),
+            },
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 413
+        assert body["error"] == "request body too large"
+        conn.close()
     finally:
         server.shutdown()
         server.server_close()

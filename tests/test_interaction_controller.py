@@ -1,3 +1,5 @@
+import pytest
+
 from prisoners_gambit.app.interaction_controller import InteractionController, RunSession
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
@@ -343,6 +345,37 @@ def test_manual_override_clears_active_stance() -> None:
 
     assert move == DEFECT
     assert controller.snapshot.active_featured_stance is None
+
+
+def test_duration_based_stance_requires_positive_rounds() -> None:
+    controller = InteractionController(renderer=NewRendererStub())
+    prompt = FeaturedMatchPrompt(
+        floor_number=1,
+        masked_opponent_label="Unknown",
+        round_index=0,
+        total_rounds=3,
+        my_history=[],
+        opp_history=[],
+        my_match_score=0,
+        opp_match_score=0,
+        suggested_move=COOPERATE,
+        roster_entries=[],
+    )
+    controller.session.begin_decision(
+        FeaturedRoundDecisionState(prompt=prompt),
+        (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction),
+        controller.snapshot,
+    )
+    controller.session.submit_action(
+        ChooseRoundStanceAction(
+            mode="set_round_stance",
+            stance="follow_autopilot_for_n_rounds",
+            rounds=0,
+        )
+    )
+
+    with pytest.raises(ValueError, match="requires rounds > 0"):
+        controller.choose_round_move(FeaturedRoundDecisionState(prompt=prompt))
 
 
 def test_reset_featured_match_autopilot_syncs_session_snapshot() -> None:
