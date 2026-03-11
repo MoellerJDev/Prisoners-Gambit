@@ -70,12 +70,24 @@ def format_featured_prompt(prompt: FeaturedMatchPrompt) -> str:
 
 
 def format_round_result(result: FeaturedRoundResult) -> str:
+    score_adjustments = "none"
+    if result.breakdown.score_adjustments:
+        lines = [
+            f"{adjustment.source}: {adjustment.player_delta:+}/{adjustment.opponent_delta:+}"
+            for adjustment in result.breakdown.score_adjustments
+        ]
+        score_adjustments = ", ".join(lines)
+
     return (
-        f"Resolved round {result.round_index + 1}/{result.total_rounds} | "
-        f"You={move_symbol(result.player_move)} [{result.player_reason}] "
-        f"Opp={move_symbol(result.opponent_move)} [{result.opponent_reason}] | "
-        f"delta {result.player_delta}/{result.opponent_delta} | "
-        f"match total {result.player_total}/{result.opponent_total}"
+        f"Round {result.round_index + 1}/{result.total_rounds}\n"
+        f"- Autopilot planned: You={move_symbol(result.breakdown.player_plan)}, "
+        f"Opp={move_symbol(result.breakdown.opponent_plan)}\n"
+        f"- Directives: You={result.player_reason} | Opp={result.opponent_reason}\n"
+        f"- Final moves: You={move_symbol(result.player_move)}, Opp={move_symbol(result.opponent_move)}\n"
+        f"- Base payoff: {result.breakdown.base_player_points} / {result.breakdown.base_opponent_points}\n"
+        f"- Score modifiers: {score_adjustments}\n"
+        f"- Final payoff: {result.player_delta} / {result.opponent_delta}\n"
+        f"- Match total: {result.player_total} / {result.opponent_total}"
     )
 
 
