@@ -57,13 +57,28 @@ def test_featured_match_web_session_persists_match_autopilot_across_rounds() -> 
 
     session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
     session.advance()
-    assert session.view()["snapshot"]["latest_featured_round"] is not None
+    assert session.view()["snapshot"]["latest_featured_round"]["round_index"] == 0
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
 
     session.advance()
     assert session.view()["snapshot"]["latest_featured_round"]["round_index"] == 1
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
 
     session.advance()
     assert session.view()["decision_type"] == "FloorVoteDecisionState"
+
+
+def test_featured_match_web_session_clears_match_autopilot_after_manual_move() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=3)
+    session.start()
+
+    session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
+    session.advance()
+    assert session.should_autopilot_featured_match is True
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    assert session.should_autopilot_featured_match is False
 
 
 def test_featured_match_web_session_rejects_duration_stance_without_rounds() -> None:
