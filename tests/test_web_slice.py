@@ -246,27 +246,32 @@ def test_web_api_rejects_invalid_vote_and_stance_payloads() -> None:
 def test_web_api_rejects_invalid_and_oversized_content_length() -> None:
     from http.server import ThreadingHTTPServer
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    class Http11Handler(Handler):
+        protocol_version = "HTTP/1.1"
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Http11Handler)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
     try:
-        conn = http.client.HTTPConnection("127.0.0.1", port)
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
         conn.putrequest("POST", "/api/action")
         conn.putheader("Content-Type", "application/json")
         conn.putheader("Content-Length", "abc")
+        conn.putheader("Connection", "keep-alive")
         conn.endheaders()
         response = conn.getresponse()
         body = json.loads(response.read().decode("utf-8"))
         assert response.status == 400
         assert body["error"] == "invalid Content-Length"
+        assert conn.sock is None
         conn.close()
 
         oversized_body = json.dumps(
             {"type": "manual_move", "move": "C", "padding": "x" * TEST_PADDING_LENGTH}
         ).encode("utf-8")
-        conn = http.client.HTTPConnection("127.0.0.1", port)
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
         conn.request(
             "POST",
             "/api/action",
@@ -274,12 +279,14 @@ def test_web_api_rejects_invalid_and_oversized_content_length() -> None:
             headers={
                 "Content-Type": "application/json",
                 "Content-Length": str(len(oversized_body)),
+                "Connection": "keep-alive",
             },
         )
         response = conn.getresponse()
         body = json.loads(response.read().decode("utf-8"))
         assert response.status == 413
         assert body["error"] == "request body too large"
+        assert conn.sock is None
         conn.close()
     finally:
         server.shutdown()
