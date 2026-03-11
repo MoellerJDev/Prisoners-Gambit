@@ -121,7 +121,7 @@ class InteractionController:
 
     def set_floor_context(self, floor_number: int, phase: str) -> None:
         if phase not in {"ecosystem", "civil_war"}:
-            raise ValueError(f"Invalid phase: {phase}")
+            raise ValueError(f"Invalid phase: {phase}. Must be 'ecosystem' or 'civil_war'.")
         self.snapshot.current_floor = floor_number
         self.snapshot.current_phase = phase
         self._sync_session_snapshot()
@@ -387,7 +387,7 @@ class InteractionController:
         for index, offer in enumerate(offers):
             if offer == chosen:
                 return ChoosePowerupAction(offer_index=index)
-        raise ValueError("Renderer returned a powerup choice that is not in the offer list.")
+        raise ValueError(f"Renderer returned an unknown powerup choice: {chosen!r}")
 
     def _resolve_genome_edit_choice(self, state: DecisionState, offers: list[GenomeEdit]) -> PlayerAction:
         if not isinstance(state, GenomeEditChoiceState):
@@ -399,7 +399,7 @@ class InteractionController:
         for index, offer in enumerate(offers):
             if offer == chosen:
                 return ChooseGenomeEditAction(offer_index=index)
-        raise ValueError("Renderer returned a genome edit choice that is not in the offer list.")
+        raise ValueError(f"Renderer returned an unknown genome edit choice: {chosen!r}")
 
     def _resolve_successor_choice(self, state: DecisionState, candidates: list[Agent]) -> PlayerAction:
         if not isinstance(state, SuccessorChoiceState):
@@ -411,4 +411,4 @@ class InteractionController:
         for index, candidate in enumerate(candidates):
             if candidate == chosen:
                 return ChooseSuccessorAction(candidate_index=index)
-        raise ValueError("Renderer returned a successor choice that is not in the candidate list.")
+        raise ValueError(f"Renderer returned an unknown successor choice: {chosen!r}")
