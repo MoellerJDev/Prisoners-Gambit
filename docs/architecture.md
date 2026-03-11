@@ -39,6 +39,7 @@ Important files:
 - `bootstrap.py`
 - `service_container.py`
 - `run_application.py`
+- `interaction_controller.py`
 
 Responsibilities:
 - load settings
@@ -47,6 +48,7 @@ Responsibilities:
 - start the run
 - coordinate progression across floors
 - handle lineage succession and phase changes
+- manage typed player decisions through `InteractionController`
 
 ### `src/prisoners_gambit/config`
 Environment-driven configuration and logging setup.
@@ -67,7 +69,8 @@ Important concepts:
 - `Powerup`
 - `RoundContext`
 - `ReferendumContext`
-- interaction models
+- interaction models (typed decision states, player actions, `RunSnapshot`, `RunCompletion`)
+- round breakdown structures (`RoundResolutionBreakdown`, `RoundDirectiveResolution`, `ScoreAdjustment`)
 - scoring primitives
 - derived build identity analysis
 
@@ -109,9 +112,24 @@ Currently this is terminal-focused, but the interfaces are designed so other fro
 Responsibilities:
 - render floor summaries
 - render roster information
-- collect player choices
+- collect player choices via `Renderer` protocol and `resolve_*` methods
 - show successor selection
 - display phase transitions and run results
+
+### `src/prisoners_gambit/web`
+Web prototype front end.
+
+A lightweight HTTP server and a `FeaturedMatchWebSession` that drives featured match play over JSON.
+
+Important files:
+- `web_slice.py` — `FeaturedMatchWebSession` drives the match state and typed decisions
+- `server.py` — HTTP handler and interactive HTML page served at `http://127.0.0.1:8765`
+
+To start the server:
+
+    python -m prisoners_gambit.web.server
+
+This is an early prototype. Only the featured match loop is exposed through the browser. The full run loop still runs in the terminal.
 
 ### `src/prisoners_gambit/adapters`
 External-facing or auxiliary integrations.
@@ -176,6 +194,31 @@ A perk may:
 - alter referendum rewards
 
 Contradictions are resolved deterministically through directive priority.
+
+### Round Resolution Breakdown
+
+When a featured round resolves, a `RoundResolutionBreakdown` captures the full detail:
+
+- the planned (genome) move for each side
+- the directive resolution trace showing which powerup fired and why
+- the base payoff before adjustments
+- each `ScoreAdjustment` that a perk applied
+- the final point totals
+
+This makes powerup effects transparent and debuggable rather than hidden inside scoring.
+
+### InteractionController and RunSession
+
+`InteractionController` is the bridge between the run loop and any front end.
+
+It:
+- wraps a `Renderer` with a typed decision layer
+- exposes `RunSession` which tracks `SessionStatus`, the current `DecisionState`, and the latest `RunSnapshot`
+- accepts pre-queued `PlayerAction` objects so non-terminal clients can submit decisions before the loop asks for them
+- auto-resolves decisions through the renderer or a default resolver when no action is queued
+- keeps a `RunSnapshot` up to date so clients can poll the current state at any time
+
+This is what allows the web prototype to drive the same match logic that the terminal renderer uses.
 
 ### Build Identity
 
@@ -325,15 +368,20 @@ The simulation should not depend on:
 - `input`
 - terminal formatting
 
-Instead, the renderer interface handles:
+Instead, the `Renderer` protocol handles:
 - displaying information
 - collecting decisions
 - showing transitions and results
 
+The `InteractionController` sits in front of the renderer and adds:
+- typed `DecisionState` objects that describe what kind of decision is pending
+- a `RunSession` that tracks status and the latest `RunSnapshot`
+- the ability to pre-queue a `PlayerAction` so non-terminal clients can drive the run loop
+
 This keeps the path open for:
 - richer terminal UX
 - graphical desktop client
-- web front end
+- web front end (prototype already in `web/`)
 
 ## Testing Strategy
 
@@ -344,6 +392,11 @@ The project uses layered tests:
 - lineage and civil war rules tests
 - regression tests for previously discovered bugs
 - view model tests for stable text formatting
+- interaction controller and session state tests (`test_interaction_controller.py`, `test_run_session.py`)
+- terminal renderer decision flow tests (`test_terminal_renderer.py`)
+- tournament round breakdown tests (`test_tournament.py`)
+- web slice handler tests (`test_web_slice.py`)
+- integration smoke tests for `RunApplication`
 
 The goal is to catch both:
 - logic bugs
@@ -354,11 +407,11 @@ The goal is to catch both:
 The next likely structural improvements are:
 
 - richer successor-screen information
-- action pacing tools for featured matches
 - economy / reroll system between floors
 - saveable run transcripts or replay logs
 - more formal separation of run phases into explicit phase objects
+- expanded web front end beyond the featured match prototype
 
 ## Summary
 
-Prisoner's Gambit is architected as a deterministic, testable simulation core with a modular front end and content layer. The most important design choice is treating the player as a lineage rather than a single body, which allows the game to evolve from a simple prisoner's dilemma tournament into a strategy roguelike with inheritance, succession, and civil war.
+Prisoner's Gambit is architected as a deterministic, testable simulation core with a modular front end and content layer. The `InteractionController` and typed decision API decouple the run loop from any specific renderer, enabling the same core logic to drive a terminal session, a web browser, or any future client. The most important design choice remains treating the player as a lineage rather than a single body, which allows the game to evolve from a simple prisoner's dilemma tournament into a strategy roguelike with inheritance, succession, and civil war.
