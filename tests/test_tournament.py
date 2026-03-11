@@ -3,7 +3,11 @@ import random
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import (
+    CounterIntel,
+    DirectivePriority,
     GoldenHandshake,
+    MoveDirective,
+    Powerup,
     TrustDividend,
     UnityTicket,
 )
@@ -19,6 +23,7 @@ class StubRenderer:
         self.round_results = 0
         self.floor_votes = 0
         self.rosters = 0
+        self.last_round_result = None
 
     def show_floor_roster(self, floor_number, roster_entries):
         self.rosters += 1
@@ -29,6 +34,7 @@ class StubRenderer:
 
     def show_round_result(self, result):
         self.round_results += 1
+        self.last_round_result = result
 
     def choose_floor_vote(self, prompt):
         self.floor_votes += 1
@@ -275,3 +281,115 @@ def test_run_floor_resets_scores_and_wins_before_playing() -> None:
     for agent in ranked:
         assert agent.score < 999
         assert agent.wins < 999
+
+
+def test_featured_round_breakdown_no_directives_has_no_score_modifiers() -> None:
+    renderer = StubRenderer()
+    you = static_agent("You", COOPERATE, is_player=True, lineage_id=1)
+    opp = static_agent("Opp", COOPERATE)
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(2), renderer=renderer)
+    engine.play_featured_player_match(
+        player=you,
+        opponent=opp,
+        rounds_per_match=1,
+        floor_number=1,
+        roster_entries=[],
+        masked_opponent_label="Unknown Opponent 1",
+    )
+
+    assert renderer.last_round_result is not None
+    assert renderer.last_round_result.breakdown.player_directives.reason == "base"
+    assert renderer.last_round_result.breakdown.opponent_directives.reason == "base"
+    assert renderer.last_round_result.breakdown.score_adjustments == []
+
+
+def test_featured_round_breakdown_tracks_single_winning_directive() -> None:
+    renderer = StubRenderer()
+    you = static_agent("You", DEFECT, is_player=True, lineage_id=1)
+    opp = static_agent("Opp", COOPERATE)
+    opp.powerups.append(CounterIntel())
+
+    engine = TournamentEngine(base_rounds_per_match=2, rng=random.Random(1), renderer=renderer)
+    engine.play_featured_player_match(
+        player=you,
+        opponent=opp,
+        rounds_per_match=2,
+        floor_number=1,
+        roster_entries=[],
+        masked_opponent_label="Unknown Opponent 1",
+    )
+
+    assert renderer.last_round_result is not None
+    assert renderer.last_round_result.breakdown.player_directives.reason == "Counter-Intel@200"
+    assert renderer.last_round_result.player_move == COOPERATE
+
+
+class ForceCooperate(Powerup):
+    name = "Force C"
+
+    def self_move_directives(self, *, owner, opponent, context):
+        return [MoveDirective(move=COOPERATE, priority=DirectivePriority.FORCE, source=self.name)]
+
+
+class ForceDefect(Powerup):
+    name = "Force D"
+
+    def self_move_directives(self, *, owner, opponent, context):
+        return [MoveDirective(move=DEFECT, priority=DirectivePriority.FORCE, source=self.name)]
+
+
+class AlwaysBonus(Powerup):
+    def __init__(self, name: str, bonus: int) -> None:
+        self.name = name
+        self.bonus = bonus
+
+    def on_score(self, *, owner, opponent, my_move, opp_move, my_points, opp_points, context):
+        return my_points + self.bonus, opp_points
+
+
+def test_featured_round_breakdown_conflicting_equal_priority_directives_defect() -> None:
+    renderer = StubRenderer()
+    you = static_agent("You", COOPERATE, is_player=True, lineage_id=1)
+    you.powerups.extend([ForceCooperate(), ForceDefect()])
+    opp = static_agent("Opp", COOPERATE)
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(1), renderer=renderer)
+    engine.play_featured_player_match(
+        player=you,
+        opponent=opp,
+        rounds_per_match=1,
+        floor_number=1,
+        roster_entries=[],
+        masked_opponent_label="Unknown Opponent 1",
+    )
+
+    assert renderer.last_round_result is not None
+    assert renderer.last_round_result.player_reason == "conflict@200->D"
+    assert renderer.last_round_result.player_move == DEFECT
+
+
+def test_featured_round_breakdown_tracks_multiple_score_powerups() -> None:
+    renderer = StubRenderer()
+    you = static_agent("You", DEFECT, is_player=True, lineage_id=1)
+    you.powerups.append(AlwaysBonus(name="Player Bonus", bonus=2))
+    opp = static_agent("Opp", COOPERATE)
+    opp.powerups.append(AlwaysBonus(name="Opponent Bonus", bonus=1))
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(1), renderer=renderer)
+    engine.play_featured_player_match(
+        player=you,
+        opponent=opp,
+        rounds_per_match=1,
+        floor_number=1,
+        roster_entries=[],
+        masked_opponent_label="Unknown Opponent 1",
+    )
+
+    assert renderer.last_round_result is not None
+    adjustments = renderer.last_round_result.breakdown.score_adjustments
+    assert len(adjustments) == 2
+    assert adjustments[0].source == "Player Bonus"
+    assert adjustments[0].player_delta == 2
+    assert adjustments[1].source == "Opponent Bonus"
+    assert adjustments[1].opponent_delta == 1

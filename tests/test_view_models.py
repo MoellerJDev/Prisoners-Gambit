@@ -5,8 +5,12 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundResult,
     FloorVotePrompt,
     FloorVoteResult,
+    RoundDirectiveResolution,
+    RoundResolutionBreakdown,
     RosterEntry,
+    ScoreAdjustment,
 )
+from prisoners_gambit.core.powerups import MoveDirective
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import TrustDividend
 from prisoners_gambit.core.strategy import StrategyGenome
@@ -124,12 +128,36 @@ def test_format_round_result_includes_reasons_and_totals() -> None:
         opponent_total=2,
         player_reason="base",
         opponent_reason="Saboteur Bloc@200",
+        breakdown=RoundResolutionBreakdown(
+            player_plan=COOPERATE,
+            opponent_plan=DEFECT,
+            player_directives=RoundDirectiveResolution(
+                base_move=COOPERATE,
+                final_move=COOPERATE,
+                reason="base",
+                directives=[],
+            ),
+            opponent_directives=RoundDirectiveResolution(
+                base_move=DEFECT,
+                final_move=DEFECT,
+                reason="Saboteur Bloc@200",
+                directives=[MoveDirective(move=DEFECT, priority=200, source="Saboteur Bloc")],
+            ),
+            base_player_points=0,
+            base_opponent_points=1,
+            score_adjustments=[
+                ScoreAdjustment(source="Spite Engine", player_delta=0, opponent_delta=1),
+            ],
+            final_player_points=0,
+            final_opponent_points=2,
+        ),
     )
     text = format_round_result(result)
 
-    assert "You=C [base]" in text
-    assert "Opp=D [Saboteur Bloc@200]" in text
-    assert "match total 0/2" in text
+    assert "Autopilot planned: You=C, Opp=D" in text
+    assert "Directives: You=base | Opp=Saboteur Bloc@200" in text
+    assert "Score modifiers: Spite Engine: +0/+1" in text
+    assert "Match total: 0 / 2" in text
 
 
 def test_format_floor_vote_prompt_includes_label_and_powerups() -> None:

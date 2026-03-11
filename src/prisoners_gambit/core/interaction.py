@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
+
+from prisoners_gambit.core.powerups import MoveDirective
 
 
 @dataclass(slots=True)
@@ -39,6 +42,35 @@ class FeaturedRoundResult:
     opponent_total: int
     player_reason: str
     opponent_reason: str
+    breakdown: RoundResolutionBreakdown
+
+
+@dataclass(slots=True)
+class RoundDirectiveResolution:
+    base_move: int
+    final_move: int
+    reason: str
+    directives: list[MoveDirective]
+
+
+@dataclass(slots=True)
+class ScoreAdjustment:
+    source: str
+    player_delta: int
+    opponent_delta: int
+
+
+@dataclass(slots=True)
+class RoundResolutionBreakdown:
+    player_plan: int
+    opponent_plan: int
+    player_directives: RoundDirectiveResolution
+    opponent_directives: RoundDirectiveResolution
+    base_player_points: int
+    base_opponent_points: int
+    score_adjustments: list[ScoreAdjustment]
+    final_player_points: int
+    final_opponent_points: int
 
 
 @dataclass(slots=True)
@@ -58,3 +90,120 @@ class FloorVoteResult:
     defectors: int
     player_vote: int
     player_reward: int
+
+
+@dataclass(slots=True)
+class RunHeaderState:
+    seed: int | None
+
+
+@dataclass(slots=True)
+class FloorRosterState:
+    floor_number: int
+    roster_entries: list[RosterEntry]
+
+
+@dataclass(slots=True)
+class FloorSummaryState:
+    floor_number: int
+    ranked_agent_ids: list[int]
+    ranked_agent_names: list[str]
+
+
+@dataclass(slots=True)
+class FeaturedRoundDecisionState:
+    prompt: FeaturedMatchPrompt
+    valid_actions: tuple[Literal["manual_move", "autopilot_round", "autopilot_match"], ...] = (
+        "manual_move",
+        "autopilot_round",
+        "autopilot_match",
+    )
+
+
+@dataclass(slots=True)
+class FloorVoteDecisionState:
+    prompt: FloorVotePrompt
+    valid_actions: tuple[Literal["manual_vote", "autopilot_vote"], ...] = ("manual_vote", "autopilot_vote")
+
+
+@dataclass(slots=True)
+class PowerupChoiceState:
+    floor_number: int
+    offers: list[str]
+    valid_actions: tuple[Literal["choose_powerup"], ...] = ("choose_powerup",)
+
+
+@dataclass(slots=True)
+class GenomeEditChoiceState:
+    floor_number: int
+    current_summary: str
+    offers: list[str]
+    valid_actions: tuple[Literal["choose_genome_edit"], ...] = ("choose_genome_edit",)
+
+
+@dataclass(slots=True)
+class SuccessorChoiceState:
+    floor_number: int
+    candidates: list[str]
+    valid_actions: tuple[Literal["choose_successor"], ...] = ("choose_successor",)
+
+
+DecisionState = (
+    FeaturedRoundDecisionState
+    | FloorVoteDecisionState
+    | PowerupChoiceState
+    | GenomeEditChoiceState
+    | SuccessorChoiceState
+)
+
+
+@dataclass(slots=True)
+class ChooseRoundMoveAction:
+    mode: Literal["manual_move"]
+    move: int
+
+
+@dataclass(slots=True)
+class ChooseRoundAutopilotAction:
+    mode: Literal["autopilot_round", "autopilot_match"]
+
+
+@dataclass(slots=True)
+class ChooseFloorVoteAction:
+    mode: Literal["manual_vote", "autopilot_vote"]
+    vote: int | None = None
+
+
+@dataclass(slots=True)
+class ChoosePowerupAction:
+    offer_index: int
+
+
+@dataclass(slots=True)
+class ChooseGenomeEditAction:
+    offer_index: int
+
+
+@dataclass(slots=True)
+class ChooseSuccessorAction:
+    candidate_index: int
+
+
+PlayerAction = (
+    ChooseRoundMoveAction
+    | ChooseRoundAutopilotAction
+    | ChooseFloorVoteAction
+    | ChoosePowerupAction
+    | ChooseGenomeEditAction
+    | ChooseSuccessorAction
+)
+
+
+@dataclass(slots=True)
+class RunSnapshot:
+    header: RunHeaderState | None = None
+    floor_roster: FloorRosterState | None = None
+    latest_featured_round: FeaturedRoundResult | None = None
+    floor_summary: FloorSummaryState | None = None
+    floor_vote_result: FloorVoteResult | None = None
+    successor_options: SuccessorChoiceState | None = None

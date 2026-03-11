@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from prisoners_gambit.app.interaction_controller import InteractionController
 from prisoners_gambit.config.settings import Settings
 from prisoners_gambit.core.events import Event, EventBus
 from prisoners_gambit.core.models import Agent
@@ -32,13 +33,15 @@ class RunApplication:
         self.tournament = tournament
         self.evolution = evolution
         self.progression = progression
+        self.interaction_controller = InteractionController(renderer=renderer)
+        self.tournament.interaction_controller = self.interaction_controller
 
     def run(self) -> Agent:
         population = create_population(self.settings.population_size, self.progression.rng)
         player = next(agent for agent in population if agent.is_player)
         player_lineage_id = player.lineage_id
 
-        self.renderer.show_run_header(self.settings.seed)
+        self.interaction_controller.show_run_header(self.settings.seed)
         self.event_bus.publish(Event("run_started", {"seed": self.settings.seed, "player": player.name}))
         logger.info("Run started | seed=%s | player=%s | lineage_id=%s", self.settings.seed, player.name, player_lineage_id)
 
@@ -98,7 +101,7 @@ class RunApplication:
                     floor_number,
                     [agent.name for agent in surviving_lineage],
                 )
-                successor = self.renderer.choose_successor(surviving_lineage)
+                successor = self.interaction_controller.choose_successor(floor_number, surviving_lineage)
                 successor.is_player = True
                 player.is_player = False
                 player = successor
@@ -157,7 +160,7 @@ class RunApplication:
                 )
             )
 
-            selected_powerup = self.renderer.choose_powerup(powerup_offers)
+            selected_powerup = self.interaction_controller.choose_powerup(floor_number, powerup_offers)
             player.powerups.append(selected_powerup)
             logger.info("Player selected powerup '%s' on floor %s", selected_powerup.name, floor_number)
             self.event_bus.publish(
@@ -171,9 +174,10 @@ class RunApplication:
                 self.settings.genome_edit_offers_per_floor,
                 self.progression.rng,
             )
-            selected_edit = self.renderer.choose_genome_edit(
-                genome_edit_offers,
+            selected_edit = self.interaction_controller.choose_genome_edit(
+                floor_number=floor_number,
                 current_summary=player.genome.summary(),
+                offers=genome_edit_offers,
             )
             player.genome = selected_edit.apply(player.genome)
             self.renderer.show_genome_edit_applied(selected_edit, player.genome.summary())
