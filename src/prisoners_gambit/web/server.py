@@ -499,9 +499,11 @@ class Handler(BaseHTTPRequestHandler):
                     if isinstance(raw_rounds, bool):
                         self._json({"error": "invalid rounds"}, status=400)
                         return
-                    try:
+                    if isinstance(raw_rounds, int):
+                        rounds = raw_rounds
+                    elif isinstance(raw_rounds, str) and raw_rounds.isdigit():
                         rounds = int(raw_rounds)
-                    except (TypeError, ValueError):
+                    else:
                         self._json({"error": "invalid rounds"}, status=400)
                         return
                     if rounds <= 0:
