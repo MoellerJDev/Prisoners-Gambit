@@ -197,6 +197,20 @@ ROUND_STANCES_REQUIRING_ROUNDS: frozenset[str] = frozenset({
 })
 
 
+def validated_stance_rounds(stance: str, rounds: int | None) -> int | None:
+    """Normalize optional stance rounds and enforce them for duration-bound stances.
+
+    Returns a positive round count for stances that use an explicit duration, or None
+    for stances that are intended to run until another decision clears them. Raises
+    ValueError when a duration-bound stance is selected without rounds > 0.
+    """
+    if stance not in ROUND_STANCES_REQUIRING_ROUNDS:
+        return rounds if rounds and rounds > 0 else None
+    if rounds is None or rounds <= 0:
+        raise ValueError(f"Stance '{stance}' requires rounds > 0.")
+    return rounds
+
+
 @dataclass(slots=True)
 class FloorVoteDecisionState:
     prompt: FloorVotePrompt

@@ -34,6 +34,7 @@ from prisoners_gambit.core.interaction import (
     ScoreAdjustment,
     SuccessorCandidateView,
     SuccessorChoiceState,
+    validated_stance_rounds,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import ComplianceDividend, CounterIntel, MoveDirective, RoundContext, resolve_move
@@ -174,7 +175,7 @@ class FeaturedMatchWebSession:
             self.snapshot.active_featured_stance = None
             player_plan = action.move
         elif isinstance(action, ChooseRoundStanceAction):
-            rounds = action.rounds if action.rounds and action.rounds > 0 else None
+            rounds = self._validated_stance_rounds(action)
             locked_move = self._last_manual_move if action.stance == "lock_last_manual_move_for_n_rounds" else None
             self._active_stance = FeaturedRoundStanceView(stance=action.stance, rounds_remaining=rounds, locked_move=locked_move)
             self.snapshot.active_featured_stance = self._active_stance
@@ -402,6 +403,9 @@ class FeaturedMatchWebSession:
         if self._active_stance.rounds_remaining <= 0:
             self._active_stance = None
         self.snapshot.active_featured_stance = self._active_stance
+
+    def _validated_stance_rounds(self, action: ChooseRoundStanceAction) -> int | None:
+        return validated_stance_rounds(action.stance, action.rounds)
 
     def _resolve_move(
         self,

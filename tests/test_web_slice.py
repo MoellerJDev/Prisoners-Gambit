@@ -1,7 +1,10 @@
 import json
+import http.client
 import threading
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
+import pytest
 
 from prisoners_gambit.core.constants import COOPERATE
 from prisoners_gambit.core.interaction import (
@@ -14,6 +17,8 @@ from prisoners_gambit.core.interaction import (
 )
 from prisoners_gambit.web.server import Handler, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
+
+TEST_PADDING_LENGTH = 20_000
 
 
 def test_featured_match_web_session_round_trip_typed_action() -> None:
@@ -43,6 +48,21 @@ def test_featured_match_web_session_supports_stance_actions() -> None:
     )
     session.advance()
     assert session.view()["snapshot"]["active_featured_stance"] is not None
+
+
+def test_featured_match_web_session_rejects_duration_stance_without_rounds() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=3)
+    session.start()
+    session.submit_action(
+        ChooseRoundStanceAction(
+            mode="set_round_stance",
+            stance="follow_autopilot_for_n_rounds",
+            rounds=0,
+        )
+    )
+
+    with pytest.raises(ValueError, match="requires rounds > 0"):
+        session.advance()
 
 
 def test_web_session_advances_through_full_run_loop() -> None:
@@ -218,6 +238,56 @@ def test_web_api_rejects_invalid_vote_and_stance_payloads() -> None:
             body = json.loads(exc.read().decode("utf-8"))
             assert exc.code == 400
             assert body["error"] == "rounds required for selected stance"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_web_api_rejects_invalid_and_oversized_content_length() -> None:
+    from http.server import ThreadingHTTPServer
+
+    class Http11Handler(Handler):
+        protocol_version = "HTTP/1.1"
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Http11Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.putrequest("POST", "/api/action")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", "abc")
+        conn.putheader("Connection", "keep-alive")
+        conn.endheaders()
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 400
+        assert body["error"] == "invalid Content-Length"
+        assert conn.sock is None
+        conn.close()
+
+        oversized_body = json.dumps(
+            {"type": "manual_move", "move": "C", "padding": "x" * TEST_PADDING_LENGTH}
+        ).encode("utf-8")
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request(
+            "POST",
+            "/api/action",
+            body=oversized_body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(oversized_body)),
+                "Connection": "keep-alive",
+            },
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 413
+        assert body["error"] == "request body too large"
+        assert conn.sock is None
+        conn.close()
     finally:
         server.shutdown()
         server.server_close()

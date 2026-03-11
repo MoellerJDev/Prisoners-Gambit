@@ -34,6 +34,7 @@ from prisoners_gambit.core.interaction import (
     SessionStatus,
     SuccessorCandidateView,
     SuccessorChoiceState,
+    validated_stance_rounds,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import Powerup
@@ -240,7 +241,7 @@ class InteractionController:
 
         if isinstance(action, ChooseRoundStanceAction):
             self._autopilot_featured_match = False
-            rounds = action.rounds if action.rounds and action.rounds > 0 else None
+            rounds = self._validated_stance_rounds(action)
             locked_move = self._last_manual_move if action.stance == "lock_last_manual_move_for_n_rounds" else None
             self._featured_stance = FeaturedRoundStanceView(
                 stance=action.stance,
@@ -344,6 +345,9 @@ class InteractionController:
         if self._featured_stance.rounds_remaining <= 0:
             self._featured_stance = None
         self.snapshot.active_featured_stance = self._featured_stance
+
+    def _validated_stance_rounds(self, action: ChooseRoundStanceAction) -> int | None:
+        return validated_stance_rounds(action.stance, action.rounds)
 
     def _begin_decision(self, state: DecisionState, expected_types: tuple[type, ...]) -> None:
         self.snapshot.session_status = "awaiting_decision"

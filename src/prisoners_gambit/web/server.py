@@ -28,6 +28,7 @@ _stance_options_default: tuple[str, ...] = next(
 )
 _ROUND_STANCE_OPTIONS = set(_stance_options_default)
 _ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
+_MAX_REQUEST_BODY_BYTES = 16 * 1024  # JSON action payloads are tiny; cap bodies to reject malformed or abusive requests early.
 
 
 HTML = """<!doctype html>
@@ -466,10 +467,27 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, status=404)
             return
 
-        length = int(self.headers.get("Content-Length", "0"))
-        raw = self.rfile.read(length).decode("utf-8") if length else "{}"
         try:
+            raw_length = self.headers.get("Content-Length", "0")
+            length = int(raw_length)
+            if length < 0:
+                raise ValueError("Content-Length cannot be negative")
+        except ValueError:
+            self.close_connection = True
+            self._json({"error": "invalid Content-Length"}, status=400)
+            return
+        if length > _MAX_REQUEST_BODY_BYTES:
+            self.close_connection = True
+            self._json({"error": "request body too large"}, status=413)
+            return
+        raw_bytes = self.rfile.read(length) if length else b"{}"
+        try:
+            raw = raw_bytes.decode("utf-8")
             payload = json.loads(raw)
+        except UnicodeDecodeError:
+            self.close_connection = True
+            self._json({"error": "invalid UTF-8 in request body"}, status=400)
+            return
         except json.JSONDecodeError:
             self._json({"error": "invalid JSON"}, status=400)
             return
