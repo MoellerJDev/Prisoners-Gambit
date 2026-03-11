@@ -480,9 +480,14 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             self._json({"error": "request body too large"}, status=413)
             return
-        raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+        raw_bytes = self.rfile.read(length) if length else b"{}"
         try:
+            raw = raw_bytes.decode("utf-8")
             payload = json.loads(raw)
+        except UnicodeDecodeError:
+            self.close_connection = True
+            self._json({"error": "invalid UTF-8 in request body"}, status=400)
+            return
         except json.JSONDecodeError:
             self._json({"error": "invalid JSON"}, status=400)
             return
