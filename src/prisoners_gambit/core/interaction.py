@@ -191,6 +191,12 @@ class FeaturedRoundDecisionState:
     )
 
 
+ROUND_STANCES_REQUIRING_ROUNDS: frozenset[str] = frozenset({
+    "follow_autopilot_for_n_rounds",
+    "lock_last_manual_move_for_n_rounds",
+})
+
+
 @dataclass(slots=True)
 class FloorVoteDecisionState:
     prompt: FloorVotePrompt
