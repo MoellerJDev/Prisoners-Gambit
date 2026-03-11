@@ -76,7 +76,7 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
     assert "Powerups: Trust Dividend" in out
 
 
-def test_choose_round_action_warns_when_match_autopilot_cannot_persist(monkeypatch, capsys) -> None:
+def test_choose_round_action_warns_when_match_autopilot_unavailable(monkeypatch, capsys) -> None:
     renderer = TerminalRenderer()
     monkeypatch.setattr(
         renderer,
@@ -104,7 +104,7 @@ def test_choose_round_action_warns_when_match_autopilot_cannot_persist(monkeypat
     assert "Match autopilot requires an interaction controller" in out
 
 
-def test_choose_round_action_warns_when_stance_cannot_persist(monkeypatch, capsys) -> None:
+def test_choose_round_action_warns_when_stance_unavailable(monkeypatch, capsys) -> None:
     renderer = TerminalRenderer()
     monkeypatch.setattr(
         renderer,

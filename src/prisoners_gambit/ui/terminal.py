@@ -83,9 +83,7 @@ class TerminalRenderer(Renderer):
             return action.move
         if isinstance(action, ChooseRoundAutopilotAction):
             if action.mode == "autopilot_match":
-                print(
-                    "Note: Match autopilot requires an interaction controller; using the suggested move for this round."
-                )
+                print("Note: Match autopilot requires an interaction controller. Using the suggested move for this round.")
             return prompt.suggested_move
         if isinstance(action, ChooseRoundStanceAction):
             print("Note: Stance choices require an interaction controller; using the suggested move for this round.")
