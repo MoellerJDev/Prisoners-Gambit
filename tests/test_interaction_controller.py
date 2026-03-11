@@ -1,4 +1,4 @@
-from prisoners_gambit.app.interaction_controller import InteractionController
+from prisoners_gambit.app.interaction_controller import InteractionController, RunSession
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
@@ -343,3 +343,32 @@ def test_manual_override_clears_active_stance() -> None:
 
     assert move == DEFECT
     assert controller.snapshot.active_featured_stance is None
+
+
+def test_reset_featured_match_autopilot_syncs_session_snapshot() -> None:
+    class SpySession(RunSession):
+        def __init__(self) -> None:
+            super().__init__()
+            self.update_calls = 0
+
+        def update_snapshot(self, snapshot) -> None:
+            self.update_calls += 1
+            super().update_snapshot(snapshot)
+
+    renderer = NewRendererStub()
+    session = SpySession()
+    controller = InteractionController(renderer=renderer, session=session)
+    session.update_calls = 0
+    controller._autopilot_featured_match = True
+    controller._featured_stance = controller.snapshot.active_featured_stance = FeaturedRoundStanceView(
+        stance="cooperate_until_betrayed",
+        rounds_remaining=None,
+        locked_move=None,
+    )
+
+    controller.reset_featured_match_autopilot()
+
+    assert controller.should_autopilot_featured_match is False
+    assert controller.snapshot.active_featured_stance is None
+    assert session.latest_snapshot.active_featured_stance is None
+    assert session.update_calls == 1

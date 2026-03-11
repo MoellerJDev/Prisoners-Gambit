@@ -1,5 +1,6 @@
 import json
 import threading
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from prisoners_gambit.core.constants import COOPERATE
@@ -11,7 +12,7 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
 )
-from prisoners_gambit.web.server import Handler
+from prisoners_gambit.web.server import Handler, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
 
@@ -109,6 +110,119 @@ def test_web_api_drives_session_without_terminal_formatting() -> None:
         server.server_close()
 
 
+def test_web_api_exposes_round_action_types_and_stance_options() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=2)
+    session.start()
+
+    decision = session.view()["decision"]
+
+    assert decision["valid_actions"] == (
+        "manual_move",
+        "autopilot_round",
+        "autopilot_match",
+        "set_round_stance",
+    )
+    assert "cooperate_until_betrayed" in decision["stance_options"]
+    assert "lock_last_manual_move_for_n_rounds" in decision["stance_options"]
+
+
+def test_web_api_rejects_invalid_manual_move_payload() -> None:
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        req = Request(f"http://127.0.0.1:{port}/api/run/start", method="POST")
+        with urlopen(req):
+            pass
+
+        action_body = json.dumps({"type": "manual_move", "move": "X"}).encode("utf-8")
+        req = Request(
+            f"http://127.0.0.1:{port}/api/action",
+            data=action_body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urlopen(req)
+            raise AssertionError("expected HTTPError")
+        except HTTPError as exc:
+            body = json.loads(exc.read().decode("utf-8"))
+            assert exc.code == 400
+            assert body["error"] == "invalid move; expected 'C' or 'D'"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_web_api_rejects_invalid_vote_and_stance_payloads() -> None:
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        req = Request(f"http://127.0.0.1:{port}/api/run/start", method="POST")
+        with urlopen(req) as resp:
+            state = json.loads(resp.read().decode("utf-8"))
+        while state["decision_type"] != "FloorVoteDecisionState":
+            if state["decision_type"] == "FeaturedRoundDecisionState":
+                body = json.dumps({"type": "manual_move", "move": "C"}).encode("utf-8")
+                req = Request(
+                    f"http://127.0.0.1:{port}/api/action",
+                    data=body,
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+            else:
+                req = Request(f"http://127.0.0.1:{port}/api/advance", method="POST")
+            with urlopen(req) as resp:
+                state = json.loads(resp.read().decode("utf-8"))
+
+        vote_body = json.dumps({"type": "manual_vote", "vote": "X"}).encode("utf-8")
+        req = Request(
+            f"http://127.0.0.1:{port}/api/action",
+            data=vote_body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urlopen(req)
+            raise AssertionError("expected HTTPError")
+        except HTTPError as exc:
+            body = json.loads(exc.read().decode("utf-8"))
+            assert exc.code == 400
+            assert body["error"] == "invalid vote; expected 'C' or 'D'"
+
+        req = Request(f"http://127.0.0.1:{port}/api/run/start", method="POST")
+        with urlopen(req):
+            pass
+        stance_body = json.dumps({"type": "set_round_stance", "stance": "follow_autopilot_for_n_rounds"}).encode(
+            "utf-8"
+        )
+        req = Request(
+            f"http://127.0.0.1:{port}/api/action",
+            data=stance_body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urlopen(req)
+            raise AssertionError("expected HTTPError")
+        except HTTPError as exc:
+            body = json.loads(exc.read().decode("utf-8"))
+            assert exc.code == 400
+            assert body["error"] == "rounds required for selected stance"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_web_root_contains_full_run_panels() -> None:
     from http.server import ThreadingHTTPServer
 
@@ -128,3 +242,23 @@ def test_web_root_contains_full_run_panels() -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_run_server_defaults_to_loopback_host(monkeypatch) -> None:
+    captured = {}
+
+    class FakeServer:
+        def __init__(self, address, handler):
+            captured["address"] = address
+            captured["handler"] = handler
+
+        def serve_forever(self):
+            captured["served"] = True
+
+    monkeypatch.setattr("prisoners_gambit.web.server.ThreadingHTTPServer", FakeServer)
+
+    run_server(port=9999)
+
+    assert captured["address"] == ("127.0.0.1", 9999)
+    assert captured["handler"] is Handler
+    assert captured["served"] is True

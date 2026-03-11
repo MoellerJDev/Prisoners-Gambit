@@ -166,6 +166,17 @@ class FeaturedRoundDecisionState:
             "manual_move",
             "autopilot_round",
             "autopilot_match",
+            "set_round_stance",
+        ],
+        ...,
+    ] = (
+        "manual_move",
+        "autopilot_round",
+        "autopilot_match",
+        "set_round_stance",
+    )
+    stance_options: tuple[
+        Literal[
             "cooperate_until_betrayed",
             "defect_until_punished",
             "follow_autopilot_for_n_rounds",
@@ -173,9 +184,6 @@ class FeaturedRoundDecisionState:
         ],
         ...,
     ] = (
-        "manual_move",
-        "autopilot_round",
-        "autopilot_match",
         "cooperate_until_betrayed",
         "defect_until_punished",
         "follow_autopilot_for_n_rounds",
