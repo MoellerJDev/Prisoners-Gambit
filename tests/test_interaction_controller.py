@@ -412,3 +412,10 @@ def test_set_floor_context_rejects_unknown_phase() -> None:
 
     with pytest.raises(ValueError, match="Invalid phase"):
         controller.set_floor_context(floor_number=2, phase="unknown")
+
+
+def test_complete_run_rejects_unknown_outcome() -> None:
+    controller = InteractionController(renderer=NewRendererStub())
+
+    with pytest.raises(ValueError, match="Invalid outcome"):
+        controller.complete_run(outcome="draw", floor_number=2, player_name="You", seed=7)
