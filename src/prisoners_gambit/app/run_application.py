@@ -51,6 +51,10 @@ class RunApplication:
         while True:
             floor_number += 1
             floor_config = self.progression.build_floor_config(floor_number)
+            self.interaction_controller.set_floor_context(
+                floor_number=floor_number,
+                phase="ecosystem" if ecosystem_phase else "civil_war",
+            )
 
             logger.info("Starting floor %s | ecosystem_phase=%s", floor_number, ecosystem_phase)
             logger.debug("Floor config: %s", floor_config)
@@ -61,6 +65,7 @@ class RunApplication:
                 floor_config=floor_config,
             )
             self.renderer.show_floor_summary(floor_number, ranked)
+            self.interaction_controller.set_floor_summary(floor_number, ranked)
 
             if ecosystem_phase:
                 survivors, eliminated = self.evolution.split_population(ranked)
@@ -91,6 +96,12 @@ class RunApplication:
                         "player_lineage_eliminated",
                         {"floor": floor_number, "lineage_id": player_lineage_id},
                     )
+                )
+                self.interaction_controller.complete_run(
+                    outcome="eliminated",
+                    floor_number=floor_number,
+                    player_name=player.name,
+                    seed=self.settings.seed,
                 )
                 self.renderer.show_elimination(floor_number, self.settings.seed)
                 return player
@@ -148,6 +159,12 @@ class RunApplication:
                             "run_completed",
                             {"final_floor": floor_number, "player": player.name, "seed": self.settings.seed},
                         )
+                    )
+                    self.interaction_controller.complete_run(
+                        outcome="victory",
+                        floor_number=floor_number,
+                        player_name=player.name,
+                        seed=self.settings.seed,
                     )
                     self.renderer.show_victory(floor_number, player, self.settings.seed)
                     return player
@@ -210,6 +227,12 @@ class RunApplication:
                             {"final_floor": floor_number, "player": player.name, "seed": self.settings.seed},
                         )
                     )
+                    self.interaction_controller.complete_run(
+                        outcome="victory",
+                        floor_number=floor_number,
+                        player_name=player.name,
+                        seed=self.settings.seed,
+                    )
                     self.renderer.show_victory(floor_number, player, self.settings.seed)
                     return player
 
@@ -220,6 +243,12 @@ class RunApplication:
                         "run_completed",
                         {"final_floor": floor_number, "player": player.name, "seed": self.settings.seed},
                     )
+                )
+                self.interaction_controller.complete_run(
+                    outcome="victory",
+                    floor_number=floor_number,
+                    player_name=player.name,
+                    seed=self.settings.seed,
                 )
                 self.renderer.show_victory(floor_number, player, self.settings.seed)
                 return player

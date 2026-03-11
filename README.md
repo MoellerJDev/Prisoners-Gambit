@@ -24,6 +24,10 @@ The run has two phases:
 - Build identity tags and descriptors
 - Global floor referendum layer
 - Civil war endgame
+- Typed interaction system with `InteractionController` and `RunSession` for queuing, inspecting, and auto-resolving player decisions
+- Featured match stance system: cooperate until betrayed, defect until punished, follow autopilot for N rounds, or lock last manual move for N rounds
+- Rich round breakdown showing directive resolution reasons and per-perk score adjustments
+- Web prototype UI for playing featured matches through a browser
 - Broad automated test coverage
 
 ## Core gameplay loop
@@ -60,6 +64,7 @@ The run has two phases:
     │       ├── app/
     │       │   ├── __init__.py
     │       │   ├── bootstrap.py
+    │       │   ├── interaction_controller.py
     │       │   ├── run_application.py
     │       │   └── service_container.py
     │       ├── config/
@@ -96,6 +101,10 @@ The run has two phases:
     │       │   ├── renderers.py
     │       │   ├── terminal.py
     │       │   └── view_models.py
+    │       ├── web/
+    │       │   ├── __init__.py
+    │       │   ├── server.py
+    │       │   └── web_slice.py
     │       ├── adapters/
     │       │   ├── __init__.py
     │       │   ├── json_event_recorder.py
@@ -111,16 +120,20 @@ The run has two phases:
     │   ├── test_events.py
     │   ├── test_evolution.py
     │   ├── test_genome_edits.py
+    │   ├── test_interaction_controller.py
     │   ├── test_lineage_rules.py
     │   ├── test_population.py
     │   ├── test_powerups.py
     │   ├── test_progression.py
     │   ├── test_regressions.py
     │   ├── test_run_application.py
+    │   ├── test_run_session.py
     │   ├── test_scoring.py
     │   ├── test_strategy.py
+    │   ├── test_terminal_renderer.py
     │   ├── test_tournament.py
-    │   └── test_view_models.py
+    │   ├── test_view_models.py
+    │   └── test_web_slice.py
     └── scripts/
         ├── run_dev.sh
         └── run_dev.bat
@@ -164,6 +177,20 @@ If no seed is provided, the game generates one automatically and prints it at th
     python -m prisoners_gambit
 
 Use the printed seed to replay interesting runs.
+
+## Web prototype
+
+A browser-based prototype for playing featured matches is included.
+
+To start the web server:
+
+    python -m prisoners_gambit.web.server
+
+Then open `http://127.0.0.1:8765` in a browser.
+
+The web UI runs a single `FeaturedMatchWebSession` driven over JSON. It exercises the full typed decision API and shows round results including the perk breakdown.
+
+> **Note:** This is an early prototype. It is not a full game client — only featured match play is exposed through the browser interface.
 
 ## Useful environment variables
 
@@ -261,7 +288,7 @@ At the current stage, the tests cover:
 - powerups
 - strategy genomes
 - genome edits
-- tournament logic
+- tournament logic and round breakdowns
 - evolution
 - progression
 - lineage transfer rules
@@ -269,6 +296,9 @@ At the current stage, the tests cover:
 - event model
 - content generation
 - view formatting
+- interaction controller and session state
+- terminal renderer decision flows
+- web slice handlers
 - regressions from previously discovered bugs
 
 ## Design direction
@@ -294,12 +324,12 @@ See the docs folder for more detailed design and architecture notes:
 
 The strongest near-term candidates are:
 
-- clearer featured-round explanation of which perks fired
-- fast-forward or stance controls for featured matches
 - stronger successor comparison tools
 - between-floor reroll or economy systems
 - more civil-war-specific content
+- saveable run transcripts or replay logs
+- expanded web UI beyond the featured match prototype
 
 ## Notes
 
-This project is currently terminal-first, but the code is intentionally structured so the simulation core is not tightly coupled to the terminal UI. That should make future UI upgrades much easier.
+The project started as terminal-first, but the simulation core is intentionally decoupled from any UI. The `InteractionController` and typed decision API now make it straightforward to drive the run from a terminal, a web browser, or any other front end. A web prototype for featured matches is already included in `web/`.

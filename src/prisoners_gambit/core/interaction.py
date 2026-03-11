@@ -100,24 +100,116 @@ class RunHeaderState:
 @dataclass(slots=True)
 class FloorRosterState:
     floor_number: int
-    roster_entries: list[RosterEntry]
+    roster_entries: list[FloorRosterEntryView]
 
 
 @dataclass(slots=True)
 class FloorSummaryState:
     floor_number: int
-    ranked_agent_ids: list[int]
-    ranked_agent_names: list[str]
+    entries: list[FloorSummaryEntryView]
+
+
+@dataclass(slots=True)
+class FloorRosterEntryView:
+    name: str
+    public_profile: str
+    known_powerups: list[str]
+    tags: list[str]
+    descriptor: str
+
+
+@dataclass(slots=True)
+class FloorSummaryEntryView:
+    agent_id: int
+    name: str
+    is_player: bool
+    score: int
+    wins: int
+    tags: list[str]
+    descriptor: str
+    genome_summary: str
+    powerups: list[str]
+
+
+@dataclass(slots=True)
+class PowerupOfferView:
+    name: str
+    description: str
+    tags: list[str] | None = None
+
+
+@dataclass(slots=True)
+class GenomeEditOfferView:
+    name: str
+    description: str
+    current_summary: str | None = None
+    projected_summary: str | None = None
+
+
+@dataclass(slots=True)
+class SuccessorCandidateView:
+    name: str
+    lineage_depth: int
+    score: int
+    wins: int
+    tags: list[str]
+    descriptor: str
+    genome_summary: str
+    powerups: list[str]
 
 
 @dataclass(slots=True)
 class FeaturedRoundDecisionState:
     prompt: FeaturedMatchPrompt
-    valid_actions: tuple[Literal["manual_move", "autopilot_round", "autopilot_match"], ...] = (
+    valid_actions: tuple[
+        Literal[
+            "manual_move",
+            "autopilot_round",
+            "autopilot_match",
+            "set_round_stance",
+        ],
+        ...,
+    ] = (
         "manual_move",
         "autopilot_round",
         "autopilot_match",
+        "set_round_stance",
     )
+    stance_options: tuple[
+        Literal[
+            "cooperate_until_betrayed",
+            "defect_until_punished",
+            "follow_autopilot_for_n_rounds",
+            "lock_last_manual_move_for_n_rounds",
+        ],
+        ...,
+    ] = (
+        "cooperate_until_betrayed",
+        "defect_until_punished",
+        "follow_autopilot_for_n_rounds",
+        "lock_last_manual_move_for_n_rounds",
+    )
+
+
+ROUND_STANCES_REQUIRING_ROUNDS: frozenset[str] = frozenset({
+    "follow_autopilot_for_n_rounds",
+    "lock_last_manual_move_for_n_rounds",
+})
+
+
+def validated_stance_rounds(stance: str, rounds: int | None) -> int | None:
+    """Normalize optional stance rounds and enforce them for duration-bound stances.
+
+    Returns a positive round count for stances that use an explicit duration, or None
+    for stances that are intended to run until another decision clears them. Raises
+    ValueError when a duration-bound stance is selected without rounds > 0.
+    """
+    if stance not in ROUND_STANCES_REQUIRING_ROUNDS:
+        # Non-duration stances always run until cleared; ignore any provided rounds.
+        return None
+    if rounds is None or rounds <= 0:
+        raise ValueError(f"Stance '{stance}' requires rounds > 0.")
+    return rounds
 
 
 @dataclass(slots=True)
@@ -129,7 +221,7 @@ class FloorVoteDecisionState:
 @dataclass(slots=True)
 class PowerupChoiceState:
     floor_number: int
-    offers: list[str]
+    offers: list[PowerupOfferView]
     valid_actions: tuple[Literal["choose_powerup"], ...] = ("choose_powerup",)
 
 
@@ -137,14 +229,14 @@ class PowerupChoiceState:
 class GenomeEditChoiceState:
     floor_number: int
     current_summary: str
-    offers: list[str]
+    offers: list[GenomeEditOfferView]
     valid_actions: tuple[Literal["choose_genome_edit"], ...] = ("choose_genome_edit",)
 
 
 @dataclass(slots=True)
 class SuccessorChoiceState:
     floor_number: int
-    candidates: list[str]
+    candidates: list[SuccessorCandidateView]
     valid_actions: tuple[Literal["choose_successor"], ...] = ("choose_successor",)
 
 
@@ -166,6 +258,30 @@ class ChooseRoundMoveAction:
 @dataclass(slots=True)
 class ChooseRoundAutopilotAction:
     mode: Literal["autopilot_round", "autopilot_match"]
+
+
+@dataclass(slots=True)
+class FeaturedRoundStanceView:
+    stance: Literal[
+        "cooperate_until_betrayed",
+        "defect_until_punished",
+        "follow_autopilot_for_n_rounds",
+        "lock_last_manual_move_for_n_rounds",
+    ]
+    rounds_remaining: int | None = None
+    locked_move: int | None = None
+
+
+@dataclass(slots=True)
+class ChooseRoundStanceAction:
+    mode: Literal["set_round_stance"]
+    stance: Literal[
+        "cooperate_until_betrayed",
+        "defect_until_punished",
+        "follow_autopilot_for_n_rounds",
+        "lock_last_manual_move_for_n_rounds",
+    ]
+    rounds: int | None = None
 
 
 @dataclass(slots=True)
@@ -192,18 +308,34 @@ class ChooseSuccessorAction:
 PlayerAction = (
     ChooseRoundMoveAction
     | ChooseRoundAutopilotAction
+    | ChooseRoundStanceAction
     | ChooseFloorVoteAction
     | ChoosePowerupAction
     | ChooseGenomeEditAction
     | ChooseSuccessorAction
 )
 
+SessionStatus = Literal["running", "awaiting_decision", "completed"]
+
+
+@dataclass(slots=True)
+class RunCompletion:
+    outcome: Literal["victory", "eliminated"]
+    floor_number: int
+    player_name: str
+    seed: int | None
+
 
 @dataclass(slots=True)
 class RunSnapshot:
     header: RunHeaderState | None = None
+    current_floor: int | None = None
+    current_phase: Literal["ecosystem", "civil_war"] | None = None
     floor_roster: FloorRosterState | None = None
     latest_featured_round: FeaturedRoundResult | None = None
     floor_summary: FloorSummaryState | None = None
     floor_vote_result: FloorVoteResult | None = None
     successor_options: SuccessorChoiceState | None = None
+    active_featured_stance: FeaturedRoundStanceView | None = None
+    session_status: SessionStatus = "running"
+    completion: RunCompletion | None = None

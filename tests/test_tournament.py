@@ -71,6 +71,35 @@ class StubRenderer:
         pass
 
 
+class StubInteractionController:
+    def __init__(self) -> None:
+        self.latest_round_result = None
+        self.floor_vote_result = None
+        self.floor_vote_prompts = 0
+
+    def set_floor_roster(self, floor_number, roster_entries):
+        pass
+
+    def can_auto_resolve_featured_round(self):
+        return False
+
+    def choose_round_move(self, state):
+        return state.prompt.suggested_move
+
+    def set_latest_round_result(self, result):
+        self.latest_round_result = result
+
+    def reset_featured_match_autopilot(self):
+        pass
+
+    def choose_floor_vote(self, state):
+        self.floor_vote_prompts += 1
+        return state.prompt.suggested_vote
+
+    def set_floor_vote_result(self, result):
+        self.floor_vote_result = result
+
+
 def static_agent(name: str, move: int, *, is_player: bool = False, lineage_id: int | None = None) -> Agent:
     genome = StrategyGenome(
         first_move=move,
@@ -393,3 +422,39 @@ def test_featured_round_breakdown_tracks_multiple_score_powerups() -> None:
     assert adjustments[0].player_delta == 2
     assert adjustments[1].source == "Opponent Bonus"
     assert adjustments[1].opponent_delta == 1
+
+
+def test_featured_round_result_reaches_interaction_controller_without_renderer() -> None:
+    controller = StubInteractionController()
+    you = static_agent("You", COOPERATE, is_player=True, lineage_id=1)
+    opp = static_agent("Opp", DEFECT)
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(2), interaction_controller=controller)
+    engine.play_featured_player_match(
+        player=you,
+        opponent=opp,
+        rounds_per_match=1,
+        floor_number=1,
+        roster_entries=[],
+        masked_opponent_label="Unknown Opponent 1",
+    )
+
+    assert controller.latest_round_result is not None
+    assert controller.latest_round_result.breakdown.final_player_points >= 0
+
+
+def test_referendum_uses_interaction_controller_without_renderer() -> None:
+    controller = StubInteractionController()
+    agents = [
+        static_agent("You", COOPERATE, is_player=True, lineage_id=1),
+        static_agent("A", COOPERATE),
+        static_agent("B", DEFECT),
+    ]
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(1), interaction_controller=controller)
+    floor_config = make_floor_config(rounds_per_match=1, featured_matches=0)
+
+    engine.run_floor(agents, floor_number=1, floor_config=floor_config)
+
+    assert controller.floor_vote_prompts == 1
+    assert controller.floor_vote_result is not None

@@ -9,6 +9,7 @@ from prisoners_gambit.core.interaction import (
     ChoosePowerupAction,
     ChooseRoundAutopilotAction,
     ChooseRoundMoveAction,
+    ChooseRoundStanceAction,
     ChooseSuccessorAction,
     FeaturedRoundDecisionState,
     FeaturedMatchPrompt,
@@ -44,7 +45,7 @@ class Renderer(Protocol):
     def resolve_featured_round_decision(
         self,
         state: FeaturedRoundDecisionState,
-    ) -> ChooseRoundMoveAction | ChooseRoundAutopilotAction:
+    ) -> ChooseRoundMoveAction | ChooseRoundAutopilotAction | ChooseRoundStanceAction:
         ...
 
     def show_round_result(self, result: FeaturedRoundResult) -> None:

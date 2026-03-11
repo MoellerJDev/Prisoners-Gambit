@@ -7,7 +7,10 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundResult,
     FloorVotePrompt,
     FloorVoteResult,
+    GenomeEditOfferView,
+    PowerupOfferView,
     RosterEntry,
+    SuccessorCandidateView,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import Powerup
@@ -51,6 +54,26 @@ def format_roster_line(index: int, entry: RosterEntry) -> str:
 
 def format_genome_edit_line(index: int, edit: GenomeEdit) -> str:
     return f"{index}. {edit.name} - {edit.description}"
+
+
+def format_powerup_offer_view(index: int, offer: PowerupOfferView) -> str:
+    return f"{index}. {offer.name} - {offer.description}"
+
+
+def format_genome_edit_offer_view(index: int, offer: GenomeEditOfferView) -> str:
+    projected_suffix = f" -> {offer.projected_summary}" if offer.projected_summary else ""
+    return f"{index}. {offer.name} - {offer.description}{projected_suffix}"
+
+
+def format_successor_candidate_view(index: int, candidate: SuccessorCandidateView) -> str:
+    powerups = ", ".join(candidate.powerups) if candidate.powerups else "No powerups"
+    return (
+        f"{index}. {candidate.name} | depth={candidate.lineage_depth} | score={candidate.score} | wins={candidate.wins}\n"
+        f"   Tags: {_tag_text(candidate.tags)}\n"
+        f"   Read: {candidate.descriptor}\n"
+        f"   Build: {candidate.genome_summary}\n"
+        f"   Powerups: {powerups}"
+    )
 
 
 def format_featured_prompt(prompt: FeaturedMatchPrompt) -> str:

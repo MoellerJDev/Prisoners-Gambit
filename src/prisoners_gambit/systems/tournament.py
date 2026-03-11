@@ -75,6 +75,8 @@ class TournamentEngine:
         player = next((agent for agent in population if agent.is_player), None)
 
         roster_entries = self._build_roster_entries(population)
+        if self.interaction_controller:
+            self.interaction_controller.set_floor_roster(floor_number, roster_entries)
         if player and self.renderer:
             self.renderer.show_floor_roster(floor_number, roster_entries)
 
@@ -305,10 +307,11 @@ class TournamentEngine:
             )
 
             if self.interaction_controller:
-                if self.interaction_controller.should_autopilot_featured_match:
-                    player_plan = suggested_move
+                decision_state = FeaturedRoundDecisionState(prompt=prompt)
+                if self.interaction_controller.can_auto_resolve_featured_round():
+                    player_plan = self.interaction_controller.resolve_featured_round_automation(decision_state)
                 else:
-                    player_plan = self.interaction_controller.choose_round_move(FeaturedRoundDecisionState(prompt=prompt))
+                    player_plan = self.interaction_controller.choose_round_move(decision_state)
             else:
                 player_plan = self.renderer.choose_round_action(prompt) if self.renderer else suggested_move
 
@@ -379,7 +382,8 @@ class TournamentEngine:
             player_history.append(player_move)
             opponent_history.append(opponent_move)
 
-            if self.renderer:
+            round_result = None
+            if self.renderer or self.interaction_controller:
                 round_result = FeaturedRoundResult(
                     masked_opponent_label=masked_opponent_label,
                     round_index=round_index,
@@ -404,9 +408,10 @@ class TournamentEngine:
                         final_opponent_points=round_opponent_points,
                     ),
                 )
+            if round_result is not None and self.renderer:
                 self.renderer.show_round_result(round_result)
-                if self.interaction_controller:
-                    self.interaction_controller.set_latest_round_result(round_result)
+            if round_result is not None and self.interaction_controller:
+                self.interaction_controller.set_latest_round_result(round_result)
 
         if self.interaction_controller:
             self.interaction_controller.reset_featured_match_autopilot()
@@ -430,7 +435,7 @@ class TournamentEngine:
                 current_floor_score=agent.score,
             )
 
-            if agent.is_player and self.renderer:
+            if agent.is_player and (self.renderer or self.interaction_controller):
                 prompt = FloorVotePrompt(
                     floor_number=floor_number,
                     floor_label=floor_config.label,
@@ -477,7 +482,7 @@ class TournamentEngine:
         else:
             reward = 0
 
-        if player and self.renderer:
+        if player and (self.renderer or self.interaction_controller):
             player_vote = votes[player.agent_id]
             player_reward = 0
             if cooperation_prevailed and player_vote == COOPERATE:
@@ -496,16 +501,18 @@ class TournamentEngine:
                         context=context,
                     )
 
-            self.renderer.show_referendum_result(
-                FloorVoteResult(
-                    floor_number=floor_number,
-                    cooperation_prevailed=cooperation_prevailed,
-                    cooperators=cooperators,
-                    defectors=defectors,
-                    player_vote=player_vote,
-                    player_reward=player_reward if cooperation_prevailed and player_vote == COOPERATE else 0,
-                )
+            vote_result = FloorVoteResult(
+                floor_number=floor_number,
+                cooperation_prevailed=cooperation_prevailed,
+                cooperators=cooperators,
+                defectors=defectors,
+                player_vote=player_vote,
+                player_reward=player_reward if cooperation_prevailed and player_vote == COOPERATE else 0,
             )
+            if self.renderer:
+                self.renderer.show_referendum_result(vote_result)
+            if self.interaction_controller:
+                self.interaction_controller.set_floor_vote_result(vote_result)
 
         if self.event_bus:
             self.event_bus.publish(
