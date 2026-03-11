@@ -146,6 +146,11 @@ def test_run_application_smoke() -> None:
     assert len(renderer.rosters) >= 1
     assert len(renderer.floor_summaries) >= 1
     assert renderer.vote_prompts >= 1
+    assert app.interaction_controller.snapshot.current_floor is not None
+    assert app.interaction_controller.snapshot.current_phase is not None
+    assert app.interaction_controller.snapshot.floor_summary is not None
+    assert app.interaction_controller.snapshot.floor_roster is not None
+    assert app.interaction_controller.snapshot.floor_vote_result is not None
     assert renderer.selected_powerups or renderer.eliminated_floor is not None or renderer.victory is not None
 
 
@@ -356,4 +361,3 @@ def test_player_is_eliminated_only_when_entire_lineage_is_gone(monkeypatch) -> N
     assert renderer.eliminated_floor == 1
     assert renderer.successor_choices == []
     assert result is player
-

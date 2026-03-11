@@ -3,11 +3,23 @@ from __future__ import annotations
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
+    ChooseFloorVoteAction,
+    ChooseGenomeEditAction,
+    ChoosePowerupAction,
+    ChooseRoundAutopilotAction,
+    ChooseRoundMoveAction,
+    ChooseRoundStanceAction,
+    ChooseSuccessorAction,
+    FeaturedRoundDecisionState,
     FeaturedMatchPrompt,
     FeaturedRoundResult,
+    FloorVoteDecisionState,
     FloorVotePrompt,
     FloorVoteResult,
+    GenomeEditChoiceState,
+    PowerupChoiceState,
     RosterEntry,
+    SuccessorChoiceState,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import Powerup
@@ -17,11 +29,11 @@ from prisoners_gambit.ui.view_models import (
     format_featured_prompt,
     format_floor_vote_prompt,
     format_floor_vote_result,
-    format_genome_edit_line,
-    format_powerup_line,
+    format_genome_edit_offer_view,
     format_roster_line,
+    format_powerup_offer_view,
     format_round_result,
-    format_successor_line,
+    format_successor_candidate_view,
 )
 
 
@@ -66,78 +78,146 @@ class TerminalRenderer(Renderer):
             print(f"Leader build: {ranked[0].build_summary()}")
 
     def choose_round_action(self, prompt: FeaturedMatchPrompt) -> int:
+        action = self.resolve_featured_round_decision(FeaturedRoundDecisionState(prompt=prompt))
+        if isinstance(action, ChooseRoundMoveAction):
+            return action.move
+        return prompt.suggested_move
+
+    def resolve_featured_round_decision(
+        self,
+        state: FeaturedRoundDecisionState,
+    ) -> ChooseRoundMoveAction | ChooseRoundAutopilotAction | ChooseRoundStanceAction:
+        prompt = state.prompt
         print(format_featured_prompt(prompt))
 
         if self.auto_choose_round_actions:
             print("Auto-following autopilot suggestion.")
-            return prompt.suggested_move
+            return ChooseRoundAutopilotAction(mode="autopilot_round")
 
         while True:
-            raw = input("Choose [C]ooperate, [D]efect, or [Enter] for autopilot: ").strip().lower()
+            raw = input(
+                "Choose [C]ooperate, [D]efect, [A]utopilot match, [S]tance, or [Enter] autopilot round: "
+            ).strip().lower()
             if raw == "":
-                return prompt.suggested_move
+                return ChooseRoundAutopilotAction(mode="autopilot_round")
             if raw == "c":
-                return COOPERATE
+                return ChooseRoundMoveAction(mode="manual_move", move=COOPERATE)
             if raw == "d":
-                return DEFECT
+                return ChooseRoundMoveAction(mode="manual_move", move=DEFECT)
+            if raw == "a":
+                return ChooseRoundAutopilotAction(mode="autopilot_match")
+            if raw == "s":
+                stance_raw = input(
+                    "Stance [cb]=cooperate-until-betrayed, [dp]=defect-until-punished, [an]=autopilot N, [ln]=lock-last-manual N: "
+                ).strip().lower()
+                if stance_raw == "cb":
+                    return ChooseRoundStanceAction(mode="set_round_stance", stance="cooperate_until_betrayed")
+                if stance_raw == "dp":
+                    return ChooseRoundStanceAction(mode="set_round_stance", stance="defect_until_punished")
+                if stance_raw in {"an", "ln"}:
+                    rounds_raw = input("Rounds (N): ").strip()
+                    if rounds_raw.isdigit() and int(rounds_raw) > 0:
+                        if stance_raw == "an":
+                            return ChooseRoundStanceAction(
+                                mode="set_round_stance",
+                                stance="follow_autopilot_for_n_rounds",
+                                rounds=int(rounds_raw),
+                            )
+                        return ChooseRoundStanceAction(
+                            mode="set_round_stance",
+                            stance="lock_last_manual_move_for_n_rounds",
+                            rounds=int(rounds_raw),
+                        )
+                print("Invalid stance choice.")
+                continue
             print("Invalid choice.")
 
     def show_round_result(self, result: FeaturedRoundResult) -> None:
         print(format_round_result(result))
 
     def choose_floor_vote(self, prompt: FloorVotePrompt) -> int:
+        action = self.resolve_floor_vote_decision(FloorVoteDecisionState(prompt=prompt))
+        if action.mode == "autopilot_vote":
+            return prompt.suggested_vote
+        return action.vote if action.vote is not None else prompt.suggested_vote
+
+    def resolve_floor_vote_decision(self, state: FloorVoteDecisionState) -> ChooseFloorVoteAction:
+        prompt = state.prompt
         print(format_floor_vote_prompt(prompt))
 
         if self.auto_choose_floor_vote:
             print("Auto-following autopilot suggestion for floor referendum.")
-            return prompt.suggested_vote
+            return ChooseFloorVoteAction(mode="autopilot_vote")
 
         while True:
             raw = input("Choose floor vote [C]ooperate, [D]efect, or [Enter] for autopilot: ").strip().lower()
             if raw == "":
-                return prompt.suggested_vote
+                return ChooseFloorVoteAction(mode="autopilot_vote")
             if raw == "c":
-                return COOPERATE
+                return ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE)
             if raw == "d":
-                return DEFECT
+                return ChooseFloorVoteAction(mode="manual_vote", vote=DEFECT)
             print("Invalid choice.")
 
     def show_referendum_result(self, result: FloorVoteResult) -> None:
         print(format_floor_vote_result(result))
 
     def choose_powerup(self, offers: list[Powerup]) -> Powerup:
+        from prisoners_gambit.core.interaction import PowerupOfferView
+
+        state = PowerupChoiceState(
+            floor_number=0,
+            offers=[PowerupOfferView(name=offer.name, description=offer.description) for offer in offers],
+        )
+        action = self.resolve_powerup_choice(state)
+        return offers[action.offer_index]
+
+    def resolve_powerup_choice(self, state: PowerupChoiceState) -> ChoosePowerupAction:
+        offers = state.offers
         print("\nChoose a powerup:")
-        for index, powerup in enumerate(offers, start=1):
-            print(format_powerup_line(index=index, powerup=powerup))
+        for index, offer in enumerate(offers, start=1):
+            print(format_powerup_offer_view(index=index, offer=offer))
 
         if self.auto_choose_powerups:
             print("Auto-selecting option 1.")
-            return offers[0]
+            return ChoosePowerupAction(offer_index=0)
 
         while True:
             raw = input(f"Select 1-{len(offers)}: ").strip()
             if raw.isdigit():
                 choice = int(raw)
                 if 1 <= choice <= len(offers):
-                    return offers[choice - 1]
+                    return ChoosePowerupAction(offer_index=choice - 1)
             print("Invalid selection.")
 
     def choose_genome_edit(self, offers: list[GenomeEdit], current_summary: str) -> GenomeEdit:
+        from prisoners_gambit.core.interaction import GenomeEditOfferView
+
+        state = GenomeEditChoiceState(
+            floor_number=0,
+            current_summary=current_summary,
+            offers=[GenomeEditOfferView(name=offer.name, description=offer.description) for offer in offers],
+        )
+        action = self.resolve_genome_edit_choice(state)
+        return offers[action.offer_index]
+
+    def resolve_genome_edit_choice(self, state: GenomeEditChoiceState) -> ChooseGenomeEditAction:
+        offers = state.offers
         print("\nChoose an autopilot edit:")
-        print(f"Current autopilot: {current_summary}")
-        for index, edit in enumerate(offers, start=1):
-            print(format_genome_edit_line(index=index, edit=edit))
+        print(f"Current autopilot: {state.current_summary}")
+        for index, offer in enumerate(offers, start=1):
+            print(format_genome_edit_offer_view(index=index, offer=offer))
 
         if self.auto_choose_genome_edits:
             print("Auto-selecting option 1.")
-            return offers[0]
+            return ChooseGenomeEditAction(offer_index=0)
 
         while True:
             raw = input(f"Select 1-{len(offers)}: ").strip()
             if raw.isdigit():
                 choice = int(raw)
                 if 1 <= choice <= len(offers):
-                    return offers[choice - 1]
+                    return ChooseGenomeEditAction(offer_index=choice - 1)
             print("Invalid selection.")
 
     def show_genome_edit_applied(self, edit: GenomeEdit, new_summary: str) -> None:
@@ -145,17 +225,40 @@ class TerminalRenderer(Renderer):
         print(f"New autopilot: {new_summary}")
 
     def choose_successor(self, successors: list[Agent]) -> Agent:
+        from prisoners_gambit.core.analysis import analyze_agent_identity
+        from prisoners_gambit.core.interaction import SuccessorCandidateView
+
+        candidates: list[SuccessorCandidateView] = []
+        for agent in successors:
+            identity = analyze_agent_identity(agent)
+            candidates.append(
+                SuccessorCandidateView(
+                    name=agent.name,
+                    lineage_depth=agent.lineage_depth,
+                    score=agent.score,
+                    wins=agent.wins,
+                    tags=identity.tags,
+                    descriptor=identity.descriptor,
+                    genome_summary=agent.genome.summary(),
+                    powerups=[powerup.name for powerup in agent.powerups],
+                )
+            )
+        state = SuccessorChoiceState(floor_number=0, candidates=candidates)
+        action = self.resolve_successor_choice(state)
+        return successors[action.candidate_index]
+
+    def resolve_successor_choice(self, state: SuccessorChoiceState) -> ChooseSuccessorAction:
         print("\nYour current host was eliminated, but your lineage survives.")
         print("Choose a surviving descendant to continue as:")
-        for index, agent in enumerate(successors, start=1):
-            print(format_successor_line(index=index, agent=agent))
+        for index, candidate in enumerate(state.candidates, start=1):
+            print(format_successor_candidate_view(index=index, candidate=candidate))
 
         while True:
-            raw = input(f"Select 1-{len(successors)}: ").strip()
+            raw = input(f"Select 1-{len(state.candidates)}: ").strip()
             if raw.isdigit():
                 choice = int(raw)
-                if 1 <= choice <= len(successors):
-                    return successors[choice - 1]
+                if 1 <= choice <= len(state.candidates):
+                    return ChooseSuccessorAction(candidate_index=choice - 1)
             print("Invalid selection.")
 
     def show_successor_selected(self, successor: Agent) -> None:

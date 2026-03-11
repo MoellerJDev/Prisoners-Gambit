@@ -5,14 +5,20 @@ import logging
 import random
 
 from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.app.interaction_controller import InteractionController
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.events import Event, EventBus
 from prisoners_gambit.core.interaction import (
     FeaturedMatchPrompt,
+    FeaturedRoundDecisionState,
     FeaturedRoundResult,
+    FloorVoteDecisionState,
     FloorVotePrompt,
     FloorVoteResult,
     RosterEntry,
+    RoundDirectiveResolution,
+    RoundResolutionBreakdown,
+    ScoreAdjustment,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import (
@@ -40,11 +46,13 @@ class TournamentEngine:
         base_rounds_per_match: int,
         rng: random.Random,
         renderer: Renderer | None = None,
+        interaction_controller: InteractionController | None = None,
         event_bus: EventBus | None = None,
     ) -> None:
         self.base_rounds_per_match = base_rounds_per_match
         self.rng = rng
         self.renderer = renderer
+        self.interaction_controller = interaction_controller
         self.event_bus = event_bus
 
     def run_floor(
@@ -67,6 +75,8 @@ class TournamentEngine:
         player = next((agent for agent in population if agent.is_player), None)
 
         roster_entries = self._build_roster_entries(population)
+        if self.interaction_controller:
+            self.interaction_controller.set_floor_roster(floor_number, roster_entries)
         if player and self.renderer:
             self.renderer.show_floor_roster(floor_number, roster_entries)
 
@@ -296,7 +306,14 @@ class TournamentEngine:
                 roster_entries=roster_entries,
             )
 
-            player_plan = self.renderer.choose_round_action(prompt) if self.renderer else suggested_move
+            if self.interaction_controller:
+                decision_state = FeaturedRoundDecisionState(prompt=prompt)
+                if self.interaction_controller.can_auto_resolve_featured_round():
+                    player_plan = self.interaction_controller.resolve_featured_round_automation(decision_state)
+                else:
+                    player_plan = self.interaction_controller.choose_round_move(decision_state)
+            else:
+                player_plan = self.renderer.choose_round_action(prompt) if self.renderer else suggested_move
 
             player_context = RoundContext(
                 round_index=round_index,
@@ -315,14 +332,14 @@ class TournamentEngine:
                 opp_planned_move=player_plan,
             )
 
-            player_move, player_reason = self._resolve_agent_move(
+            player_move, player_directive_resolution = self._resolve_agent_move(
                 owner=player,
                 opponent=opponent,
                 owner_context=player_context,
                 opponent_context=opponent_context,
                 base_move=player_plan,
             )
-            opponent_move, opponent_reason = self._resolve_agent_move(
+            opponent_move, opponent_directive_resolution = self._resolve_agent_move(
                 owner=opponent,
                 opponent=player,
                 owner_context=opponent_context,
@@ -330,7 +347,10 @@ class TournamentEngine:
                 base_move=opponent_plan,
             )
 
-            round_player_points, round_opponent_points = base_payoff(player_move, opponent_move)
+            base_player_points, base_opponent_points = base_payoff(player_move, opponent_move)
+            round_player_points, round_opponent_points = base_player_points, base_opponent_points
+
+            score_adjustments: list[ScoreAdjustment] = []
 
             round_player_points, round_opponent_points = self._apply_score_powerups(
                 owner=player,
@@ -340,6 +360,8 @@ class TournamentEngine:
                 my_points=round_player_points,
                 opp_points=round_opponent_points,
                 context=player_context,
+                perspective="player",
+                score_adjustments=score_adjustments,
             )
 
             round_opponent_points, round_player_points = self._apply_score_powerups(
@@ -350,6 +372,8 @@ class TournamentEngine:
                 my_points=round_opponent_points,
                 opp_points=round_player_points,
                 context=opponent_context,
+                perspective="opponent",
+                score_adjustments=score_adjustments,
             )
 
             player_score += round_player_points
@@ -359,21 +383,36 @@ class TournamentEngine:
             opponent_history.append(opponent_move)
 
             if self.renderer:
-                self.renderer.show_round_result(
-                    FeaturedRoundResult(
-                        masked_opponent_label=masked_opponent_label,
-                        round_index=round_index,
-                        total_rounds=rounds_per_match,
-                        player_move=player_move,
-                        opponent_move=opponent_move,
-                        player_delta=round_player_points,
-                        opponent_delta=round_opponent_points,
-                        player_total=player_score,
-                        opponent_total=opponent_score,
-                        player_reason=player_reason,
-                        opponent_reason=opponent_reason,
-                    )
+                round_result = FeaturedRoundResult(
+                    masked_opponent_label=masked_opponent_label,
+                    round_index=round_index,
+                    total_rounds=rounds_per_match,
+                    player_move=player_move,
+                    opponent_move=opponent_move,
+                    player_delta=round_player_points,
+                    opponent_delta=round_opponent_points,
+                    player_total=player_score,
+                    opponent_total=opponent_score,
+                    player_reason=player_directive_resolution.reason,
+                    opponent_reason=opponent_directive_resolution.reason,
+                    breakdown=RoundResolutionBreakdown(
+                        player_plan=player_plan,
+                        opponent_plan=opponent_plan,
+                        player_directives=player_directive_resolution,
+                        opponent_directives=opponent_directive_resolution,
+                        base_player_points=base_player_points,
+                        base_opponent_points=base_opponent_points,
+                        score_adjustments=score_adjustments,
+                        final_player_points=round_player_points,
+                        final_opponent_points=round_opponent_points,
+                    ),
                 )
+                self.renderer.show_round_result(round_result)
+                if self.interaction_controller:
+                    self.interaction_controller.set_latest_round_result(round_result)
+
+        if self.interaction_controller:
+            self.interaction_controller.reset_featured_match_autopilot()
 
         return player_score, opponent_score
 
@@ -402,7 +441,10 @@ class TournamentEngine:
                     current_floor_score=agent.score,
                     powerups=[powerup.name for powerup in agent.powerups],
                 )
-                base_vote = self.renderer.choose_floor_vote(prompt)
+                if self.interaction_controller:
+                    base_vote = self.interaction_controller.choose_floor_vote(FloorVoteDecisionState(prompt=prompt))
+                else:
+                    base_vote = self.renderer.choose_floor_vote(prompt)
             else:
                 base_vote = suggested_vote
 
@@ -457,16 +499,17 @@ class TournamentEngine:
                         context=context,
                     )
 
-            self.renderer.show_referendum_result(
-                FloorVoteResult(
-                    floor_number=floor_number,
-                    cooperation_prevailed=cooperation_prevailed,
-                    cooperators=cooperators,
-                    defectors=defectors,
-                    player_vote=player_vote,
-                    player_reward=player_reward if cooperation_prevailed and player_vote == COOPERATE else 0,
-                )
+            vote_result = FloorVoteResult(
+                floor_number=floor_number,
+                cooperation_prevailed=cooperation_prevailed,
+                cooperators=cooperators,
+                defectors=defectors,
+                player_vote=player_vote,
+                player_reward=player_reward if cooperation_prevailed and player_vote == COOPERATE else 0,
             )
+            self.renderer.show_referendum_result(vote_result)
+            if self.interaction_controller:
+                self.interaction_controller.set_floor_vote_result(vote_result)
 
         if self.event_bus:
             self.event_bus.publish(
@@ -508,7 +551,7 @@ class TournamentEngine:
         owner_context: RoundContext,
         opponent_context: RoundContext,
         base_move: int,
-    ) -> tuple[int, str]:
+    ) -> tuple[int, RoundDirectiveResolution]:
         directives: list[MoveDirective] = []
 
         for powerup in owner.powerups:
@@ -529,7 +572,13 @@ class TournamentEngine:
                 )
             )
 
-        return resolve_move(base_move, directives)
+        resolved_move, reason = resolve_move(base_move, directives)
+        return resolved_move, RoundDirectiveResolution(
+            base_move=base_move,
+            final_move=resolved_move,
+            reason=reason,
+            directives=directives,
+        )
 
     def _apply_score_powerups(
         self,
@@ -540,11 +589,15 @@ class TournamentEngine:
         my_points: int,
         opp_points: int,
         context: RoundContext,
+        perspective: str | None = None,
+        score_adjustments: list[ScoreAdjustment] | None = None,
     ) -> tuple[int, int]:
         adjusted_my_points = my_points
         adjusted_opp_points = opp_points
 
         for powerup in owner.powerups:
+            previous_my_points = adjusted_my_points
+            previous_opp_points = adjusted_opp_points
             adjusted_my_points, adjusted_opp_points = powerup.on_score(
                 owner=owner,
                 opponent=opponent,
@@ -554,5 +607,20 @@ class TournamentEngine:
                 opp_points=adjusted_opp_points,
                 context=context,
             )
+
+            if score_adjustments is not None:
+                my_delta = adjusted_my_points - previous_my_points
+                opp_delta = adjusted_opp_points - previous_opp_points
+                if my_delta or opp_delta:
+                    player_delta, opponent_delta = my_delta, opp_delta
+                    if perspective == "opponent":
+                        player_delta, opponent_delta = opp_delta, my_delta
+                    score_adjustments.append(
+                        ScoreAdjustment(
+                            source=powerup.name,
+                            player_delta=player_delta,
+                            opponent_delta=opponent_delta,
+                        )
+                    )
 
         return adjusted_my_points, adjusted_opp_points

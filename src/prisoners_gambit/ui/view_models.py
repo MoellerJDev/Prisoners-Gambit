@@ -7,7 +7,10 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundResult,
     FloorVotePrompt,
     FloorVoteResult,
+    GenomeEditOfferView,
+    PowerupOfferView,
     RosterEntry,
+    SuccessorCandidateView,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import Powerup
@@ -53,6 +56,26 @@ def format_genome_edit_line(index: int, edit: GenomeEdit) -> str:
     return f"{index}. {edit.name} - {edit.description}"
 
 
+def format_powerup_offer_view(index: int, offer: PowerupOfferView) -> str:
+    return f"{index}. {offer.name} - {offer.description}"
+
+
+def format_genome_edit_offer_view(index: int, offer: GenomeEditOfferView) -> str:
+    projected_suffix = f" -> {offer.projected_summary}" if offer.projected_summary else ""
+    return f"{index}. {offer.name} - {offer.description}{projected_suffix}"
+
+
+def format_successor_candidate_view(index: int, candidate: SuccessorCandidateView) -> str:
+    powerups = ", ".join(candidate.powerups) if candidate.powerups else "No powerups"
+    return (
+        f"{index}. {candidate.name} | depth={candidate.lineage_depth} | score={candidate.score} | wins={candidate.wins}\n"
+        f"   Tags: {_tag_text(candidate.tags)}\n"
+        f"   Read: {candidate.descriptor}\n"
+        f"   Build: {candidate.genome_summary}\n"
+        f"   Powerups: {powerups}"
+    )
+
+
 def format_featured_prompt(prompt: FeaturedMatchPrompt) -> str:
     roster_hint = ""
     if prompt.roster_entries:
@@ -70,12 +93,24 @@ def format_featured_prompt(prompt: FeaturedMatchPrompt) -> str:
 
 
 def format_round_result(result: FeaturedRoundResult) -> str:
+    score_adjustments = "none"
+    if result.breakdown.score_adjustments:
+        lines = [
+            f"{adjustment.source}: {adjustment.player_delta:+}/{adjustment.opponent_delta:+}"
+            for adjustment in result.breakdown.score_adjustments
+        ]
+        score_adjustments = ", ".join(lines)
+
     return (
-        f"Resolved round {result.round_index + 1}/{result.total_rounds} | "
-        f"You={move_symbol(result.player_move)} [{result.player_reason}] "
-        f"Opp={move_symbol(result.opponent_move)} [{result.opponent_reason}] | "
-        f"delta {result.player_delta}/{result.opponent_delta} | "
-        f"match total {result.player_total}/{result.opponent_total}"
+        f"Round {result.round_index + 1}/{result.total_rounds}\n"
+        f"- Autopilot planned: You={move_symbol(result.breakdown.player_plan)}, "
+        f"Opp={move_symbol(result.breakdown.opponent_plan)}\n"
+        f"- Directives: You={result.player_reason} | Opp={result.opponent_reason}\n"
+        f"- Final moves: You={move_symbol(result.player_move)}, Opp={move_symbol(result.opponent_move)}\n"
+        f"- Base payoff: {result.breakdown.base_player_points} / {result.breakdown.base_opponent_points}\n"
+        f"- Score modifiers: {score_adjustments}\n"
+        f"- Final payoff: {result.player_delta} / {result.opponent_delta}\n"
+        f"- Match total: {result.player_total} / {result.opponent_total}"
     )
 
 
