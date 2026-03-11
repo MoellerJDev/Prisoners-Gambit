@@ -187,11 +187,14 @@ class FeaturedMatchWebSession:
             self._active_stance = FeaturedRoundStanceView(stance=action.stance, rounds_remaining=rounds, locked_move=locked_move)
             self.snapshot.active_featured_stance = self._active_stance
             player_plan = self._resolve_stance_move(decision.prompt)
+        elif isinstance(action, ChooseRoundAutopilotAction):
+            if action.mode == "autopilot_match":
+                self._match_autopilot_active = True
+                self._active_stance = None
+                self.snapshot.active_featured_stance = None
+            player_plan = self._resolve_stance_move(decision.prompt)
         else:
-            self._match_autopilot_active = action.mode == "autopilot_match"
-            self._active_stance = None
-            self.snapshot.active_featured_stance = None
-            player_plan = decision.prompt.suggested_move
+            raise ValueError(f"Unsupported featured round action type: {type(action).__name__}")
 
         opponent_plan = self.opponent.genome.choose_move(self.opponent_history, self.player_history, self.rng)
         player_context = RoundContext(

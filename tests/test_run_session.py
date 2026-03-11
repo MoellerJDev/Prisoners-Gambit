@@ -94,17 +94,16 @@ def test_invalid_action_rejected_for_wrong_decision_type() -> None:
         pass
 
 
-def test_session_revalidates_stale_queued_action_after_decision_changes() -> None:
+def test_session_clears_stale_queued_action_when_new_decision_begins() -> None:
     session = RunSession()
     snap = RunSnapshot()
     session.start(snap)
 
     session.begin_decision(_round_state(), (ChooseRoundMoveAction,), snap)
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    # Starting a new decision discards the stale queued action.
     session.begin_decision(_round_state(), (ChooseFloorVoteAction,), snap)
 
-    try:
-        session.resolve_current_decision(lambda _: ChooseFloorVoteAction(mode="autopilot_vote"))
-        assert False, "Expected ValueError for stale queued action"
-    except ValueError as exc:
-        assert "Queued action type is invalid for current decision" in str(exc)
+    resolved = session.resolve_current_decision(lambda _: ChooseFloorVoteAction(mode="autopilot_vote"))
+    assert isinstance(resolved, ChooseFloorVoteAction)
+    assert resolved.mode == "autopilot_vote"
