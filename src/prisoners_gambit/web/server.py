@@ -28,7 +28,7 @@ _stance_options_default: tuple[str, ...] = next(
 )
 _ROUND_STANCE_OPTIONS = set(_stance_options_default)
 _ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
-_MAX_REQUEST_BODY_BYTES = 16 * 1024
+_MAX_REQUEST_BODY_BYTES = 16 * 1024  # JSON action payloads are tiny; cap bodies to reject malformed or abusive requests early.
 
 
 HTML = """<!doctype html>
@@ -471,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
             raw_length = self.headers.get("Content-Length", "0")
             length = int(raw_length)
             if length < 0:
-                raise ValueError
+                raise ValueError("Content-Length cannot be negative")
         except ValueError:
             self._json({"error": "invalid Content-Length"}, status=400)
             return

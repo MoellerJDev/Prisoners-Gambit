@@ -18,6 +18,8 @@ from prisoners_gambit.core.interaction import (
 from prisoners_gambit.web.server import Handler, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
+TEST_PADDING_LENGTH = 20_000
+
 
 def test_featured_match_web_session_round_trip_typed_action() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=2)
@@ -261,7 +263,9 @@ def test_web_api_rejects_invalid_and_oversized_content_length() -> None:
         assert body["error"] == "invalid Content-Length"
         conn.close()
 
-        oversized_body = json.dumps({"type": "manual_move", "move": "C", "padding": "x" * 20000}).encode("utf-8")
+        oversized_body = json.dumps(
+            {"type": "manual_move", "move": "C", "padding": "x" * TEST_PADDING_LENGTH}
+        ).encode("utf-8")
         conn = http.client.HTTPConnection("127.0.0.1", port)
         conn.request(
             "POST",

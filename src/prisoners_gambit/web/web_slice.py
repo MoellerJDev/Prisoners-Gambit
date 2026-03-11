@@ -27,7 +27,6 @@ from prisoners_gambit.core.interaction import (
     GenomeEditOfferView,
     PowerupChoiceState,
     PowerupOfferView,
-    ROUND_STANCES_REQUIRING_ROUNDS,
     RoundDirectiveResolution,
     RoundResolutionBreakdown,
     RunCompletion,
@@ -35,6 +34,7 @@ from prisoners_gambit.core.interaction import (
     ScoreAdjustment,
     SuccessorCandidateView,
     SuccessorChoiceState,
+    validated_stance_rounds,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import ComplianceDividend, CounterIntel, MoveDirective, RoundContext, resolve_move
@@ -405,11 +405,7 @@ class FeaturedMatchWebSession:
         self.snapshot.active_featured_stance = self._active_stance
 
     def _validated_stance_rounds(self, action: ChooseRoundStanceAction) -> int | None:
-        if action.stance not in ROUND_STANCES_REQUIRING_ROUNDS:
-            return action.rounds if action.rounds and action.rounds > 0 else None
-        if action.rounds is None or action.rounds <= 0:
-            raise ValueError(f"Stance '{action.stance}' requires rounds > 0.")
-        return action.rounds
+        return validated_stance_rounds(action.stance, action.rounds)
 
     def _resolve_move(
         self,

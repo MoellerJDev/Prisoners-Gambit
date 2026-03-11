@@ -28,13 +28,13 @@ from prisoners_gambit.core.interaction import (
     PlayerAction,
     PowerupChoiceState,
     PowerupOfferView,
-    ROUND_STANCES_REQUIRING_ROUNDS,
     RunCompletion,
     RunHeaderState,
     RunSnapshot,
     SessionStatus,
     SuccessorCandidateView,
     SuccessorChoiceState,
+    validated_stance_rounds,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import Powerup
@@ -347,11 +347,7 @@ class InteractionController:
         self.snapshot.active_featured_stance = self._featured_stance
 
     def _validated_stance_rounds(self, action: ChooseRoundStanceAction) -> int | None:
-        if action.stance not in ROUND_STANCES_REQUIRING_ROUNDS:
-            return action.rounds if action.rounds and action.rounds > 0 else None
-        if action.rounds is None or action.rounds <= 0:
-            raise ValueError(f"Stance '{action.stance}' requires rounds > 0.")
-        return action.rounds
+        return validated_stance_rounds(action.stance, action.rounds)
 
     def _begin_decision(self, state: DecisionState, expected_types: tuple[type, ...]) -> None:
         self.snapshot.session_status = "awaiting_decision"
