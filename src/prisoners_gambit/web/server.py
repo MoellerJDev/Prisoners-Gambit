@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
 import json
+import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -14,16 +16,18 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
     FeaturedRoundDecisionState,
+    ROUND_STANCES_REQUIRING_ROUNDS,
 )
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
-_ROUND_STANCE_OPTIONS = set(FeaturedRoundDecisionState.stance_options)
-_ROUND_STANCES_REQUIRING_ROUNDS = {
-    stance_name
-    for stance_name, stance_cfg in FeaturedRoundDecisionState.stance_options.items()
-    if getattr(stance_cfg, "requires_rounds", False)
-    or (isinstance(stance_cfg, dict) and stance_cfg.get("requires_rounds"))
-}
+_log = logging.getLogger(__name__)
+
+_stance_options_default: tuple[str, ...] = next(
+    (f.default for f in dataclasses.fields(FeaturedRoundDecisionState) if f.name == "stance_options"),  # type: ignore[assignment]
+    (),
+)
+_ROUND_STANCE_OPTIONS = set(_stance_options_default)
+_ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
 
 
 HTML = """<!doctype html>
@@ -449,11 +453,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/advance":
             with _State.lock:
                 if _State.session is None:
-                    self._json({"error": "session not started"}, status=400)
-                    return
-                _State.session.advance()
-                payload = _State.session.view()
-            self._json(payload)
+                    payload = {"error": "session not started"}
+                    status = 400
+                else:
+                    _State.session.advance()
+                    payload = _State.session.view()
+                    status = 200
+            self._json(payload, status=status)
             return
 
         if self.path != "/api/action":
@@ -490,6 +496,9 @@ class Handler(BaseHTTPRequestHandler):
                 rounds = None
                 raw_rounds = payload.get("rounds")
                 if raw_rounds is not None:
+                    if isinstance(raw_rounds, bool):
+                        self._json({"error": "invalid rounds"}, status=400)
+                        return
                     try:
                         rounds = int(raw_rounds)
                     except (TypeError, ValueError):
@@ -527,16 +536,19 @@ class Handler(BaseHTTPRequestHandler):
 
             with _State.lock:
                 if _State.session is None:
-                    self._json({"error": "session not started"}, status=400)
-                    return
-                _State.session.submit_action(action)
-                _State.session.advance()
-                payload = _State.session.view()
-        except Exception as exc:  # noqa: BLE001
-            self._json({"error": str(exc)}, status=400)
+                    payload = {"error": "session not started"}
+                    status = 400
+                else:
+                    _State.session.submit_action(action)
+                    _State.session.advance()
+                    payload = _State.session.view()
+                    status = 200
+        except Exception:  # noqa: BLE001
+            _log.exception("Unhandled error in /api/action")
+            self._json({"error": "internal server error"}, status=500)
             return
 
-        self._json(payload)
+        self._json(payload, status=status)
 
 
 def run_server(port: int = 8765, host: str = "127.0.0.1") -> None:
