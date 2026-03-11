@@ -13,18 +13,16 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundMoveAction,
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
+    FeaturedRoundDecisionState,
 )
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
-_ROUND_STANCE_OPTIONS = {
-    "cooperate_until_betrayed",
-    "defect_until_punished",
-    "follow_autopilot_for_n_rounds",
-    "lock_last_manual_move_for_n_rounds",
-}
+_ROUND_STANCE_OPTIONS = set(FeaturedRoundDecisionState.stance_options)
 _ROUND_STANCES_REQUIRING_ROUNDS = {
-    "follow_autopilot_for_n_rounds",
-    "lock_last_manual_move_for_n_rounds",
+    stance_name
+    for stance_name, stance_cfg in FeaturedRoundDecisionState.stance_options.items()
+    if getattr(stance_cfg, "requires_rounds", False)
+    or (isinstance(stance_cfg, dict) and stance_cfg.get("requires_rounds"))
 }
 
 
