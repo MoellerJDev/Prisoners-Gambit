@@ -1,104 +1,188 @@
 # Prisoner's Gambit
 
-A Python prototype for a roguelike built around iterated Prisoner's Dilemma, evolutionary opponents, player-selectable powerups, and a future-proofed architecture for richer UI support.
+Prisoner's Gambit is a strategy roguelike built on an iterated prisoner's dilemma simulation.
 
-## Project vision
+You do not control a single permanent character. You control a lineage of strategies.
 
-The goal is to build a game where:
+Each floor, a population of agents plays a full tournament. Agents are ranked, the weaker half is eliminated, and the survivors shape the next generation. If your current host dies but your lineage survives, you assume one of your descendants and continue the run.
 
-- each agent has a strategy genome for making cooperate/defect decisions
-- agents play repeated Prisoner's Dilemma matches against the rest of the population
-- only top performers survive each floor
-- the player chooses one of several powerups after each floor
-- AI opponents can also accumulate powerups and mutate over time
-- the run continues until the player is eliminated
+The run has two phases:
 
-This repository is meant to be a strong first-pass scaffold, not a fully balanced game.
+- Ecosystem phase: your lineage competes against outside strategies
+- Civil war phase: once all outsiders are gone, only your lineage remains and the surviving branches fight until one final branch is left
 
-## Design goals
+## Current features
 
-- Keep core game rules separate from rendering
-- Support toggleable, detailed logging
-- Emit structured domain events for future GUI or replay systems
-- Keep systems modular so mechanics can expand without major refactors
-- Make it easy to replace the terminal UI later
+- Seeded deterministic runs
+- Full round-robin floor tournaments
+- Featured player matches with hidden-opponent inference
+- Procedurally varied strategy genomes
+- Powerups that change scoring, move control, and referendum behavior
+- Genome edit choices between floors
+- Lineage inheritance and host succession
+- Better descendant naming for player branches
+- Build identity tags and descriptors
+- Global floor referendum layer
+- Civil war endgame
+- Broad automated test coverage
 
-## Repository layout
-
-    src/prisoners_gambit/
-      app/        # orchestration and startup
-      config/     # settings and logging configuration
-      core/       # domain models, rules, strategy, powerups, events
-      systems/    # tournament flow, evolution, powerup offers, population generation
-      content/    # enemy names, archetypes, powerup template definitions
-      ui/         # renderer interfaces and terminal implementation
-      adapters/   # event listeners, recorders, bridges to external layers
-      utils/      # small helpers and formatting tools
-
-    tests/        # unit and smoke tests
-    docs/         # architecture notes and future design docs
-
-## Current gameplay loop
+## Core gameplay loop
 
 1. Create a population of agents
-2. Mark one agent as the player
+2. Mark one agent as the player host
 3. Run a full floor tournament
 4. Rank agents by score and wins
-5. Eliminate the bottom portion
-6. If the player survives, offer 5 powerups and let them choose 1
-7. Give some AI survivors random powerups
-8. Repopulate from survivors using mutated offspring
-9. Continue until the player is eliminated or the run ends
+5. Eliminate the lower portion
+6. If your current host died but lineage survives, choose a successor
+7. Choose 1 powerup from a set of offers
+8. Choose 1 autopilot genome edit
+9. Grant some AI survivors random powerups
+10. Repopulate during ecosystem phase
+11. Transition to civil war once all outsiders are gone
+12. Continue until your lineage is destroyed or one final branch survives
 
-## Current scoring model
+## Project structure
 
-This prototype currently uses the scoring model discussed earlier:
+    prisoners-gambit/
+    ├── README.md
+    ├── pyproject.toml
+    ├── .gitignore
+    ├── docs/
+    │   ├── architecture.md
+    │   ├── gameplay-design.md
+    │   ├── powerup-design.md
+    │   ├── event-model.md
+    │   └── roadmap.md
+    ├── src/
+    │   └── prisoners_gambit/
+    │       ├── __init__.py
+    │       ├── __main__.py
+    │       ├── app/
+    │       │   ├── __init__.py
+    │       │   ├── bootstrap.py
+    │       │   ├── run_application.py
+    │       │   └── service_container.py
+    │       ├── config/
+    │       │   ├── __init__.py
+    │       │   ├── settings.py
+    │       │   └── logging_config.py
+    │       ├── core/
+    │       │   ├── __init__.py
+    │       │   ├── analysis.py
+    │       │   ├── constants.py
+    │       │   ├── events.py
+    │       │   ├── genome_edits.py
+    │       │   ├── interaction.py
+    │       │   ├── models.py
+    │       │   ├── powerups.py
+    │       │   ├── scoring.py
+    │       │   └── strategy.py
+    │       ├── systems/
+    │       │   ├── __init__.py
+    │       │   ├── evolution.py
+    │       │   ├── genome_offers.py
+    │       │   ├── offers.py
+    │       │   ├── population.py
+    │       │   ├── progression.py
+    │       │   └── tournament.py
+    │       ├── content/
+    │       │   ├── __init__.py
+    │       │   ├── archetypes.py
+    │       │   ├── genome_edit_templates.py
+    │       │   ├── names.py
+    │       │   └── powerup_templates.py
+    │       ├── ui/
+    │       │   ├── __init__.py
+    │       │   ├── renderers.py
+    │       │   ├── terminal.py
+    │       │   └── view_models.py
+    │       ├── adapters/
+    │       │   ├── __init__.py
+    │       │   ├── json_event_recorder.py
+    │       │   └── logging_event_listener.py
+    │       └── utils/
+    │           ├── __init__.py
+    │           ├── formatting.py
+    │           └── random_tools.py
+    ├── tests/
+    │   ├── test_analysis.py
+    │   ├── test_civil_war_phase.py
+    │   ├── test_content_generation.py
+    │   ├── test_events.py
+    │   ├── test_evolution.py
+    │   ├── test_genome_edits.py
+    │   ├── test_lineage_rules.py
+    │   ├── test_population.py
+    │   ├── test_powerups.py
+    │   ├── test_progression.py
+    │   ├── test_regressions.py
+    │   ├── test_run_application.py
+    │   ├── test_scoring.py
+    │   ├── test_strategy.py
+    │   ├── test_tournament.py
+    │   └── test_view_models.py
+    └── scripts/
+        ├── run_dev.sh
+        └── run_dev.bat
 
-- if you defect while the opponent cooperates, you gain 1 point
-- if both cooperate, both gain 1 point
-- otherwise, no points are awarded
+## Installation
 
-This is intentionally simple and can be changed later.
+Create and activate a virtual environment, then install the project in editable mode.
 
-## Quick start
+### PowerShell
 
-Create and activate a virtual environment.
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install -e .[dev]
 
-On macOS/Linux:
+### Bash
 
     python -m venv .venv
     source .venv/bin/activate
-
-On Windows:
-
-    python -m venv .venv
-    .venv\Scripts\activate
-
-Install the package in editable mode with dev dependencies:
-
     pip install -e .[dev]
 
-Run the prototype:
+## Running the game
+
+Run the project with:
 
     python -m prisoners_gambit
 
-Run tests:
+## Seeding runs
 
-    python -m pytest -q
+Runs are deterministic when given the same seed.
 
-## Configuration
+If no seed is provided, the game generates one automatically and prints it at the start and end of the run.
 
-Settings are environment-driven.
+### PowerShell
 
-Available environment variables:
+    $env:PG_SEED="123456789"
+    python -m prisoners_gambit
 
+### Bash
+
+    export PG_SEED="123456789"
+    python -m prisoners_gambit
+
+Use the printed seed to replay interesting runs.
+
+## Useful environment variables
+
+The game currently supports a handful of environment-driven settings.
+
+- `PG_SEED`
 - `PG_POPULATION_SIZE`
 - `PG_ROUNDS_PER_MATCH`
 - `PG_SURVIVOR_COUNT`
 - `PG_OFFERS_PER_FLOOR`
+- `PG_FEATURED_MATCHES_PER_FLOOR`
+- `PG_GENOME_EDIT_OFFERS_PER_FLOOR`
 - `PG_FLOORS`
 - `PG_MUTATION_RATE`
-- `PG_SEED`
+- `PG_DESCENDANT_MUTATION_BONUS`
+- `PG_AUTO_CHOOSE_POWERUPS`
+- `PG_AUTO_CHOOSE_ROUND_ACTIONS`
+- `PG_AUTO_CHOOSE_GENOME_EDITS`
+- `PG_AUTO_CHOOSE_FLOOR_VOTE`
 - `PG_LOG_LEVEL`
 - `PG_LOG_TO_CONSOLE`
 - `PG_LOG_TO_FILE`
@@ -106,135 +190,116 @@ Available environment variables:
 
 Example:
 
-    PG_SEED=7 PG_LOG_LEVEL=DEBUG PG_LOG_TO_FILE=true python -m prisoners_gambit
+    $env:PG_SEED="987654321"
+    $env:PG_POPULATION_SIZE="12"
+    $env:PG_ROUNDS_PER_MATCH="7"
+    python -m prisoners_gambit
 
-## Logging
+## Current mechanical layers
 
-Logging is meant for debugging and development, not player-facing presentation.
+### Strategy genome
 
-Important characteristics:
+Each agent has an autopilot genome with:
+- first move
+- response to C/C
+- response to C/D
+- response to D/C
+- response to D/D
+- noise
 
-- detailed internal logging can be turned on or off
-- console logging and file logging are configurable independently
-- gameplay rendering is not driven directly by log output
+### Powerups
 
-This keeps the project ready for a future UI layer without tying the simulation to print statements.
+Perks can:
+- alter scores
+- force or redirect moves
+- shape referendum outcomes
+- create control-heavy or tempo-heavy builds
 
-## Event model
+### Genome edits
 
-The application emits domain events through an event bus.
+Between floors, the player modifies the current host's autopilot in small but meaningful ways.
 
-Examples include:
+### Build identity
 
-- `run_started`
-- `floor_started`
-- `floor_completed`
-- `powerups_offered`
-- `powerup_selected`
-- `player_eliminated`
-- `run_completed`
+Agents are analyzed into readable tags and descriptors such as:
+- Cooperative
+- Aggressive
+- Retaliatory
+- Exploitative
+- Control
+- Referendum
+- Consensus
+- Punishing
+- Precise
+- Unstable
 
-This event layer is important because a future UI can subscribe to these events and build:
+These are used to make roster reading and successor selection more meaningful.
 
-- animated floor transitions
-- match replays
-- powerup selection screens
-- run summaries
-- charts and inspectors
-- save/load and replay tools
+### Referendum
 
-## Architectural boundaries
+Once per floor, all agents participate in a global cooperation/defection vote.
 
-### `core`
+- If cooperation reaches majority or tie, cooperators get rewarded
+- If defection has majority, nobody gets rewarded
 
-Contains the raw game domain:
+### Succession
 
-- constants
-- scoring rules
-- strategies
-- models
-- powerup behavior
-- domain events
+If your current host is eliminated but descendants remain, you choose which surviving branch to become next.
 
-### `systems`
+### Civil war
 
-Contains simulation services that operate on the domain:
+When all outsiders are gone, the game enters a final civil war between surviving branches of your own lineage.
 
-- tournament engine
-- population generation
-- evolution and repopulation
-- powerup offer generation
-- progression rules
+## Testing
 
-### `app`
+Run the full test suite with:
 
-Coordinates the run:
+    python -m pytest -q
 
-- bootstraps settings
-- wires dependencies together
-- orchestrates floors and player choices
+At the current stage, the tests cover:
+- scoring
+- powerups
+- strategy genomes
+- genome edits
+- tournament logic
+- evolution
+- progression
+- lineage transfer rules
+- civil war behavior
+- event model
+- content generation
+- view formatting
+- regressions from previously discovered bugs
 
-### `ui`
+## Design direction
 
-Displays the run:
+The project is moving toward a strategy roguelike where the most important decisions are not just tactical round inputs, but:
 
-- renderer interfaces
-- terminal renderer
-- future GUI/web renderer implementations
+- how you shape your lineage
+- which descendant you assume after death
+- how you read hidden opponents from incomplete information
+- whether you optimize for pairwise play, referendum play, or late civil war dominance
 
-### `adapters`
+## Documentation
 
-Bridges the game to external concerns:
+See the docs folder for more detailed design and architecture notes:
 
-- event recording
-- analytics
-- debug listeners
-- persistence hooks
+- `docs/architecture.md`
+- `docs/event-model.md`
+- `docs/gameplay-design.md`
+- `docs/powerup-design.md`
+- `docs/roadmap.md`
 
-## Expansion ideas
+## Next likely features
 
-### Short-term
+The strongest near-term candidates are:
 
-- add more powerup families
-- add enemy archetypes and named bosses
-- add floor modifiers or acts
-- add featured match summaries
-- record events to JSON for replay
-
-### Mid-term
-
-- build a richer terminal UI
-- add save/load support
-- expose per-match inspection
-- add balancing tools and simulation dashboards
-
-### Long-term
-
-- replace terminal renderer with a GUI or web app
-- add relic rarity, shops, and branching paths
-- add visual run history and build screens
-- add challenge modes and seeded runs
-
-## Suggested next files to expand
-
-If you want to keep building from this scaffold, the most useful next files to touch are:
-
-- `src/prisoners_gambit/app/run_application.py`
-- `src/prisoners_gambit/systems/tournament.py`
-- `src/prisoners_gambit/core/powerups.py`
-- `src/prisoners_gambit/systems/offers.py`
-- `src/prisoners_gambit/adapters/json_event_recorder.py`
+- clearer featured-round explanation of which perks fired
+- fast-forward or stance controls for featured matches
+- stronger successor comparison tools
+- between-floor reroll or economy systems
+- more civil-war-specific content
 
 ## Notes
 
-This repository is intentionally structured to support growth.
-
-It is not yet:
-
-- fully balanced
-- content-rich
-- graphically rendered
-- save/load complete
-- replay complete
-
-But it is meant to be a good base for getting there cleanly.
+This project is currently terminal-first, but the code is intentionally structured so the simulation core is not tightly coupled to the terminal UI. That should make future UI upgrades much easier.
