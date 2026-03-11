@@ -419,3 +419,14 @@ def test_complete_run_rejects_unknown_outcome() -> None:
 
     with pytest.raises(ValueError, match="Invalid outcome"):
         controller.complete_run(outcome="draw", floor_number=2, player_name="You", seed=7)
+
+
+@pytest.mark.parametrize("outcome", ["victory", "eliminated"])
+def test_complete_run_accepts_supported_outcomes(outcome: str) -> None:
+    controller = InteractionController(renderer=NewRendererStub())
+
+    controller.complete_run(outcome=outcome, floor_number=2, player_name="You", seed=7)
+
+    assert controller.snapshot.completion is not None
+    assert controller.snapshot.completion.outcome == outcome
+    assert controller.session.status == "completed"
