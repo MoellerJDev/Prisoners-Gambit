@@ -63,6 +63,7 @@ class FeaturedMatchWebSession:
         self.floor_number = 1
         self._last_manual_move: int | None = None
         self._active_stance: FeaturedRoundStanceView | None = None
+        self._match_autopilot_active = False
         self._pending_screen: str | None = None
         self._pending_message: str | None = None
         self._powerup_offers = []
@@ -130,6 +131,10 @@ class FeaturedMatchWebSession:
             "pending_message": self._pending_message,
         }
 
+    @property
+    def should_autopilot_featured_match(self) -> bool:
+        return self._match_autopilot_active
+
     def _begin_featured_round_decision(self) -> None:
         suggested_move = self.player.genome.choose_move(self.player_history, self.opponent_history, self.rng)
         state = FeaturedRoundDecisionState(
@@ -168,19 +173,24 @@ class FeaturedMatchWebSession:
         self.snapshot.session_status = "awaiting_decision"
 
     def _resolve_featured_round(self, decision: FeaturedRoundDecisionState) -> None:
-        action = self.session.resolve_current_decision(lambda _: ChooseRoundAutopilotAction(mode="autopilot_round"))
+        action = self.session.resolve_current_decision(self._default_featured_round_action)
         if isinstance(action, ChooseRoundMoveAction):
+            self._match_autopilot_active = False
             self._last_manual_move = action.move
             self._active_stance = None
             self.snapshot.active_featured_stance = None
             player_plan = action.move
         elif isinstance(action, ChooseRoundStanceAction):
+            self._match_autopilot_active = False
             rounds = self._validated_stance_rounds(action)
             locked_move = self._last_manual_move if action.stance == "lock_last_manual_move_for_n_rounds" else None
             self._active_stance = FeaturedRoundStanceView(stance=action.stance, rounds_remaining=rounds, locked_move=locked_move)
             self.snapshot.active_featured_stance = self._active_stance
             player_plan = self._resolve_stance_move(decision.prompt)
         else:
+            self._match_autopilot_active = action.mode == "autopilot_match"
+            self._active_stance = None
+            self.snapshot.active_featured_stance = None
             player_plan = decision.prompt.suggested_move
 
         opponent_plan = self.opponent.genome.choose_move(self.opponent_history, self.player_history, self.rng)
@@ -406,6 +416,10 @@ class FeaturedMatchWebSession:
 
     def _validated_stance_rounds(self, action: ChooseRoundStanceAction) -> int | None:
         return validated_stance_rounds(action.stance, action.rounds)
+
+    def _default_featured_round_action(self, _: FeaturedRoundDecisionState) -> ChooseRoundAutopilotAction:
+        mode = "autopilot_match" if self._match_autopilot_active else "autopilot_round"
+        return ChooseRoundAutopilotAction(mode=mode)
 
     def _resolve_move(
         self,

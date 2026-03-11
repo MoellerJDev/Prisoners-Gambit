@@ -11,6 +11,7 @@ from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
     ChooseGenomeEditAction,
     ChoosePowerupAction,
+    ChooseRoundAutopilotAction,
     ChooseRoundMoveAction,
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
@@ -48,6 +49,36 @@ def test_featured_match_web_session_supports_stance_actions() -> None:
     )
     session.advance()
     assert session.view()["snapshot"]["active_featured_stance"] is not None
+
+
+def test_featured_match_web_session_persists_match_autopilot_across_rounds() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=3)
+    session.start()
+
+    session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
+    session.advance()
+    assert session.view()["snapshot"]["latest_featured_round"]["round_index"] == 0
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+
+    session.advance()
+    assert session.view()["snapshot"]["latest_featured_round"]["round_index"] == 1
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+
+    session.advance()
+    assert session.view()["decision_type"] == "FloorVoteDecisionState"
+
+
+def test_featured_match_web_session_clears_match_autopilot_after_manual_move() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=3)
+    session.start()
+
+    session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
+    session.advance()
+    assert session.should_autopilot_featured_match is True
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    assert session.should_autopilot_featured_match is False
 
 
 def test_featured_match_web_session_rejects_duration_stance_without_rounds() -> None:
@@ -265,6 +296,7 @@ def test_web_api_rejects_invalid_and_oversized_content_length() -> None:
         body = json.loads(response.read().decode("utf-8"))
         assert response.status == 400
         assert body["error"] == "invalid Content-Length"
+        assert response.getheader("Connection") == "close"
         assert conn.sock is None
         conn.close()
 
@@ -286,7 +318,39 @@ def test_web_api_rejects_invalid_and_oversized_content_length() -> None:
         body = json.loads(response.read().decode("utf-8"))
         assert response.status == 413
         assert body["error"] == "request body too large"
+        assert response.getheader("Connection") == "close"
         assert conn.sock is None
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_web_root_and_json_responses_include_content_length_for_http11() -> None:
+    from http.server import ThreadingHTTPServer
+
+    class Http11Handler(Handler):
+        protocol_version = "HTTP/1.1"
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Http11Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request("GET", "/", headers={"Connection": "keep-alive"})
+        response = conn.getresponse()
+        html = response.read()
+        assert response.status == 200
+        assert response.getheader("Content-Length") == str(len(html))
+
+        conn.request("GET", "/api/state", headers={"Connection": "keep-alive"})
+        response = conn.getresponse()
+        payload = response.read()
+        assert response.status == 200
+        assert response.getheader("Content-Length") == str(len(payload))
+        assert "status" in json.loads(payload.decode("utf-8"))
         conn.close()
     finally:
         server.shutdown()

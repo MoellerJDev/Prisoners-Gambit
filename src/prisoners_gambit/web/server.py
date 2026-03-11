@@ -420,17 +420,23 @@ class _State:
 
 class Handler(BaseHTTPRequestHandler):
     def _json(self, payload: dict, status: int = 200) -> None:
+        body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        if getattr(self, "close_connection", False):
+            self.send_header("Connection", "close")
         self.end_headers()
-        self.wfile.write(json.dumps(payload).encode("utf-8"))
+        self.wfile.write(body)
 
     def do_GET(self) -> None:
         if self.path == "/":
+            body = HTML.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(HTML.encode("utf-8"))
+            self.wfile.write(body)
             return
         if self.path == "/api/state":
             with _State.lock:
