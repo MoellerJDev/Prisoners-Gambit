@@ -220,6 +220,7 @@ def test_successor_state_and_run_snapshot_are_populated() -> None:
     assert controller.snapshot.successor_options.floor_number == 5
     assert controller.snapshot.successor_options.candidates[0].name == "Heir A"
     assert controller.snapshot.successor_options.candidates[0].branch_role
+    assert controller.snapshot.successor_options.candidates[0].shaping_causes
     assert controller.snapshot.successor_options.candidates[0].attractive_now
     assert controller.snapshot.successor_options.candidates[0].genome_summary
 

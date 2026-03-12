@@ -107,6 +107,7 @@ class FloorRosterState:
 class FloorSummaryPressureEntryView:
     name: str
     branch_role: str
+    shaping_causes: list[str]
     score: int
     wins: int
     tags: list[str]
@@ -173,6 +174,7 @@ class SuccessorCandidateView:
     wins: int
     branch_role: str
     branch_doctrine: str
+    shaping_causes: list[str]
     tags: list[str]
     descriptor: str
     tradeoffs: list[str]

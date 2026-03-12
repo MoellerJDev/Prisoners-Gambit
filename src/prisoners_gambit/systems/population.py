@@ -4,6 +4,7 @@ import random
 
 from prisoners_gambit.content.archetypes import build_archetype, build_player_starter_genome
 from prisoners_gambit.content.names import build_agent_name
+from prisoners_gambit.core.lineage import PLAYER_LINEAGE_ID
 from prisoners_gambit.core.models import Agent
 
 
@@ -17,7 +18,7 @@ def create_population(size: int, rng: random.Random) -> list[Agent]:
             genome=build_player_starter_genome(),
             public_profile="Adaptive human pilot",
             is_player=True,
-            lineage_id=1,
+            lineage_id=PLAYER_LINEAGE_ID,
             lineage_depth=0,
         )
     ]

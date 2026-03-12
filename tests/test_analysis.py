@@ -1,4 +1,4 @@
-from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import (
@@ -117,3 +117,33 @@ def test_analysis_limits_tag_count_to_four() -> None:
     identity = analyze_agent_identity(agent)
 
     assert len(identity.tags) <= 4
+
+
+def test_branch_role_classification_marks_unstable_successor() -> None:
+    agent = make_agent(noise=0.25)
+    assessed = assess_successor_candidate(agent, top_score=10)
+
+    assert assessed.branch_role == "Unstable heir"
+    assert any("Stable vs volatile" in item for item in assessed.tradeoffs)
+
+
+def test_heir_pressure_candidates_include_shaping_causes() -> None:
+    player = make_agent(first_move=COOPERATE)
+    player.is_player = True
+    player.lineage_id = 7
+    player.score = 10
+
+    heir = make_agent(first_move=DEFECT, dc=DEFECT)
+    heir.lineage_id = 7
+    heir.score = 9
+
+    outsider = make_agent(noise=0.2)
+    outsider.lineage_id = 99
+    outsider.score = 11
+
+    pressure = analyze_floor_heir_pressure([outsider, player, heir], player_lineage_id=7)
+
+    assert pressure.successor_candidates
+    assert pressure.successor_candidates[0].shaping_causes
+    assert pressure.future_threats
+    assert pressure.future_threats[0].shaping_causes

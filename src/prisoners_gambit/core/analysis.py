@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from collections import Counter
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
+from prisoners_gambit.core.doctrines import BranchRole
 from prisoners_gambit.core.models import Agent
 
 
@@ -67,11 +68,12 @@ def analyze_agent_identity(agent: Agent) -> AgentIdentity:
 @dataclass(slots=True)
 class HeirPressureCandidate:
     name: str
-    branch_role: str
+    branch_role: BranchRole
     score: int
     wins: int
     tags: list[str]
     descriptor: str
+    shaping_causes: list[str]
     rationale: str
 
 
@@ -84,8 +86,9 @@ class FloorHeirPressure:
 
 @dataclass(slots=True)
 class SuccessorAssessment:
-    branch_role: str
+    branch_role: BranchRole
     branch_doctrine: str
+    shaping_causes: list[str]
     tradeoffs: list[str]
     strengths: list[str]
     liabilities: list[str]
@@ -126,6 +129,7 @@ def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | No
                 wins=agent.wins,
                 tags=identity.tags,
                 descriptor=identity.descriptor,
+                shaping_causes=_shaping_causes(agent, identity),
                 rationale="Viable successor branch if current host dies next floor.",
             )
         )
@@ -144,6 +148,7 @@ def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | No
                 wins=agent.wins,
                 tags=identity.tags,
                 descriptor=identity.descriptor,
+                shaping_causes=_shaping_causes(agent, identity),
                 rationale="External pressure likely to shape upcoming heir choices.",
             )
         )
@@ -156,7 +161,7 @@ def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | No
     )
 
 
-def _classify_branch_role(agent: Agent, identity: AgentIdentity, top_score: int) -> str:
+def _classify_branch_role(agent: Agent, identity: AgentIdentity, top_score: int) -> BranchRole:
     tags = set(identity.tags)
     if agent.score >= max(1, top_score - 1) and ({"Control", "Punishing"} & tags or "Tempo" in tags):
         return "Future civil-war monster"
@@ -250,6 +255,7 @@ def assess_successor_candidate(
     return SuccessorAssessment(
         branch_role=role,
         branch_doctrine=doctrine,
+        shaping_causes=_shaping_causes(agent, identity),
         tradeoffs=tradeoffs,
         strengths=strengths[:3],
         liabilities=liabilities[:3],
@@ -257,6 +263,23 @@ def assess_successor_candidate(
         danger_later=danger_later,
         lineage_future=lineage_future,
     )
+
+
+def _shaping_causes(agent: Agent, identity: AgentIdentity) -> list[str]:
+    causes: list[str] = []
+    if "Cooperative" in identity.tags:
+        causes.append("Cooperative opener and reciprocity bias")
+    if "Aggressive" in identity.tags:
+        causes.append("Aggressive opener with duel pressure")
+    if "Referendum" in identity.tags:
+        causes.append("Referendum-oriented perk package")
+    if "Control" in identity.tags:
+        causes.append("Control directives shaping move outcomes")
+    if "Unstable" in identity.tags or agent.genome.noise >= 0.20:
+        causes.append("High-noise behavior increases variance")
+    if not causes:
+        causes.append("Mixed profile from prior edits and inheritance")
+    return causes[:3]
 
 
 def _build_descriptor(tags: list[str], agent: Agent) -> str:

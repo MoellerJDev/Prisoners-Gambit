@@ -311,6 +311,7 @@ class FeaturedMatchWebSession:
                 FloorSummaryPressureEntryView(
                     name=c.name,
                     branch_role=c.branch_role,
+                    shaping_causes=list(c.shaping_causes),
                     score=c.score,
                     wins=c.wins,
                     tags=list(c.tags),
@@ -323,6 +324,7 @@ class FeaturedMatchWebSession:
                 FloorSummaryPressureEntryView(
                     name=c.name,
                     branch_role=c.branch_role,
+                    shaping_causes=list(c.shaping_causes),
                     score=c.score,
                     wins=c.wins,
                     tags=list(c.tags),
@@ -357,6 +359,7 @@ class FeaturedMatchWebSession:
                         wins=agent.wins,
                         branch_role=assessment.branch_role,
                         branch_doctrine=assessment.branch_doctrine,
+                        shaping_causes=list(assessment.shaping_causes),
                         tags=identity.tags,
                         descriptor=identity.descriptor,
                         tradeoffs=list(assessment.tradeoffs),

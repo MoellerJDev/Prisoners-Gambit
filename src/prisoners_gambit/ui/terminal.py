@@ -249,6 +249,7 @@ class TerminalRenderer(Renderer):
                     wins=agent.wins,
                     branch_role=assessment.branch_role,
                     branch_doctrine=assessment.branch_doctrine,
+                    shaping_causes=list(assessment.shaping_causes),
                     tags=identity.tags,
                     descriptor=identity.descriptor,
                     tradeoffs=list(assessment.tradeoffs),

@@ -234,6 +234,8 @@ Descendants inherit:
 
 Player-lineage descendants mutate more aggressively than normal outsiders. This gives the lineage a better chance to diversify and survive.
 
+To make divergence appear earlier, player-lineage offspring also receive a deterministic branch-focus push (safe, ruthless, unstable, or referendum-oriented). This is intentionally limited and tuned so branches diverge in recognizable directions rather than pure noise.
+
 Design intent: repopulation is not filler content. It is the mechanism that turns this floor's choices into next floor's succession dilemma.
 
 ## Lineage Succession

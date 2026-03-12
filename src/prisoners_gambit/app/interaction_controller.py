@@ -177,6 +177,7 @@ class InteractionController:
                 FloorSummaryPressureEntryView(
                     name=candidate.name,
                     branch_role=candidate.branch_role,
+                    shaping_causes=list(candidate.shaping_causes),
                     score=candidate.score,
                     wins=candidate.wins,
                     tags=list(candidate.tags),
@@ -189,6 +190,7 @@ class InteractionController:
                 FloorSummaryPressureEntryView(
                     name=candidate.name,
                     branch_role=candidate.branch_role,
+                    shaping_causes=list(candidate.shaping_causes),
                     score=candidate.score,
                     wins=candidate.wins,
                     tags=list(candidate.tags),
@@ -369,6 +371,7 @@ class InteractionController:
                     wins=candidate.wins,
                     branch_role=assessment.branch_role,
                     branch_doctrine=assessment.branch_doctrine,
+                    shaping_causes=list(assessment.shaping_causes),
                     tags=identity.tags,
                     descriptor=identity.descriptor,
                     tradeoffs=list(assessment.tradeoffs),

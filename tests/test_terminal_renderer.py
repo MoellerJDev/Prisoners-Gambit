@@ -63,6 +63,7 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
                     wins=4,
                     branch_role="Safe heir",
                     branch_doctrine="Reciprocal cooperator",
+                    shaping_causes=["Cooperative opener and reciprocity bias"],
                     tags=["Cooperative", "Retaliatory"],
                     descriptor="Reliable reciprocal responder",
                     tradeoffs=["Safe vs explosive: Safe edge"],

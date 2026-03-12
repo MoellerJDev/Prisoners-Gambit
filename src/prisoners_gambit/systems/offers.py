@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 
 from prisoners_gambit.content.powerup_templates import build_powerup_pool
+from prisoners_gambit.core.doctrines import BRANCH_FOCUS_REFERENDUM, BRANCH_FOCUS_RUTHLESS, BRANCH_FOCUS_SAFE, BRANCH_FOCUS_UNSTABLE
 from prisoners_gambit.core.powerups import Powerup
 
 
@@ -10,10 +11,10 @@ def generate_powerup_offers(count: int, rng: random.Random) -> list[Powerup]:
     pool = build_powerup_pool()
 
     pillar_groups = {
-        "safe": {"Trust Dividend", "Mercy Shield", "Golden Handshake"},
-        "ruthless": {"Opening Gambit", "Spite Engine", "Compliance Dividend", "Last Laugh"},
-        "referendum": {"Unity Ticket", "Saboteur Bloc", "Bloc Politics"},
-        "control": {"Coercive Control", "Counter-Intel", "Panic Button"},
+        BRANCH_FOCUS_SAFE: {"Trust Dividend", "Mercy Shield", "Golden Handshake"},
+        BRANCH_FOCUS_RUTHLESS: {"Opening Gambit", "Spite Engine", "Compliance Dividend", "Last Laugh"},
+        BRANCH_FOCUS_REFERENDUM: {"Unity Ticket", "Saboteur Bloc", "Bloc Politics"},
+        BRANCH_FOCUS_UNSTABLE: {"Coercive Control", "Counter-Intel", "Panic Button"},
     }
 
     chosen: list[Powerup] = []

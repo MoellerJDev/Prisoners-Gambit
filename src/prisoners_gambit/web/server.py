@@ -312,6 +312,7 @@ function renderDecision(data){
       const btn = document.createElement('button');
       btn.className = 'btn';
       btn.innerHTML = `${idx + 1}. ${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} (${candidate.score}/${candidate.wins})`;
+      btn.title = (candidate.shaping_causes || []).join('; ');
       btn.onclick = () => sendAction({type:'choose_successor', candidate_index: idx});
       actions.appendChild(btn);
     });
@@ -371,10 +372,10 @@ function renderSnapshot(snapshot){
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
   const successorLines = (pressure?.successor_candidates || []).map(entry =>
-    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml(entry.rationale)}</span></li>`
+    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml((entry.shaping_causes || []).join('; '))} · ${escapeHtml(entry.rationale)}</span></li>`
   ).join('');
   const threatLines = (pressure?.future_threats || []).map(entry =>
-    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml(entry.rationale)}</span></li>`
+    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml((entry.shaping_causes || []).join('; '))} · ${escapeHtml(entry.rationale)}</span></li>`
   ).join('');
   const pressureBlock = pressure
     ? `<li><strong>Future successor pressure</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`
@@ -387,7 +388,7 @@ function renderSnapshot(snapshot){
 
   const successors = snapshot.successor_options?.candidates || [];
   document.getElementById('successors').innerHTML = successors.length
-    ? successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml(candidate.attractive_now)} | ${escapeHtml(candidate.danger_later)}</span></li>`).join('')
+    ? successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml((candidate.shaping_causes || []).join('; '))}</span><br/><span class='muted'>${escapeHtml(candidate.attractive_now)} | ${escapeHtml(candidate.danger_later)}</span></li>`).join('')
     : '<li>No successor choice active.</li>';
 
   const completion = snapshot.completion;
