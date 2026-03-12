@@ -27,10 +27,8 @@ from prisoners_gambit.core.interaction import (
     FloorVoteDecisionState,
     FloorVoteResult,
     GenomeEditChoiceState,
-    GenomeEditOfferView,
     PlayerAction,
     PowerupChoiceState,
-    PowerupOfferView,
     RosterEntry,
     RunCompletion,
     RunHeaderState,
@@ -41,12 +39,7 @@ from prisoners_gambit.core.interaction import (
     validated_stance_rounds,
 )
 from prisoners_gambit.core.models import Agent
-from prisoners_gambit.core.offer_guidance import (
-    doctrine_drift_text,
-    guidance_for_genome_edit,
-    guidance_for_powerup,
-    lineage_commitment_text,
-)
+from prisoners_gambit.core.offer_views import to_genome_edit_offer_view, to_powerup_offer_view
 from prisoners_gambit.core.powerups import Powerup
 from prisoners_gambit.ui.renderers import Renderer
 
@@ -295,21 +288,7 @@ class InteractionController:
     def choose_powerup(self, floor_number: int, offers: list[Powerup]) -> Powerup:
         state = PowerupChoiceState(
             floor_number=floor_number,
-            offers=[
-                PowerupOfferView(
-                    name=offer.name,
-                    description=offer.description,
-                    lineage_commitment=lineage_commitment_text(guidance),
-                    doctrine_vector=guidance.doctrine_vector,
-                    branch_identity=guidance.branch_identity,
-                    tradeoff=guidance.tradeoff,
-                    phase_support=guidance.phase_support,
-                    successor_pressure=guidance.successor_pressure,
-                    tags=None,
-                )
-                for offer in offers
-                for guidance in (guidance_for_powerup(offer),)
-            ],
+            offers=[to_powerup_offer_view(offer) for offer in offers],
         )
         self._begin_decision(state, (ChoosePowerupAction,))
         action = self.session.resolve_current_decision(lambda decision: self._resolve_powerup_choice(decision, offers))
@@ -322,23 +301,7 @@ class InteractionController:
         state = GenomeEditChoiceState(
             floor_number=floor_number,
             current_summary=current_summary,
-            offers=[
-                GenomeEditOfferView(
-                    name=offer.name,
-                    description=offer.description,
-                    lineage_commitment=lineage_commitment_text(guidance),
-                    doctrine_vector=guidance.doctrine_vector,
-                    branch_identity=guidance.branch_identity,
-                    tradeoff=guidance.tradeoff,
-                    phase_support=guidance.phase_support,
-                    successor_pressure=guidance.successor_pressure,
-                    current_summary=current_summary,
-                    projected_summary=None,
-                    doctrine_drift=doctrine_drift_text(guidance),
-                )
-                for offer in offers
-                for guidance in (guidance_for_genome_edit(offer),)
-            ],
+            offers=[to_genome_edit_offer_view(offer, current_summary=current_summary) for offer in offers],
         )
         self._begin_decision(state, (ChooseGenomeEditAction,))
         action = self.session.resolve_current_decision(lambda decision: self._resolve_genome_edit_choice(decision, offers))

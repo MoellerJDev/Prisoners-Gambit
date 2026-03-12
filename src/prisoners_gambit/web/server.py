@@ -291,7 +291,7 @@ function renderDecision(data){
       const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
       btn.innerHTML = `${powerupToken(label)}<br/><span class='muted'>${escapeHtml(commitment || doctrine)}</span>`;
-      btn.title = [offer.branch_identity, commitment, doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
+      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
       actions.appendChild(btn);
     });
@@ -310,9 +310,9 @@ function renderDecision(data){
       const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
       const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
-      const drift = offer.doctrine_drift ? offer.doctrine_drift : '';
+      const drift = offer.doctrine_drift ? `Doctrine drift: ${offer.doctrine_drift}` : '';
       btn.innerHTML = `${genomeToken(label)}<br/><span class='muted'>${escapeHtml(commitment || doctrine)}</span>`;
-      btn.title = [offer.branch_identity, commitment, doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure, drift].filter(Boolean).join(' | ');
+      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure, drift].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_genome_edit', offer_index: idx});
       actions.appendChild(btn);
     });

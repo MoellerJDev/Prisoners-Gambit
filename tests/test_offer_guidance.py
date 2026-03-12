@@ -17,5 +17,5 @@ def test_doctrine_drift_tracks_phase_support_lane() -> None:
     ecosystem = OfferDoctrineGuidance("v", "b", "t", "ecosystem survival", "s")
     civil_war = OfferDoctrineGuidance("v", "b", "t", "civil-war readiness", "s")
 
-    assert "ecosystem" in doctrine_drift_text(ecosystem).lower()
-    assert "branch-mirror conflict" in doctrine_drift_text(civil_war).lower()
+    assert doctrine_drift_text(ecosystem).startswith("Favors heirs") and "ecosystem" in doctrine_drift_text(ecosystem).lower()
+    assert doctrine_drift_text(civil_war).startswith("Favors heirs") and "branch-mirror conflict" in doctrine_drift_text(civil_war).lower()

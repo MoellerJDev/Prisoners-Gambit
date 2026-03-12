@@ -172,25 +172,11 @@ class TerminalRenderer(Renderer):
         print(format_floor_vote_result(result))
 
     def choose_powerup(self, offers: list[Powerup]) -> Powerup:
-        from prisoners_gambit.core.interaction import PowerupOfferView
-        from prisoners_gambit.core.offer_guidance import guidance_for_powerup, lineage_commitment_text
+        from prisoners_gambit.core.offer_views import to_powerup_offer_view
 
         state = PowerupChoiceState(
             floor_number=0,
-            offers=[
-                PowerupOfferView(
-                    name=offer.name,
-                    description=offer.description,
-                    lineage_commitment=lineage_commitment_text(guidance),
-                    doctrine_vector=guidance.doctrine_vector,
-                    branch_identity=guidance.branch_identity,
-                    tradeoff=guidance.tradeoff,
-                    phase_support=guidance.phase_support,
-                    successor_pressure=guidance.successor_pressure,
-                )
-                for offer in offers
-                for guidance in (guidance_for_powerup(offer),)
-            ],
+            offers=[to_powerup_offer_view(offer) for offer in offers],
         )
         action = self.resolve_powerup_choice(state)
         return offers[action.offer_index]
@@ -214,27 +200,12 @@ class TerminalRenderer(Renderer):
             print("Invalid selection.")
 
     def choose_genome_edit(self, offers: list[GenomeEdit], current_summary: str) -> GenomeEdit:
-        from prisoners_gambit.core.interaction import GenomeEditOfferView
-        from prisoners_gambit.core.offer_guidance import doctrine_drift_text, guidance_for_genome_edit, lineage_commitment_text
+        from prisoners_gambit.core.offer_views import to_genome_edit_offer_view
 
         state = GenomeEditChoiceState(
             floor_number=0,
             current_summary=current_summary,
-            offers=[
-                GenomeEditOfferView(
-                    name=offer.name,
-                    description=offer.description,
-                    lineage_commitment=lineage_commitment_text(guidance),
-                    doctrine_vector=guidance.doctrine_vector,
-                    branch_identity=guidance.branch_identity,
-                    tradeoff=guidance.tradeoff,
-                    phase_support=guidance.phase_support,
-                    successor_pressure=guidance.successor_pressure,
-                    doctrine_drift=doctrine_drift_text(guidance),
-                )
-                for offer in offers
-                for guidance in (guidance_for_genome_edit(offer),)
-            ],
+            offers=[to_genome_edit_offer_view(offer) for offer in offers],
         )
         action = self.resolve_genome_edit_choice(state)
         return offers[action.offer_index]

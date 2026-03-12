@@ -141,23 +141,23 @@ def guidance_for_genome_edit(edit: GenomeEdit) -> OfferDoctrineGuidance:
 
 
 _COMMITMENT_BY_VECTOR: dict[str, str] = {
-    "trust / reciprocity": "Commit to reciprocal institutions and long-horizon trust.",
-    "coercion / control": "Commit to rule enforcement and compliance extraction.",
-    "opportunism / betrayal": "Commit to tempo theft and decisive betray windows.",
-    "referendum leverage": "Commit to vote-market manipulation and bloc control.",
-    "volatility / chaos": "Commit to instability as a weapon and gamble.",
-    "survivability / stabilization": "Commit to branch resilience and orderly recovery.",
+    "trust / reciprocity": "Choose if you want heirs to bank value through reciprocal trust loops.",
+    "coercion / control": "Choose if you want heirs to win by enforcing compliance and punish lanes.",
+    "opportunism / betrayal": "Choose if you want heirs to seize tempo through sharp betray windows.",
+    "referendum leverage": "Choose if you want heirs to control blocs and referendum bargaining power.",
+    "volatility / chaos": "Choose if you want heirs to embrace instability for upset potential.",
+    "survivability / stabilization": "Choose if you want heirs to absorb shocks and preserve branch continuity.",
 }
 
 
 def lineage_commitment_text(guidance: OfferDoctrineGuidance) -> str:
-    return _COMMITMENT_BY_VECTOR.get(guidance.doctrine_vector, "Commit to a mixed lineage doctrine.")
+    return _COMMITMENT_BY_VECTOR.get(guidance.doctrine_vector, "Choose if you want a balanced doctrine without a hard specialization.")
 
 
 def doctrine_drift_text(guidance: OfferDoctrineGuidance) -> str:
     phase = guidance.phase_support or "both"
     if phase == "ecosystem survival":
-        return "Doctrine drift: favors heirs optimized for ecosystem stewardship."
+        return "Favors heirs optimized for ecosystem stewardship."
     if phase == "civil-war readiness":
-        return "Doctrine drift: favors heirs optimized for branch-mirror conflict."
-    return "Doctrine drift: keeps both ecosystem and civil-war successor lanes active."
+        return "Favors heirs optimized for branch-mirror conflict."
+    return "Keeps both ecosystem and civil-war successor lanes active."

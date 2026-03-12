@@ -39,12 +39,7 @@ from prisoners_gambit.core.interaction import (
     validated_stance_rounds,
 )
 from prisoners_gambit.core.models import Agent
-from prisoners_gambit.core.offer_guidance import (
-    doctrine_drift_text,
-    guidance_for_genome_edit,
-    guidance_for_powerup,
-    lineage_commitment_text,
-)
+from prisoners_gambit.core.offer_views import to_genome_edit_offer_view, to_powerup_offer_view
 from prisoners_gambit.core.powerups import ComplianceDividend, CounterIntel, MoveDirective, RoundContext, resolve_move
 from prisoners_gambit.core.scoring import base_payoff
 from prisoners_gambit.core.strategy import StrategyGenome
@@ -357,20 +352,7 @@ class FeaturedMatchWebSession:
             return
 
         self._powerup_offers = generate_powerup_offers(3, self.rng)
-        offers = [
-            PowerupOfferView(
-                name=o.name,
-                description=o.description,
-                lineage_commitment=lineage_commitment_text(guidance),
-                doctrine_vector=guidance.doctrine_vector,
-                branch_identity=guidance.branch_identity,
-                tradeoff=guidance.tradeoff,
-                phase_support=guidance.phase_support,
-                successor_pressure=guidance.successor_pressure,
-            )
-            for o in self._powerup_offers
-            for guidance in (guidance_for_powerup(o),)
-        ]
+        offers = [to_powerup_offer_view(offer) for offer in self._powerup_offers]
         state = PowerupChoiceState(floor_number=self.floor_number, offers=offers)
         self.session.begin_decision(state, (ChoosePowerupAction,), self.snapshot)
         self.snapshot.session_status = "awaiting_decision"
@@ -401,21 +383,12 @@ class FeaturedMatchWebSession:
             floor_number=self.floor_number,
             current_summary=self.player.genome.summary(),
             offers=[
-                GenomeEditOfferView(
-                    name=offer.name,
-                    description=offer.description,
-                    lineage_commitment=lineage_commitment_text(guidance),
-                    doctrine_vector=guidance.doctrine_vector,
-                    branch_identity=guidance.branch_identity,
-                    tradeoff=guidance.tradeoff,
-                    phase_support=guidance.phase_support,
-                    successor_pressure=guidance.successor_pressure,
+                to_genome_edit_offer_view(
+                    offer,
                     current_summary=self.player.genome.summary(),
                     projected_summary=offer.apply(self.player.genome).summary(),
-                    doctrine_drift=doctrine_drift_text(guidance),
                 )
                 for offer in self._genome_offers
-                for guidance in (guidance_for_genome_edit(offer),)
             ],
         )
         self.session.begin_decision(state, (ChooseGenomeEditAction,), self.snapshot)

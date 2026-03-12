@@ -60,7 +60,7 @@ def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list
     lines: list[str] = []
     if offer.lineage_commitment:
         lines.append(f"Lineage commitment: {offer.lineage_commitment}")
-    if offer.doctrine_vector:
+    if offer.doctrine_vector and not offer.lineage_commitment:
         lines.append(f"Doctrine vector: {offer.doctrine_vector}")
     if offer.branch_identity:
         lines.append(f"Branch identity: {offer.branch_identity}")
