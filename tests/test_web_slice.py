@@ -118,6 +118,10 @@ def test_web_session_advances_through_full_run_loop() -> None:
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
     assert session.view()["pending_screen"] == "civil_war_transition"
+    civil_war_context = session.view()["snapshot"]["civil_war_context"]
+    assert civil_war_context is not None
+    assert civil_war_context["scoring_rules"]
+    assert session.view()["snapshot"]["floor_vote_result"] is None
 
     session.advance()
     assert session.view()["decision_type"] == "PowerupChoiceState"

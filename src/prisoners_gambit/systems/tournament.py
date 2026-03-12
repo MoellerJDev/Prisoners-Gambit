@@ -5,6 +5,7 @@ import logging
 import random
 
 from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.successor_analysis import classify_branch_role
 from prisoners_gambit.app.interaction_controller import InteractionController
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.events import Event, EventBus
@@ -60,11 +61,13 @@ class TournamentEngine:
         population: list[Agent],
         floor_number: int,
         floor_config: FloorConfig,
+        phase: str = "ecosystem",
     ) -> list[Agent]:
         logger.info(
-            "Running floor | floor=%s | label=%s | population=%s | rounds_per_match=%s",
+            "Running floor | floor=%s | label=%s | phase=%s | population=%s | rounds_per_match=%s",
             floor_number,
             floor_config.label,
+            phase,
             len(population),
             floor_config.rounds_per_match,
         )
@@ -128,6 +131,13 @@ class TournamentEngine:
                         left_agent.wins += 1
                     elif opponent_score > player_score:
                         right_agent.wins += 1
+                    if phase == "civil_war":
+                        self._apply_civil_war_match_pressure(
+                            left_agent=left_agent,
+                            right_agent=right_agent,
+                            left_score=player_score,
+                            right_score=opponent_score,
+                        )
                     continue
 
                 if right_agent.is_player and left_agent.agent_id in featured_ids:
@@ -146,6 +156,13 @@ class TournamentEngine:
                         right_agent.wins += 1
                     elif opponent_score > player_score:
                         left_agent.wins += 1
+                    if phase == "civil_war":
+                        self._apply_civil_war_match_pressure(
+                            left_agent=left_agent,
+                            right_agent=right_agent,
+                            left_score=opponent_score,
+                            right_score=player_score,
+                        )
                     continue
 
                 result = self.play_match(
@@ -162,11 +179,21 @@ class TournamentEngine:
                 elif result.right_score > result.left_score:
                     right_agent.wins += 1
 
-        self._run_floor_referendum(
-            population=population,
-            floor_number=floor_number,
-            floor_config=floor_config,
-        )
+
+                if phase == "civil_war":
+                    self._apply_civil_war_match_pressure(
+                        left_agent=left_agent,
+                        right_agent=right_agent,
+                        left_score=result.left_score,
+                        right_score=result.right_score,
+                    )
+
+        if phase == "ecosystem":
+            self._run_floor_referendum(
+                population=population,
+                floor_number=floor_number,
+                floor_config=floor_config,
+            )
 
         ranked = sorted(
             population,
@@ -417,6 +444,40 @@ class TournamentEngine:
             self.interaction_controller.reset_featured_match_autopilot()
 
         return player_score, opponent_score
+
+    def _apply_civil_war_match_pressure(
+        self,
+        *,
+        left_agent: Agent,
+        right_agent: Agent,
+        left_score: int,
+        right_score: int,
+    ) -> None:
+        left_identity = analyze_agent_identity(left_agent)
+        right_identity = analyze_agent_identity(right_agent)
+
+        left_role = classify_branch_role(left_agent, left_identity, top_score=max(left_agent.score, right_agent.score))
+        right_role = classify_branch_role(right_agent, right_identity, top_score=max(left_agent.score, right_agent.score))
+
+        if left_score == right_score:
+            return
+
+        winner = left_agent if left_score > right_score else right_agent
+        loser = right_agent if winner is left_agent else left_agent
+        winner_tags = set(left_identity.tags if winner is left_agent else right_identity.tags)
+        loser_tags = set(right_identity.tags if winner is left_agent else left_identity.tags)
+
+        mirror_tags = {"Aggressive", "Cooperative", "Control", "Referendum", "Punishing", "Tempo"}
+        if winner_tags & loser_tags & mirror_tags:
+            winner.score += 1
+
+        if ({"Control", "Punishing"} & winner_tags) and ({"Referendum", "Cooperative"} & loser_tags):
+            winner.score += 1
+
+        if (left_role == "Future civil-war monster" and winner is right_agent) or (
+            right_role == "Future civil-war monster" and winner is left_agent
+        ):
+            winner.score += 1
 
     def _run_floor_referendum(
         self,

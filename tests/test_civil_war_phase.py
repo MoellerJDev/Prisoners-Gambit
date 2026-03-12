@@ -77,8 +77,10 @@ class ScriptedTournament:
     def __init__(self, ranked_sequences):
         self.ranked_sequences = ranked_sequences
         self.call_count = 0
+        self.phases: list[str] = []
 
-    def run_floor(self, population, floor_number, floor_config):
+    def run_floor(self, population, floor_number, floor_config, phase):
+        self.phases.append(phase)
         ranked = self.ranked_sequences[self.call_count]
         self.call_count += 1
         return ranked
@@ -141,15 +143,16 @@ def build_app(monkeypatch, initial_population, ranked_sequences, survivor_count)
     )
 
     renderer = StubRenderer()
+    tournament = ScriptedTournament(ranked_sequences)
     app = RunApplication(
         settings=settings,
         renderer=renderer,
         event_bus=EventBus(),
-        tournament=ScriptedTournament(ranked_sequences),
+        tournament=tournament,
         evolution=PassiveEvolution(survivor_count=survivor_count),
         progression=PassiveProgression(),
     )
-    return app, renderer
+    return app, renderer, tournament
 
 
 def test_civil_war_begins_when_outsiders_are_gone(monkeypatch) -> None:
@@ -160,7 +163,7 @@ def test_civil_war_begins_when_outsiders_are_gone(monkeypatch) -> None:
     ranked_floor_1 = [player, child, outsider]
     ranked_floor_2 = [child, player]
 
-    app, renderer = build_app(
+    app, renderer, tournament = build_app(
         monkeypatch,
         [player, child, outsider],
         [ranked_floor_1, ranked_floor_2],
@@ -169,9 +172,11 @@ def test_civil_war_begins_when_outsiders_are_gone(monkeypatch) -> None:
 
     result = app.run()
 
-    assert "Outside Population Eliminated" in renderer.transitions
+    assert "Lineage Judgment: Civil War" in renderer.transitions
     assert result is player or result is child
     assert renderer.victory is not None
+    assert tournament.phases[0] == "ecosystem"
+    assert "civil_war" in tournament.phases
 
 
 def test_civil_war_can_end_with_successor_transfer(monkeypatch) -> None:
@@ -184,7 +189,7 @@ def test_civil_war_can_end_with_successor_transfer(monkeypatch) -> None:
     ranked_floor_2 = [grandchild, child, player]
     ranked_floor_3 = [grandchild, child]
 
-    app, renderer = build_app(
+    app, renderer, tournament = build_app(
         monkeypatch,
         [player, child, grandchild, outsider],
         [ranked_floor_1, ranked_floor_2, ranked_floor_3],
@@ -193,7 +198,7 @@ def test_civil_war_can_end_with_successor_transfer(monkeypatch) -> None:
 
     result = app.run()
 
-    assert "Outside Population Eliminated" in renderer.transitions
+    assert "Lineage Judgment: Civil War" in renderer.transitions
     assert renderer.successor_choices
     assert result is grandchild or result is child
 
@@ -204,7 +209,7 @@ def test_immediate_full_victory_if_only_one_lineage_member_remains_after_ecosyst
 
     ranked_floor_1 = [player, outsider]
 
-    app, renderer = build_app(
+    app, renderer, tournament = build_app(
         monkeypatch,
         [player, outsider],
         [ranked_floor_1],
@@ -213,6 +218,43 @@ def test_immediate_full_victory_if_only_one_lineage_member_remains_after_ecosyst
 
     result = app.run()
 
-    assert "Outside Population Eliminated" in renderer.transitions
+    assert "Lineage Judgment: Civil War" in renderer.transitions
     assert result is player
     assert renderer.victory is not None
+    assert tournament.phases == ["ecosystem"]
+
+
+def test_entering_civil_war_clears_stale_floor_vote_snapshot(monkeypatch) -> None:
+    from prisoners_gambit.core.constants import COOPERATE
+    from prisoners_gambit.core.interaction import FloorVoteResult
+
+    player = make_agent("You", score=10, wins=2, is_player=True, lineage_id=1)
+    child = make_agent("Heir Alpha", score=9, wins=1, is_player=False, lineage_id=1, lineage_depth=1)
+    outsider = make_agent("Bot", score=2, wins=0, is_player=False, lineage_id=None)
+
+    ranked_floor_1 = [player, child, outsider]
+    ranked_floor_2 = [child, player]
+
+    app, renderer, _ = build_app(
+        monkeypatch,
+        [player, child, outsider],
+        [ranked_floor_1, ranked_floor_2],
+        survivor_count=2,
+    )
+
+    app.interaction_controller.set_floor_vote_result(
+        FloorVoteResult(
+            floor_number=1,
+            cooperation_prevailed=True,
+            cooperators=2,
+            defectors=1,
+            player_vote=COOPERATE,
+            player_reward=3,
+        )
+    )
+
+    app.run()
+
+    assert renderer.transitions
+    assert app.interaction_controller.snapshot.current_phase == "civil_war"
+    assert app.interaction_controller.snapshot.floor_vote_result is None

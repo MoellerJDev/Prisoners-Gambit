@@ -6,6 +6,7 @@ import random
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
+from prisoners_gambit.core.civil_war import build_civil_war_context
 from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
@@ -366,10 +367,12 @@ class FeaturedMatchWebSession:
         self.player.is_player = False
         self.player = chosen
         self.snapshot.current_phase = "civil_war"
+        self.snapshot.floor_vote_result = None
+        self.snapshot.civil_war_context = build_civil_war_context(branches=list(self._successor_candidates), current_host=chosen)
         self.floor_number = 2
         self.snapshot.current_floor = self.floor_number
         self._pending_screen = "civil_war_transition"
-        self._pending_message = "Only your lineage remains. Civil war phase begins."
+        self._pending_message = self.snapshot.civil_war_context.thesis
         self.snapshot.session_status = "running"
 
     def _resolve_powerup_choice(self, decision: PowerupChoiceState) -> None:

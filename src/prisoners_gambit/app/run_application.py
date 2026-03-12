@@ -5,6 +5,7 @@ import logging
 from prisoners_gambit.app.interaction_controller import InteractionController
 from prisoners_gambit.config.settings import Settings
 from prisoners_gambit.core.events import Event, EventBus
+from prisoners_gambit.core.civil_war import build_civil_war_context
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.systems.evolution import EvolutionEngine
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
@@ -50,6 +51,7 @@ class RunApplication:
         player_lineage_id = player.lineage_id
 
         self.interaction_controller.show_run_header(self.settings.seed)
+        self.interaction_controller.set_civil_war_context(None)
         self.event_bus.publish(Event("run_started", {"seed": self.settings.seed, "player": player.name}))
         logger.info("Run started | seed=%s | player=%s | lineage_id=%s", self.settings.seed, player.name, player_lineage_id)
 
@@ -71,6 +73,7 @@ class RunApplication:
                 population=population,
                 floor_number=floor_number,
                 floor_config=floor_config,
+                phase="ecosystem" if ecosystem_phase else "civil_war",
             )
             self.renderer.show_floor_summary(floor_number, ranked)
             self.interaction_controller.set_floor_summary(floor_number, ranked)
@@ -146,18 +149,33 @@ class RunApplication:
                 ecosystem_phase = False
                 population = list(surviving_lineage)
 
+                civil_war_context = build_civil_war_context(branches=population, current_host=player)
+                self.interaction_controller.clear_floor_vote_result()
+                self.interaction_controller.set_civil_war_context(civil_war_context)
+
                 self.event_bus.publish(
                     Event(
                         "civil_war_started",
                         {
                             "floor": floor_number,
                             "lineage_members": [agent.name for agent in population],
+                            "civil_war_context": {
+                                "thesis": civil_war_context.thesis,
+                                "scoring_rules": civil_war_context.scoring_rules,
+                                "dangerous_branches": civil_war_context.dangerous_branches,
+                                "doctrine_pressure": civil_war_context.doctrine_pressure,
+                            },
                         },
                     )
                 )
                 self.renderer.show_phase_transition(
-                    "Outside Population Eliminated",
-                    "Only your lineage remains. The run now enters a civil war between surviving branches.",
+                    "Lineage Judgment: Civil War",
+                    "\n".join([
+                        civil_war_context.thesis,
+                        "What is being tested now:",
+                        *[f"- {rule}" for rule in civil_war_context.scoring_rules[:3]],
+                        "Danger lanes: " + (", ".join(civil_war_context.dangerous_branches) or "unknown"),
+                    ]),
                 )
 
                 if len(population) == 1:

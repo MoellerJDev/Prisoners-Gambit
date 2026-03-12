@@ -158,8 +158,10 @@ class ScriptedTournament:
     def __init__(self, ranked_sequences: list[list[Agent]]) -> None:
         self.ranked_sequences = ranked_sequences
         self.call_count = 0
+        self.phases: list[str] = []
 
-    def run_floor(self, population: list[Agent], floor_number: int, floor_config) -> list[Agent]:
+    def run_floor(self, population: list[Agent], floor_number: int, floor_config, phase: str) -> list[Agent]:
+        self.phases.append(phase)
         ranked = self.ranked_sequences[self.call_count]
         self.call_count += 1
         return ranked
@@ -171,6 +173,11 @@ class PassiveEvolution:
 
     def split_population(self, ranked: list[Agent]) -> tuple[list[Agent], list[Agent]]:
         return ranked[:self.survivor_count], ranked[self.survivor_count:]
+
+
+    def split_population_civil_war(self, ranked: list[Agent]) -> tuple[list[Agent], list[Agent]]:
+        survivor_count = max(1, (len(ranked) + 1) // 2)
+        return ranked[:survivor_count], ranked[survivor_count:]
 
     def repopulate(self, survivors: list[Agent], target_size: int) -> list[Agent]:
         return list(survivors)
@@ -231,7 +238,7 @@ def _build_transfer_test_app(
     ranked_sequences: list[list[Agent]],
     initial_population: list[Agent],
     survivor_count: int,
-) -> tuple[RunApplication, StubRenderer]:
+) -> tuple[RunApplication, StubRenderer, ScriptedTournament]:
     import prisoners_gambit.app.run_application as run_application_module
 
     def fake_create_population(size: int, rng) -> list[Agent]:
@@ -255,15 +262,16 @@ def _build_transfer_test_app(
     )
 
     renderer = StubRenderer()
+    tournament = ScriptedTournament(ranked_sequences)
     app = RunApplication(
         settings=settings,
         renderer=renderer,
         event_bus=EventBus(),
-        tournament=ScriptedTournament(ranked_sequences),
+        tournament=tournament,
         evolution=PassiveEvolution(survivor_count=survivor_count),
         progression=PassiveProgression(),
     )
-    return app, renderer
+    return app, renderer, tournament
 
 
 def test_player_transfers_to_first_generation_descendant_when_host_is_eliminated(monkeypatch) -> None:
@@ -273,7 +281,7 @@ def test_player_transfers_to_first_generation_descendant_when_host_is_eliminated
 
     ranked_floor_1 = [child, outsider, player]
 
-    app, renderer = _build_transfer_test_app(
+    app, renderer, tournament = _build_transfer_test_app(
         monkeypatch=monkeypatch,
         ranked_sequences=[ranked_floor_1],
         initial_population=[player, child, outsider],
@@ -288,6 +296,7 @@ def test_player_transfers_to_first_generation_descendant_when_host_is_eliminated
     assert result.name == "You*"
     assert result.is_player is True
     assert player.is_player is False
+    assert tournament.phases == ["ecosystem"]
 
 
 def test_player_transfers_to_second_generation_descendant_when_only_second_generation_survives(monkeypatch) -> None:
@@ -297,7 +306,7 @@ def test_player_transfers_to_second_generation_descendant_when_only_second_gener
 
     ranked_floor_1 = [grandchild, outsider, player]
 
-    app, renderer = _build_transfer_test_app(
+    app, renderer, tournament = _build_transfer_test_app(
         monkeypatch=monkeypatch,
         ranked_sequences=[ranked_floor_1],
         initial_population=[player, grandchild, outsider],
@@ -312,6 +321,7 @@ def test_player_transfers_to_second_generation_descendant_when_only_second_gener
     assert result.name == "You**"
     assert result.is_player is True
     assert player.is_player is False
+    assert tournament.phases == ["ecosystem"]
 
 
 def test_player_transfers_to_any_generation_descendant_when_lineage_survives(monkeypatch) -> None:
@@ -323,7 +333,7 @@ def test_player_transfers_to_any_generation_descendant_when_lineage_survives(mon
 
     ranked_floor_1 = [deep_descendant, outsider, grandchild, child, player]
 
-    app, renderer = _build_transfer_test_app(
+    app, renderer, tournament = _build_transfer_test_app(
         monkeypatch=monkeypatch,
         ranked_sequences=[ranked_floor_1],
         initial_population=[player, child, grandchild, deep_descendant, outsider],
@@ -340,6 +350,7 @@ def test_player_transfers_to_any_generation_descendant_when_lineage_survives(mon
     assert result.lineage_depth == 4
     assert result.is_player is True
     assert player.is_player is False
+    assert tournament.phases == ["ecosystem"]
 
 
 def test_player_is_eliminated_only_when_entire_lineage_is_gone(monkeypatch) -> None:
@@ -349,7 +360,7 @@ def test_player_is_eliminated_only_when_entire_lineage_is_gone(monkeypatch) -> N
 
     ranked_floor_1 = [outsider_a, outsider_b, player]
 
-    app, renderer = _build_transfer_test_app(
+    app, renderer, tournament = _build_transfer_test_app(
         monkeypatch=monkeypatch,
         ranked_sequences=[ranked_floor_1],
         initial_population=[player, outsider_a, outsider_b],
@@ -361,3 +372,24 @@ def test_player_is_eliminated_only_when_entire_lineage_is_gone(monkeypatch) -> N
     assert renderer.eliminated_floor == 1
     assert renderer.successor_choices == []
     assert result is player
+    assert tournament.phases == ["ecosystem"]
+
+
+def test_run_application_passes_phase_to_tournament_across_transition(monkeypatch) -> None:
+    player = _make_agent("You", score=10, wins=2, is_player=True, lineage_id=1, lineage_depth=0)
+    child = _make_agent("You*", score=9, wins=1, is_player=False, lineage_id=1, lineage_depth=1)
+    outsider = _make_agent("Bot", score=1, wins=0, is_player=False, lineage_id=None, lineage_depth=0)
+
+    ranked_floor_1 = [player, child, outsider]
+    ranked_floor_2 = [child, player]
+
+    app, _renderer, tournament = _build_transfer_test_app(
+        monkeypatch=monkeypatch,
+        ranked_sequences=[ranked_floor_1, ranked_floor_2],
+        initial_population=[player, child, outsider],
+        survivor_count=2,
+    )
+
+    app.run()
+
+    assert tournament.phases == ["ecosystem", "civil_war"]
