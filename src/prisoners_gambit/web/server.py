@@ -685,7 +685,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._json({"error": "missing save payload"}, status=400)
                     return
-            except ValueError as exc:
+            except (ValueError, TypeError, KeyError) as exc:
                 _log.warning("Invalid save import payload: %s", exc)
                 self._json({"error": "invalid save payload"}, status=400)
                 return

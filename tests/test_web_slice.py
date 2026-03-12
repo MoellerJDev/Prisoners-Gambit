@@ -143,6 +143,31 @@ def test_web_session_state_restore_continues_deterministically() -> None:
     assert restored.view() == session.view()
 
 
+def test_web_session_state_serializes_rng_as_safe_json_data() -> None:
+    session = FeaturedMatchWebSession(seed=23, rounds=3)
+    session.start()
+
+    payload = session.serialize_state()
+
+    assert isinstance(payload["rng_state"], dict)
+    assert isinstance(payload["rng_state"]["internal_state"], list)
+
+
+def test_web_session_rng_continues_deterministically_after_safe_restore() -> None:
+    session = FeaturedMatchWebSession(seed=29, rounds=3)
+    session.start()
+    session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
+    session.advance()
+
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+
+    for _ in range(2):
+        session.advance()
+        restored.advance()
+
+    assert restored.view() == session.view()
+
+
 def test_web_session_save_code_export_import_round_trip() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=2)
     session.start()
@@ -153,6 +178,21 @@ def test_web_session_save_code_export_import_round_trip() -> None:
     restored = FeaturedMatchWebSession.import_save_code(save_code)
 
     assert restored.view() == session.view()
+
+
+def test_web_session_rejects_malformed_save_payload() -> None:
+    with pytest.raises(ValueError, match="Invalid save payload"):
+        FeaturedMatchWebSession.from_serialized_state({"version": 1, "seed": 7})
+
+
+def test_web_session_rejects_invalid_rng_shape() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=2)
+    session.start()
+    payload = session.serialize_state()
+    payload["rng_state"] = "not-a-dict"
+
+    with pytest.raises(ValueError, match="Invalid save payload"):
+        FeaturedMatchWebSession.from_serialized_state(payload)
 
 
 def test_featured_match_web_session_rejects_duration_stance_without_rounds() -> None:
@@ -565,6 +605,33 @@ def test_web_api_can_export_and_import_explicit_save_state() -> None:
             restored = json.loads(resp.read().decode("utf-8"))
         assert restored["status"] == "awaiting_decision"
         assert restored["snapshot"]["latest_featured_round"] is not None
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_web_api_rejects_malformed_import_payload_cleanly() -> None:
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        bad_import = json.dumps({"state": {"version": 1, "seed": 7}}).encode("utf-8")
+        req = Request(
+            f"http://127.0.0.1:{port}/api/run/import",
+            data=bad_import,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(req)
+
+        assert exc_info.value.code == 400
+        body = json.loads(exc_info.value.read().decode("utf-8"))
+        assert body["error"] == "invalid save payload"
     finally:
         server.shutdown()
         server.server_close()

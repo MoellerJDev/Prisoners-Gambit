@@ -4,7 +4,6 @@ import base64
 from dataclasses import asdict
 import json
 import random
-import pickle
 from typing import get_type_hints
 
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
@@ -113,7 +112,7 @@ class FeaturedMatchWebSession:
             "version": SAVE_STATE_VERSION,
             "seed": self.seed,
             "rounds": self.rounds,
-            "rng_state": base64.b64encode(pickle.dumps(self.rng.getstate())).decode("ascii"),
+            "rng_state": self._serialize_rng_state(self.rng.getstate()),
             "session": {
                 "status": self.session.status,
                 "decision_type": type(decision).__name__ if decision else None,
@@ -148,46 +147,49 @@ class FeaturedMatchWebSession:
 
     @classmethod
     def from_serialized_state(cls, payload: dict) -> "FeaturedMatchWebSession":
-        if payload.get("version") != SAVE_STATE_VERSION:
-            raise ValueError("Unsupported save state version")
+        try:
+            if payload.get("version") != SAVE_STATE_VERSION:
+                raise ValueError("Unsupported save state version")
 
-        session = cls(seed=int(payload["seed"]), rounds=int(payload["rounds"]))
-        rng_state = pickle.loads(base64.b64decode(payload["rng_state"].encode("ascii")))
-        session.rng.setstate(rng_state)
+            session = cls(seed=int(payload["seed"]), rounds=int(payload["rounds"]))
+            rng_state = cls._deserialize_rng_state(payload["rng_state"])
+            session.rng.setstate(rng_state)
 
-        session.snapshot = cls._deserialize_run_snapshot(payload["snapshot"])
-        session.player = cls._deserialize_agent(payload["player"])
-        session.opponent = cls._deserialize_agent(payload["opponent"])
-        session.player_history = list(payload["player_history"])
-        session.opponent_history = list(payload["opponent_history"])
-        session.player_score = int(payload["player_score"])
-        session.opponent_score = int(payload["opponent_score"])
-        session.round_index = int(payload["round_index"])
-        session.floor_number = int(payload["floor_number"])
-        session._last_manual_move = payload["last_manual_move"]
-        active_stance = payload.get("active_stance")
-        session._active_stance = FeaturedRoundStanceView(**active_stance) if active_stance else None
-        session._match_autopilot_active = bool(payload["match_autopilot_active"])
-        session._pending_screen = payload.get("pending_screen")
-        session._pending_message = payload.get("pending_message")
-        session._powerup_offers = [cls._deserialize_powerup(entry) for entry in payload.get("powerup_offers", [])]
-        session._genome_offers = [cls._deserialize_genome_edit(entry) for entry in payload.get("genome_offers", [])]
-        session._successor_candidates = [cls._deserialize_agent(entry) for entry in payload.get("successor_candidates", [])]
-        session._floor_clue_log = list(payload.get("floor_clue_log", []))
+            session.snapshot = cls._deserialize_run_snapshot(payload["snapshot"])
+            session.player = cls._deserialize_agent(payload["player"])
+            session.opponent = cls._deserialize_agent(payload["opponent"])
+            session.player_history = list(payload["player_history"])
+            session.opponent_history = list(payload["opponent_history"])
+            session.player_score = int(payload["player_score"])
+            session.opponent_score = int(payload["opponent_score"])
+            session.round_index = int(payload["round_index"])
+            session.floor_number = int(payload["floor_number"])
+            session._last_manual_move = payload["last_manual_move"]
+            active_stance = payload.get("active_stance")
+            session._active_stance = FeaturedRoundStanceView(**active_stance) if active_stance else None
+            session._match_autopilot_active = bool(payload["match_autopilot_active"])
+            session._pending_screen = payload.get("pending_screen")
+            session._pending_message = payload.get("pending_message")
+            session._powerup_offers = [cls._deserialize_powerup(entry) for entry in payload.get("powerup_offers", [])]
+            session._genome_offers = [cls._deserialize_genome_edit(entry) for entry in payload.get("genome_offers", [])]
+            session._successor_candidates = [cls._deserialize_agent(entry) for entry in payload.get("successor_candidates", [])]
+            session._floor_clue_log = list(payload.get("floor_clue_log", []))
 
-        session_payload = payload["session"]
-        session.session.status = session_payload["status"]
-        decision_type_name = session_payload.get("decision_type")
-        decision_payload = session_payload.get("decision")
-        session.session.current_decision = cls._deserialize_decision(decision_type_name, decision_payload)
-        session.session._expected_action_types = cls._resolve_expected_action_types(
-            session_payload.get("expected_action_types", []),
-            session.session.current_decision,
-        )
-        session.session._queued_action = None
-        session.session.latest_snapshot = session.snapshot
-        session.session.completion = session.snapshot.completion
-        return session
+            session_payload = payload["session"]
+            session.session.status = session_payload["status"]
+            decision_type_name = session_payload.get("decision_type")
+            decision_payload = session_payload.get("decision")
+            session.session.current_decision = cls._deserialize_decision(decision_type_name, decision_payload)
+            session.session._expected_action_types = cls._resolve_expected_action_types(
+                session_payload.get("expected_action_types", []),
+                session.session.current_decision,
+            )
+            session.session._queued_action = None
+            session.session.latest_snapshot = session.snapshot
+            session.session.completion = session.snapshot.completion
+            return session
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Invalid save payload") from exc
 
     @classmethod
     def import_save_code(cls, save_code: str) -> "FeaturedMatchWebSession":
@@ -811,7 +813,12 @@ class FeaturedMatchWebSession:
                 "ChooseGenomeEditAction": ChooseGenomeEditAction,
                 "ChooseSuccessorAction": ChooseSuccessorAction,
             }
-            return tuple(type_map[name] for name in expected_type_names)
+            resolved_types: list[type] = []
+            for expected_name in expected_type_names:
+                if expected_name not in type_map:
+                    raise ValueError("Unsupported expected action type in save state")
+                resolved_types.append(type_map[expected_name])
+            return tuple(resolved_types)
         if isinstance(decision, FeaturedRoundDecisionState):
             return (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction)
         if isinstance(decision, FloorVoteDecisionState):
@@ -859,4 +866,39 @@ class FeaturedMatchWebSession:
                     return cls._decode_value(candidate, value)
                 except Exception:  # noqa: BLE001
                     continue
+        return value
+
+    @classmethod
+    def _serialize_rng_state(cls, state: tuple) -> dict:
+        version, internal_state, gauss_next = state
+        return {
+            "version": int(version),
+            "internal_state": cls._encode_tuple(internal_state),
+            "gauss_next": gauss_next,
+        }
+
+    @classmethod
+    def _deserialize_rng_state(cls, payload: dict) -> tuple:
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid rng_state payload")
+        if "version" not in payload or "internal_state" not in payload:
+            raise ValueError("Invalid rng_state payload")
+        internal_state = cls._decode_tuple(payload["internal_state"])
+        gauss_next = payload.get("gauss_next")
+        if gauss_next is not None and not isinstance(gauss_next, (int, float)):
+            raise ValueError("Invalid rng_state payload")
+        return (int(payload["version"]), internal_state, gauss_next)
+
+    @classmethod
+    def _encode_tuple(cls, value):
+        if isinstance(value, tuple):
+            return [cls._encode_tuple(item) for item in value]
+        if isinstance(value, list):
+            return [cls._encode_tuple(item) for item in value]
+        return value
+
+    @classmethod
+    def _decode_tuple(cls, value):
+        if isinstance(value, list):
+            return tuple(cls._decode_tuple(item) for item in value)
         return value
