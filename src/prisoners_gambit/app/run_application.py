@@ -76,7 +76,13 @@ class RunApplication:
                 phase="ecosystem" if ecosystem_phase else "civil_war",
             )
             self.renderer.show_floor_summary(floor_number, ranked)
-            self.interaction_controller.set_floor_summary(floor_number, ranked)
+            clue_reader = getattr(self.tournament, "consume_last_floor_clue_log", None)
+            floor_clue_log = clue_reader() if callable(clue_reader) else []
+            self.interaction_controller.set_floor_summary(
+                floor_number,
+                ranked,
+                floor_clue_log=floor_clue_log,
+            )
 
             if ecosystem_phase:
                 survivors, eliminated = self.evolution.split_population(ranked)

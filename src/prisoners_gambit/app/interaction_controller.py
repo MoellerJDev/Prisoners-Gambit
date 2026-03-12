@@ -5,6 +5,7 @@ from typing import Callable, Sequence
 
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
+from prisoners_gambit.core.featured_inference import successor_featured_inference_context, synthesize_floor_featured_inference
 from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
@@ -117,6 +118,7 @@ class InteractionController:
     _autopilot_featured_match: bool = False
     _featured_stance: FeaturedRoundStanceView | None = None
     _last_manual_move: int | None = None
+    _latest_floor_clue_log: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.session.start(self.snapshot)
@@ -151,7 +153,7 @@ class InteractionController:
         )
         self._sync_session_snapshot()
 
-    def set_floor_summary(self, floor_number: int, ranked: list[Agent]) -> None:
+    def set_floor_summary(self, floor_number: int, ranked: list[Agent], floor_clue_log: Sequence[str] | None = None) -> None:
         entries: list[FloorSummaryEntryView] = []
         for agent in ranked:
             identity = analyze_agent_identity(agent)
@@ -174,12 +176,19 @@ class InteractionController:
             player_lineage_id=player.lineage_id if player else None,
         )
         heir_pressure = to_floor_summary_heir_pressure_view(heir_pressure_analysis)
+        clues = list(floor_clue_log) if floor_clue_log is not None else list(self._latest_floor_clue_log)
+        featured_inference_summary = synthesize_floor_featured_inference(clues)
+        self._latest_floor_clue_log = list(clues)
         self.snapshot.floor_summary = FloorSummaryState(
             floor_number=floor_number,
             entries=entries,
             heir_pressure=heir_pressure,
+            featured_inference_summary=featured_inference_summary,
         )
         self._sync_session_snapshot()
+
+    def set_floor_featured_clue_log(self, clue_log: Sequence[str]) -> None:
+        self._latest_floor_clue_log = list(clue_log)
 
     def set_floor_vote_result(self, result: FloorVoteResult) -> None:
         self.snapshot.floor_vote_result = result
@@ -336,8 +345,17 @@ class InteractionController:
                 phase=self.snapshot.current_phase,
                 lineage_doctrine=lineage_doctrine,
             )
+            inference_context = successor_featured_inference_context(
+                candidate_tags=identity.tags,
+                featured_inference_summary=self.snapshot.floor_summary.featured_inference_summary if self.snapshot.floor_summary else [],
+            )
             successor_views.append(
-                to_successor_candidate_view(agent=candidate, identity=identity, assessment=assessment)
+                to_successor_candidate_view(
+                    agent=candidate,
+                    identity=identity,
+                    assessment=assessment,
+                    featured_inference_context=inference_context,
+                )
             )
 
         civil_war_pressure = civil_war_pressure_for_threat_tags(threat_tags)
@@ -348,6 +366,11 @@ class InteractionController:
             lineage_doctrine=lineage_doctrine,
             threat_profile=sorted(threat_tags),
             civil_war_pressure=civil_war_pressure,
+            featured_inference_summary=(
+                list(self.snapshot.floor_summary.featured_inference_summary)
+                if self.snapshot.floor_summary
+                else []
+            ),
         )
         self.snapshot.successor_options = state
         self._begin_decision(state, (ChooseSuccessorAction,))

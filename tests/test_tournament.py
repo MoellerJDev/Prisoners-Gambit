@@ -533,3 +533,8 @@ def test_featured_prompt_floor_log_carries_across_featured_matches_on_same_floor
     assert first_match_prompt.floor_clue_log == []
     assert second_match_prompt.round_index == 0
     assert second_match_prompt.floor_clue_log
+
+    floor_clues = engine.consume_last_floor_clue_log()
+    assert floor_clues
+    assert any("Floor learning" in line for line in floor_clues)
+

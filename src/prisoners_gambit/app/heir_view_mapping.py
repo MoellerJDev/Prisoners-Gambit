@@ -25,7 +25,7 @@ def to_floor_summary_pressure_entry_view(candidate) -> FloorSummaryPressureEntry
     )
 
 
-def to_successor_candidate_view(*, agent, identity, assessment) -> SuccessorCandidateView:
+def to_successor_candidate_view(*, agent, identity, assessment, featured_inference_context: str | None = None) -> SuccessorCandidateView:
     return SuccessorCandidateView(
         name=agent.name,
         lineage_depth=agent.lineage_depth,
@@ -47,4 +47,5 @@ def to_successor_candidate_view(*, agent, identity, assessment) -> SuccessorCand
         anti_score_note=assessment.anti_score_note,
         genome_summary=agent.genome.summary(),
         powerups=[powerup.name for powerup in agent.powerups],
+        featured_inference_context=featured_inference_context,
     )

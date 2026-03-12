@@ -389,6 +389,7 @@ function renderSnapshot(snapshot){
 
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
+  const featuredInference = snapshot.floor_summary?.featured_inference_summary || [];
   const civilWar = snapshot.civil_war_context;
   const successorLines = (pressure?.successor_candidates || []).map(entry =>
     `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml((entry.shaping_causes || []).join('; '))} · ${escapeHtml(entry.rationale)}</span></li>`
@@ -396,6 +397,7 @@ function renderSnapshot(snapshot){
   const threatLines = (pressure?.future_threats || []).map(entry =>
     `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml((entry.shaping_causes || []).join('; '))} · ${escapeHtml(entry.rationale)}</span></li>`
   ).join('');
+  const featuredInferenceBlock = `<li><strong>Featured inference summary</strong><ul>${featuredInference.map(line => `<li>${escapeHtml(line)}</li>`).join('') || '<li class="muted">No confirmed featured clues survived this floor.</li>'}</ul></li>`;
   const pressureBlock = pressure
     ? `<li><strong>Future successor pressure</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`
       + `<li><strong>If you died next floor</strong><ul>${successorLines || '<li class="muted">No visible successor candidates.</li>'}</ul></li>`
@@ -408,7 +410,7 @@ function renderSnapshot(snapshot){
       + `<li><strong>Doctrine pressure</strong>: ${escapeHtml((civilWar.doctrine_pressure || []).join(' · ') || 'none')}</li>`
     : '';
   document.getElementById('floorSummary').innerHTML = summary.length
-    ? summary.map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('') + pressureBlock + civilWarBlock
+    ? summary.map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('') + featuredInferenceBlock + pressureBlock + civilWarBlock
     : '<li>No summary yet.</li>';
 
   const successors = snapshot.successor_options?.candidates || [];
@@ -417,9 +419,10 @@ function renderSnapshot(snapshot){
     ? `<li><strong>Succession pivot</strong>: phase ${escapeHtml(successorState.current_phase || 'unknown')} · civil-war pressure ${escapeHtml(successorState.civil_war_pressure || 'unknown')}</li>`
       + `<li><strong>Inherited doctrine</strong>: ${escapeHtml(successorState.lineage_doctrine || 'unknown')}</li>`
       + `<li><strong>Threat profile</strong>: ${escapeHtml((successorState.threat_profile || []).join(', ') || 'none')}</li>`
+      + `<li><strong>Featured inference memory</strong><ul>${(successorState.featured_inference_summary || []).map(line => `<li>${escapeHtml(line)}</li>`).join('') || '<li class="muted">No floor featured inference memory available.</li>'}</ul></li>`
     : '';
   document.getElementById('successors').innerHTML = successors.length
-    ? successorContext + successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml((candidate.shaping_causes || []).join('; '))}</span><br/><strong>Tradeoffs:</strong> ${escapeHtml((candidate.tradeoffs || []).join(' | '))}<br/><strong>Now/Later:</strong> ${escapeHtml(candidate.attractive_now)} · ${escapeHtml(candidate.danger_later)}<br/><strong>Plan/Risk:</strong> ${escapeHtml(candidate.succession_pitch)} · ${escapeHtml(candidate.succession_risk)}<br/><strong>Lineage future:</strong> ${escapeHtml(candidate.lineage_future)}<br/><span class='muted'>${escapeHtml(candidate.anti_score_note)}</span></li>`).join('')
+    ? successorContext + successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml((candidate.shaping_causes || []).join('; '))}</span><br/><strong>Tradeoffs:</strong> ${escapeHtml((candidate.tradeoffs || []).join(' | '))}<br/><strong>Now/Later:</strong> ${escapeHtml(candidate.attractive_now)} · ${escapeHtml(candidate.danger_later)}<br/><strong>Plan/Risk:</strong> ${escapeHtml(candidate.succession_pitch)} · ${escapeHtml(candidate.succession_risk)}<br/><strong>Lineage future:</strong> ${escapeHtml(candidate.lineage_future)}<br/><strong>Featured inference:</strong> ${escapeHtml(candidate.featured_inference_context || 'No direct featured inference fit.') }<br/><span class='muted'>${escapeHtml(candidate.anti_score_note)}</span></li>`).join('')
     : '<li>No successor choice active.</li>';
 
   const completion = snapshot.completion;
