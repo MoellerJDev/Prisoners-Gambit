@@ -79,7 +79,7 @@ class ScriptedTournament:
         self.ranked_sequences = ranked_sequences
         self.call_count = 0
 
-    def run_floor(self, population, floor_number, floor_config):
+    def run_floor(self, population, floor_number, floor_config, phase="ecosystem"):
         ranked = self.ranked_sequences[self.call_count]
         self.call_count += 1
         return ranked

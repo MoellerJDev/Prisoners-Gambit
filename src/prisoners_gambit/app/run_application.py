@@ -69,19 +69,12 @@ class RunApplication:
             logger.info("Starting floor %s | ecosystem_phase=%s", floor_number, ecosystem_phase)
             logger.debug("Floor config: %s", floor_config)
 
-            try:
-                ranked = self.tournament.run_floor(
-                    population=population,
-                    floor_number=floor_number,
-                    floor_config=floor_config,
-                    phase="ecosystem" if ecosystem_phase else "civil_war",
-                )
-            except TypeError:
-                ranked = self.tournament.run_floor(
-                    population=population,
-                    floor_number=floor_number,
-                    floor_config=floor_config,
-                )
+            ranked = self.tournament.run_floor(
+                population=population,
+                floor_number=floor_number,
+                floor_config=floor_config,
+                phase="ecosystem" if ecosystem_phase else "civil_war",
+            )
             self.renderer.show_floor_summary(floor_number, ranked)
             self.interaction_controller.set_floor_summary(floor_number, ranked)
 
@@ -157,6 +150,7 @@ class RunApplication:
                 population = list(surviving_lineage)
 
                 civil_war_context = build_civil_war_context(branches=population, current_host=player)
+                self.interaction_controller.clear_floor_vote_result()
                 self.interaction_controller.set_civil_war_context(civil_war_context)
 
                 self.event_bus.publish(

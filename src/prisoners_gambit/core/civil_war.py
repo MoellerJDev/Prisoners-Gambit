@@ -10,9 +10,11 @@ def build_civil_war_context(*, branches: list[Agent], current_host: Agent | None
     role_counts: dict[str, int] = {}
     doctrine_lane_counts = {"control": 0, "referendum": 0, "tempo": 0, "unstable": 0}
 
+    top_score = max((branch.score for branch in branches), default=1)
+
     for branch in branches:
         identity = analyze_agent_identity(branch)
-        role = classify_branch_role(branch, identity, top_score=max(1, branch.score))
+        role = classify_branch_role(branch, identity, top_score=top_score)
         role_counts[role] = role_counts.get(role, 0) + 1
         tags = set(identity.tags)
         if {"Control", "Punishing"} & tags:

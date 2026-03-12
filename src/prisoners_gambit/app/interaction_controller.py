@@ -185,6 +185,10 @@ class InteractionController:
         self.snapshot.floor_vote_result = result
         self._sync_session_snapshot()
 
+    def clear_floor_vote_result(self) -> None:
+        self.snapshot.floor_vote_result = None
+        self._sync_session_snapshot()
+
     def complete_run(self, outcome: str, floor_number: int, player_name: str, seed: int | None) -> None:
         if outcome not in {"victory", "eliminated"}:
             raise ValueError(f"Invalid outcome: {outcome}. Must be 'victory' or 'eliminated'.")

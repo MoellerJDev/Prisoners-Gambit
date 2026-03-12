@@ -367,6 +367,7 @@ class FeaturedMatchWebSession:
         self.player.is_player = False
         self.player = chosen
         self.snapshot.current_phase = "civil_war"
+        self.snapshot.floor_vote_result = None
         self.snapshot.civil_war_context = build_civil_war_context(branches=list(self._successor_candidates), current_host=chosen)
         self.floor_number = 2
         self.snapshot.current_floor = self.floor_number
