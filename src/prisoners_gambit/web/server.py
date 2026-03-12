@@ -3,6 +3,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import os
+import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -29,7 +31,46 @@ _stance_options_default: tuple[str, ...] = next(
 _ROUND_STANCE_OPTIONS = set(_stance_options_default)
 _ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
 _MAX_REQUEST_BODY_BYTES = 16 * 1024  # JSON action payloads are tiny; cap bodies to reject malformed or abusive requests early.
+_PROCESS_LOCAL_SAVE_SECRET = secrets.token_bytes(32)
 
+
+def _current_save_secret() -> bytes:
+    configured_secret = os.getenv("PG_WEB_SAVE_SECRET")
+    if configured_secret:
+        return configured_secret.encode("utf-8")
+    # Fallback keeps integrity checks active in local/dev use, but exported save codes
+    # are portable only for this process lifetime unless PG_WEB_SAVE_SECRET is shared.
+    return _PROCESS_LOCAL_SAVE_SECRET
+
+
+def _save_secret_mode() -> str:
+    return "configured_shared_secret" if os.getenv("PG_WEB_SAVE_SECRET") else "process_local_fallback"
+
+
+def _parse_json_body(handler: "Handler") -> tuple[dict | None, int, dict | None]:
+    try:
+        raw_length = handler.headers.get("Content-Length", "0")
+        length = int(raw_length)
+        if length < 0:
+            raise ValueError("Content-Length cannot be negative")
+    except ValueError:
+        handler.close_connection = True
+        return None, 400, {"error": "invalid Content-Length"}
+    if length > _MAX_REQUEST_BODY_BYTES:
+        handler.close_connection = True
+        return None, 413, {"error": "request body too large"}
+    raw_bytes = handler.rfile.read(length) if length else b"{}"
+    try:
+        raw = raw_bytes.decode("utf-8")
+        payload = json.loads(raw)
+    except UnicodeDecodeError:
+        handler.close_connection = True
+        return None, 400, {"error": "invalid UTF-8 in request body"}
+    except json.JSONDecodeError:
+        return None, 400, {"error": "invalid JSON"}
+    if not isinstance(payload, dict):
+        return None, 400, {"error": "invalid action payload"}
+    return payload, 200, None
 
 HTML = """<!doctype html>
 <html>
@@ -178,11 +219,24 @@ HTML = """<!doctype html>
     <div class='row'>
       <button class='btn' onclick='startRun()'>Start Run</button>
       <button class='btn' onclick='advanceFlow()'>Continue Screen</button>
+      <button class='btn' onclick='exportSaveCode()'>Export Save Code</button>
+      <button class='btn' onclick='importSaveCode()'>Import Save Code</button>
+      <button class='btn' onclick='clearRun()'>Clear Run</button>
       <span id='status' class='pill'>status: not_started</span>
       <span id='phase' class='pill'>phase: -</span>
       <span id='floor' class='pill'>floor: -</span>
       <span id='activeStance' class='pill'>stance: none</span>
     </div>
+  </div>
+
+  <div id='resumePanel' class='panel panel-enter' style='display:none; margin-top:12px;'>
+    <h3>Saved Run Found</h3>
+    <div class='row'>
+      <button class='btn' onclick='resumeSavedRun()'>Resume Run</button>
+      <button class='btn' onclick='startNewRunFromPrompt()'>Start New Run</button>
+      <button class='btn' onclick='clearSavedRun()'>Clear Saved Run</button>
+    </div>
+    <div id='saveNotice' class='muted' style='margin-top:8px;'></div>
   </div>
 
   <div class='grid'>
@@ -229,6 +283,7 @@ HTML = """<!doctype html>
 <script>
 let latest = null;
 let previousTotals = null;
+const SAVE_STORAGE_KEY = 'prisoners_gambit_web_save_v1';
 
 function escapeHtml(s){ const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 function moveLabel(v){ return v === 0 ? 'C' : 'D'; }
@@ -441,12 +496,99 @@ async function refresh(){
   renderDecision(latest);
   renderSnapshot(latest.snapshot || {});
   document.getElementById('stateJson').textContent = JSON.stringify(latest, null, 2);
+  await autosaveFromServer();
+}
+
+function setSaveNotice(message){
+  const notice = document.getElementById('saveNotice');
+  if (notice) notice.textContent = message;
+}
+
+function getSavedSaveCode(){
+  const raw = localStorage.getItem(SAVE_STORAGE_KEY);
+  if (!raw) return null;
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function setSavedSaveCode(saveCode){
+  localStorage.setItem(SAVE_STORAGE_KEY, saveCode);
+}
+
+function clearSavedRun(){
+  localStorage.removeItem(SAVE_STORAGE_KEY);
+  document.getElementById('resumePanel').style.display = 'none';
+  setSaveNotice('Saved run cleared.');
+}
+
+async function autosaveFromServer(){
+  if (!latest || latest.status === 'not_started') return;
+  const response = await fetch('/api/run/export', {method:'POST'});
+  if (!response.ok) return;
+  const payload = await response.json();
+  if (payload && payload.save_code) {
+    setSavedSaveCode(payload.save_code);
+    setSaveNotice('Autosaved.');
+  }
+}
+
+async function restoreSavedCode(saveCode){
+  await fetch('/api/run/import', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({save_code: saveCode}),
+  });
+  await refresh();
+}
+
+async function resumeSavedRun(){
+  const saveCode = getSavedSaveCode();
+  if (!saveCode) {
+    setSaveNotice('No saved run found.');
+    return;
+  }
+  await restoreSavedCode(saveCode);
+  document.getElementById('resumePanel').style.display = 'none';
+  setSaveNotice('Run resumed.');
+}
+
+async function startNewRunFromPrompt(){
+  await startRun();
+  setSaveNotice('Started new run; previous save overwritten.');
+  document.getElementById('resumePanel').style.display = 'none';
 }
 
 async function startRun(){ await fetch('/api/run/start', {method:'POST'}); await refresh(); }
+async function clearRun(){
+  await fetch('/api/run/clear', {method:'POST'});
+  clearSavedRun();
+  latest = null;
+  previousTotals = null;
+  await refresh();
+}
 async function advanceFlow(){ await fetch('/api/advance', {method:'POST'}); await refresh(); }
 async function sendAction(payload){
   await fetch('/api/action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  await refresh();
+}
+async function exportSaveCode(){
+  const response = await fetch('/api/run/export', {method:'POST'});
+  if (!response.ok) return;
+  const payload = await response.json();
+  if (!payload.save_code) return;
+  prompt('Copy save code:', payload.save_code);
+}
+async function importSaveCode(){
+  const code = prompt('Paste save code:');
+  if (!code) return;
+  const response = await fetch('/api/run/import', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({save_code: code.trim()}),
+  });
+  if (!response.ok) {
+    setSaveNotice('Invalid save code.');
+    return;
+  }
   await refresh();
 }
 async function sendStanceN(stance){
@@ -455,6 +597,16 @@ async function sendStanceN(stance){
   if (!Number.isFinite(rounds) || rounds <= 0) return;
   await sendAction({type:'set_round_stance', stance, rounds});
 }
+
+window.addEventListener('load', async () => {
+  const saved = getSavedSaveCode();
+  if (saved) {
+    document.getElementById('resumePanel').style.display = 'block';
+    setSaveNotice('A local autosave is available.');
+    return;
+  }
+  await refresh();
+});
 </script>
 </body>
 </html>
@@ -515,6 +667,51 @@ class Handler(BaseHTTPRequestHandler):
             self._json(payload)
             return
 
+        if self.path == "/api/run/clear":
+            with self._state_lock():
+                self._set_session(None)
+            self._json({"status": "cleared"})
+            return
+
+        if self.path == "/api/run/export":
+            with self._state_lock():
+                session = self._get_session()
+                if session is None:
+                    self._json({"error": "session not started"}, status=400)
+                    return
+                save_secret = _current_save_secret()
+                self._json(
+                    {
+                        "save_code": session.export_save_code(save_secret),
+                        "secret_mode": _save_secret_mode(),
+                    }
+                )
+            return
+
+        if self.path == "/api/run/import":
+            payload, status, err = _parse_json_body(self)
+            if err is not None:
+                self._json(err, status=status)
+                return
+            try:
+                save_code = payload.get("save_code")
+                save_secret = _current_save_secret()
+                if isinstance(save_code, str) and save_code:
+                    session = FeaturedMatchWebSession.import_save_code(save_code, save_secret)
+                else:
+                    self._json({"error": "missing save payload"}, status=400)
+                    return
+            except (ValueError, TypeError, KeyError) as exc:
+                _log.warning("Invalid save import payload: %s", exc)
+                self._json({"error": "invalid save payload"}, status=400)
+                return
+
+            with self._state_lock():
+                self._set_session(session)
+                view = session.view()
+            self._json(view)
+            return
+
         if self.path == "/api/advance":
             with self._state_lock():
                 session = self._get_session()
@@ -532,32 +729,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, status=404)
             return
 
-        try:
-            raw_length = self.headers.get("Content-Length", "0")
-            length = int(raw_length)
-            if length < 0:
-                raise ValueError("Content-Length cannot be negative")
-        except ValueError:
-            self.close_connection = True
-            self._json({"error": "invalid Content-Length"}, status=400)
-            return
-        if length > _MAX_REQUEST_BODY_BYTES:
-            self.close_connection = True
-            self._json({"error": "request body too large"}, status=413)
-            return
-        raw_bytes = self.rfile.read(length) if length else b"{}"
-        try:
-            raw = raw_bytes.decode("utf-8")
-            payload = json.loads(raw)
-        except UnicodeDecodeError:
-            self.close_connection = True
-            self._json({"error": "invalid UTF-8 in request body"}, status=400)
-            return
-        except json.JSONDecodeError:
-            self._json({"error": "invalid JSON"}, status=400)
-            return
-        if not isinstance(payload, dict):
-            self._json({"error": "invalid action payload"}, status=400)
+        payload, status, err = _parse_json_body(self)
+        if err is not None:
+            self._json(err, status=status)
             return
         action_type = payload.get("type")
 

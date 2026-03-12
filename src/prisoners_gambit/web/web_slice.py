@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import asdict
+import hashlib
+import hmac
+import json
 import random
+from typing import get_type_hints
 
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
@@ -46,11 +51,33 @@ from prisoners_gambit.core.interaction import (
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.offer_views import to_genome_edit_offer_view, to_powerup_offer_view
-from prisoners_gambit.core.powerups import ComplianceDividend, CounterIntel, MoveDirective, RoundContext, resolve_move
+from prisoners_gambit.core.powerups import (
+    ALL_POWERUP_TYPES,
+    ComplianceDividend,
+    CounterIntel,
+    MoveDirective,
+    Powerup,
+    RoundContext,
+    resolve_move,
+)
 from prisoners_gambit.core.scoring import base_payoff
 from prisoners_gambit.core.strategy import StrategyGenome
+from prisoners_gambit.core.genome_edits import GenomeEdit
+from prisoners_gambit.content.genome_edit_templates import build_genome_edit_pool
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
 from prisoners_gambit.systems.offers import generate_powerup_offers
+
+
+SAVE_STATE_VERSION = 1
+_DECISION_TYPES = {
+    "FeaturedRoundDecisionState": FeaturedRoundDecisionState,
+    "FloorVoteDecisionState": FloorVoteDecisionState,
+    "PowerupChoiceState": PowerupChoiceState,
+    "GenomeEditChoiceState": GenomeEditChoiceState,
+    "SuccessorChoiceState": SuccessorChoiceState,
+}
+_POWERUP_TYPES = {powerup_type.__name__: powerup_type for powerup_type in ALL_POWERUP_TYPES}
+_GENOME_EDIT_TYPES = {type(edit).__name__: type(edit) for edit in build_genome_edit_pool()}
 
 
 class FeaturedMatchWebSession:
@@ -79,6 +106,127 @@ class FeaturedMatchWebSession:
         self._genome_offers = []
         self._successor_candidates: list[Agent] = []
         self._floor_clue_log: list[str] = []
+
+    def serialize_state(self) -> dict:
+        decision = self.session.current_decision
+        expected_action_types = [action_type.__name__ for action_type in self.session._expected_action_types]
+        return {
+            "version": SAVE_STATE_VERSION,
+            "seed": self.seed,
+            "rounds": self.rounds,
+            "rng_state": self._serialize_rng_state(self.rng.getstate()),
+            "session": {
+                "status": self.session.status,
+                "decision_type": type(decision).__name__ if decision else None,
+                "decision": asdict(decision) if decision else None,
+                "expected_action_types": expected_action_types,
+            },
+            "snapshot": asdict(self.snapshot),
+            "player": self._serialize_agent(self.player),
+            "opponent": self._serialize_agent(self.opponent),
+            "player_history": list(self.player_history),
+            "opponent_history": list(self.opponent_history),
+            "player_score": self.player_score,
+            "opponent_score": self.opponent_score,
+            "round_index": self.round_index,
+            "floor_number": self.floor_number,
+            "last_manual_move": self._last_manual_move,
+            "active_stance": asdict(self._active_stance) if self._active_stance else None,
+            "match_autopilot_active": self._match_autopilot_active,
+            "pending_screen": self._pending_screen,
+            "pending_message": self._pending_message,
+            "powerup_offers": [self._serialize_powerup(powerup) for powerup in self._powerup_offers],
+            "genome_offers": [self._serialize_genome_edit(edit) for edit in self._genome_offers],
+            "successor_candidates": [self._serialize_agent(agent) for agent in self._successor_candidates],
+            "floor_clue_log": list(self._floor_clue_log),
+        }
+
+    def serialize_state_json(self) -> str:
+        return json.dumps(self.serialize_state(), sort_keys=True, separators=(",", ":"))
+
+    def export_save_code(self, secret: bytes) -> str:
+        payload_json = self.serialize_state_json()
+        signature = hmac.new(secret, payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
+        # Security model: this is integrity protection against client-side payload editing.
+        # It does not protect against users who can modify/replace the server code or secret.
+        envelope = {
+            "version": SAVE_STATE_VERSION,
+            "payload": payload_json,
+            "signature": signature,
+        }
+        encoded = json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(encoded).decode("ascii")
+
+    @classmethod
+    def from_serialized_state(cls, payload: dict) -> "FeaturedMatchWebSession":
+        try:
+            if payload.get("version") != SAVE_STATE_VERSION:
+                raise ValueError("Unsupported save state version")
+
+            session = cls(seed=int(payload["seed"]), rounds=int(payload["rounds"]))
+            rng_state = cls._deserialize_rng_state(payload["rng_state"])
+            session.rng.setstate(rng_state)
+
+            session.snapshot = cls._deserialize_run_snapshot(payload["snapshot"])
+            session.player = cls._deserialize_agent(payload["player"])
+            session.opponent = cls._deserialize_agent(payload["opponent"])
+            session.player_history = list(payload["player_history"])
+            session.opponent_history = list(payload["opponent_history"])
+            session.player_score = int(payload["player_score"])
+            session.opponent_score = int(payload["opponent_score"])
+            session.round_index = int(payload["round_index"])
+            session.floor_number = int(payload["floor_number"])
+            session._last_manual_move = payload["last_manual_move"]
+            active_stance = payload.get("active_stance")
+            session._active_stance = FeaturedRoundStanceView(**active_stance) if active_stance else None
+            session._match_autopilot_active = bool(payload["match_autopilot_active"])
+            session._pending_screen = payload.get("pending_screen")
+            session._pending_message = payload.get("pending_message")
+            session._powerup_offers = [cls._deserialize_powerup(entry) for entry in payload.get("powerup_offers", [])]
+            session._genome_offers = [cls._deserialize_genome_edit(entry) for entry in payload.get("genome_offers", [])]
+            session._successor_candidates = [cls._deserialize_agent(entry) for entry in payload.get("successor_candidates", [])]
+            session._floor_clue_log = list(payload.get("floor_clue_log", []))
+
+            session_payload = payload["session"]
+            session.session.status = session_payload["status"]
+            decision_type_name = session_payload.get("decision_type")
+            decision_payload = session_payload.get("decision")
+            session.session.current_decision = cls._deserialize_decision(decision_type_name, decision_payload)
+            session.session._expected_action_types = cls._resolve_expected_action_types(
+                session_payload.get("expected_action_types", []),
+                session.session.current_decision,
+            )
+            session.session._queued_action = None
+            session.session.latest_snapshot = session.snapshot
+            session.session.completion = session.snapshot.completion
+            return session
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Invalid save payload") from exc
+
+    @classmethod
+    def import_save_code(cls, save_code: str, secret: bytes) -> "FeaturedMatchWebSession":
+        try:
+            raw = base64.urlsafe_b64decode(save_code.encode("ascii")).decode("utf-8")
+            envelope = json.loads(raw)
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Invalid save code") from exc
+        if not isinstance(envelope, dict):
+            raise ValueError("Invalid save code")
+        if not isinstance(envelope.get("payload"), str) or not isinstance(envelope.get("signature"), str):
+            raise ValueError("Invalid save code")
+
+        payload_json = envelope["payload"]
+        provided_signature = envelope["signature"]
+        expected_signature = hmac.new(secret, payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(provided_signature, expected_signature):
+            raise ValueError("Invalid save code")
+        try:
+            payload = json.loads(payload_json)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid save code") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid save code")
+        return cls.from_serialized_state(payload)
 
     def start(self) -> None:
         self.session.start(self.snapshot)
@@ -586,3 +734,197 @@ class FeaturedMatchWebSession:
             },
             noise=0.0,
         )
+
+    @staticmethod
+    def _serialize_powerup(powerup: Powerup) -> dict:
+        payload = asdict(powerup)
+        payload["type"] = type(powerup).__name__
+        return payload
+
+    @staticmethod
+    def _deserialize_powerup(payload: dict) -> Powerup:
+        powerup_type_name = payload.get("type")
+        if powerup_type_name not in _POWERUP_TYPES:
+            raise ValueError("Unsupported powerup type in save state")
+        powerup_type = _POWERUP_TYPES[powerup_type_name]
+        kwargs = {key: value for key, value in payload.items() if key != "type"}
+        return powerup_type(**kwargs)
+
+    @staticmethod
+    def _serialize_genome_edit(edit: GenomeEdit) -> dict:
+        return {"type": type(edit).__name__}
+
+    @staticmethod
+    def _deserialize_genome_edit(payload: dict) -> GenomeEdit:
+        genome_edit_type_name = payload.get("type")
+        if genome_edit_type_name not in _GENOME_EDIT_TYPES:
+            raise ValueError("Unsupported genome edit type in save state")
+        return _GENOME_EDIT_TYPES[genome_edit_type_name]()
+
+    @classmethod
+    def _serialize_agent(cls, agent: Agent) -> dict:
+        return {
+            "name": agent.name,
+            "public_profile": agent.public_profile,
+            "powerups": [cls._serialize_powerup(powerup) for powerup in agent.powerups],
+            "score": agent.score,
+            "wins": agent.wins,
+            "is_player": agent.is_player,
+            "lineage_id": agent.lineage_id,
+            "lineage_depth": agent.lineage_depth,
+            "agent_id": agent.agent_id,
+            "genome": cls._serialize_genome(agent.genome),
+        }
+
+    @classmethod
+    def _deserialize_agent(cls, payload: dict) -> Agent:
+        return Agent(
+            name=payload["name"],
+            genome=cls._deserialize_genome(payload["genome"]),
+            public_profile=payload["public_profile"],
+            powerups=[cls._deserialize_powerup(entry) for entry in payload.get("powerups", [])],
+            score=payload["score"],
+            wins=payload["wins"],
+            is_player=payload["is_player"],
+            lineage_id=payload["lineage_id"],
+            lineage_depth=payload["lineage_depth"],
+            agent_id=payload["agent_id"],
+        )
+
+    @staticmethod
+    def _serialize_genome(genome: StrategyGenome) -> dict:
+        return {
+            "first_move": genome.first_move,
+            "noise": genome.noise,
+            "response_table": {
+                "cc": genome.response_table[(COOPERATE, COOPERATE)],
+                "cd": genome.response_table[(COOPERATE, DEFECT)],
+                "dc": genome.response_table[(DEFECT, COOPERATE)],
+                "dd": genome.response_table[(DEFECT, DEFECT)],
+            },
+        }
+
+    @staticmethod
+    def _deserialize_genome(payload: dict) -> StrategyGenome:
+        table = payload["response_table"]
+        return StrategyGenome(
+            first_move=payload["first_move"],
+            noise=payload["noise"],
+            response_table={
+                (COOPERATE, COOPERATE): table["cc"],
+                (COOPERATE, DEFECT): table["cd"],
+                (DEFECT, COOPERATE): table["dc"],
+                (DEFECT, DEFECT): table["dd"],
+            },
+        )
+
+    @classmethod
+    def _deserialize_decision(cls, decision_type_name: str | None, payload: dict | None):
+        if decision_type_name is None or payload is None:
+            return None
+        decision_type = _DECISION_TYPES.get(decision_type_name)
+        if decision_type is None:
+            raise ValueError("Unsupported decision type in save state")
+        return cls._build_dataclass(decision_type, payload)
+
+    @classmethod
+    def _resolve_expected_action_types(cls, expected_type_names: list[str], decision) -> tuple[type, ...]:
+        if expected_type_names:
+            type_map = {
+                "ChooseRoundMoveAction": ChooseRoundMoveAction,
+                "ChooseRoundAutopilotAction": ChooseRoundAutopilotAction,
+                "ChooseRoundStanceAction": ChooseRoundStanceAction,
+                "ChooseFloorVoteAction": ChooseFloorVoteAction,
+                "ChoosePowerupAction": ChoosePowerupAction,
+                "ChooseGenomeEditAction": ChooseGenomeEditAction,
+                "ChooseSuccessorAction": ChooseSuccessorAction,
+            }
+            resolved_types: list[type] = []
+            for expected_name in expected_type_names:
+                if expected_name not in type_map:
+                    raise ValueError("Unsupported expected action type in save state")
+                resolved_types.append(type_map[expected_name])
+            return tuple(resolved_types)
+        if isinstance(decision, FeaturedRoundDecisionState):
+            return (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction)
+        if isinstance(decision, FloorVoteDecisionState):
+            return (ChooseFloorVoteAction,)
+        if isinstance(decision, PowerupChoiceState):
+            return (ChoosePowerupAction,)
+        if isinstance(decision, GenomeEditChoiceState):
+            return (ChooseGenomeEditAction,)
+        if isinstance(decision, SuccessorChoiceState):
+            return (ChooseSuccessorAction,)
+        return ()
+
+    @classmethod
+    def _deserialize_run_snapshot(cls, payload: dict) -> RunSnapshot:
+        return cls._build_dataclass(RunSnapshot, payload)
+
+    @classmethod
+    def _build_dataclass(cls, dataclass_type: type, payload: dict):
+        field_values = {}
+        hints = get_type_hints(dataclass_type)
+        for field in dataclass_type.__dataclass_fields__.values():  # type: ignore[attr-defined]
+            if field.name not in payload:
+                continue
+            annotation = hints.get(field.name, field.type)
+            field_values[field.name] = cls._decode_value(annotation, payload[field.name])
+        return dataclass_type(**field_values)
+
+    @classmethod
+    def _decode_value(cls, annotation, value):
+        if value is None:
+            return None
+        origin = getattr(annotation, "__origin__", None)
+        args = getattr(annotation, "__args__", ())
+        if origin is list and args:
+            return [cls._decode_value(args[0], item) for item in value]
+        if origin is tuple and args:
+            return tuple(cls._decode_value(args[0], item) for item in value)
+        if origin is None and hasattr(annotation, "__dataclass_fields__") and isinstance(value, dict):
+            return cls._build_dataclass(annotation, value)
+        if str(origin) in {"typing.Union", "types.UnionType"}:
+            for candidate in args:
+                if candidate is type(None):
+                    continue
+                try:
+                    return cls._decode_value(candidate, value)
+                except Exception:  # noqa: BLE001
+                    continue
+        return value
+
+    @classmethod
+    def _serialize_rng_state(cls, state: tuple) -> dict:
+        version, internal_state, gauss_next = state
+        return {
+            "version": int(version),
+            "internal_state": cls._encode_tuple(internal_state),
+            "gauss_next": gauss_next,
+        }
+
+    @classmethod
+    def _deserialize_rng_state(cls, payload: dict) -> tuple:
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid rng_state payload")
+        if "version" not in payload or "internal_state" not in payload:
+            raise ValueError("Invalid rng_state payload")
+        internal_state = cls._decode_tuple(payload["internal_state"])
+        gauss_next = payload.get("gauss_next")
+        if gauss_next is not None and not isinstance(gauss_next, (int, float)):
+            raise ValueError("Invalid rng_state payload")
+        return (int(payload["version"]), internal_state, gauss_next)
+
+    @classmethod
+    def _encode_tuple(cls, value):
+        if isinstance(value, tuple):
+            return [cls._encode_tuple(item) for item in value]
+        if isinstance(value, list):
+            return [cls._encode_tuple(item) for item in value]
+        return value
+
+    @classmethod
+    def _decode_tuple(cls, value):
+        if isinstance(value, list):
+            return tuple(cls._decode_tuple(item) for item in value)
+        return value
