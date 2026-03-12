@@ -16,7 +16,7 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
 )
-from prisoners_gambit.web.server import Handler, run_server
+from prisoners_gambit.web.server import Handler, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
 TEST_PADDING_LENGTH = 20_000
@@ -644,7 +644,7 @@ def test_web_root_contains_full_run_panels() -> None:
         server.server_close()
 
 
-def test_run_server_defaults_to_loopback_host(monkeypatch) -> None:
+def test_run_server_defaults_to_public_host(monkeypatch) -> None:
     captured = {}
 
     class FakeServer:
@@ -659,9 +659,27 @@ def test_run_server_defaults_to_loopback_host(monkeypatch) -> None:
 
     run_server(port=9999)
 
-    assert captured["address"] == ("127.0.0.1", 9999)
+    assert captured["address"] == ("0.0.0.0", 9999)
     assert captured["handler"] is Handler
     assert captured["served"] is True
+
+
+def test_port_from_env_uses_default_when_unset(monkeypatch) -> None:
+    monkeypatch.delenv("PORT", raising=False)
+
+    assert _port_from_env() == 8765
+
+
+def test_port_from_env_uses_configured_port(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "12345")
+
+    assert _port_from_env() == 12345
+
+
+def test_port_from_env_falls_back_for_invalid_value(monkeypatch) -> None:
+    monkeypatch.setenv("PORT", "not-a-port")
+
+    assert _port_from_env() == 8765
 
 
 def test_web_api_keeps_session_state_isolated_per_server_instance() -> None:

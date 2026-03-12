@@ -32,6 +32,8 @@ _ROUND_STANCE_OPTIONS = set(_stance_options_default)
 _ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
 _MAX_REQUEST_BODY_BYTES = 16 * 1024  # JSON action payloads are tiny; cap bodies to reject malformed or abusive requests early.
 _PROCESS_LOCAL_SAVE_SECRET = secrets.token_bytes(32)
+_DEFAULT_HOST = "0.0.0.0"
+_DEFAULT_PORT = 8765
 
 
 def _current_save_secret() -> bytes:
@@ -45,6 +47,21 @@ def _current_save_secret() -> bytes:
 
 def _save_secret_mode() -> str:
     return "configured_shared_secret" if os.getenv("PG_WEB_SAVE_SECRET") else "process_local_fallback"
+
+
+def _port_from_env(default_port: int = _DEFAULT_PORT) -> int:
+    configured_port = os.getenv("PORT")
+    if configured_port is None:
+        return default_port
+    try:
+        parsed_port = int(configured_port)
+    except ValueError:
+        _log.warning("Invalid PORT value %r; falling back to %d", configured_port, default_port)
+        return default_port
+    if parsed_port <= 0:
+        _log.warning("Non-positive PORT value %r; falling back to %d", configured_port, default_port)
+        return default_port
+    return parsed_port
 
 
 def _parse_json_body(handler: "Handler") -> tuple[dict | None, int, dict | None]:
@@ -845,7 +862,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(payload, status=status)
 
 
-def run_server(port: int = 8765, host: str = "127.0.0.1") -> None:
+def run_server(port: int = _DEFAULT_PORT, host: str = _DEFAULT_HOST) -> None:
     server = ThreadingHTTPServer((host, port), Handler)
     setattr(server, "_prisoners_gambit_session", None)
     setattr(server, "_prisoners_gambit_lock", threading.RLock())
@@ -854,4 +871,4 @@ def run_server(port: int = 8765, host: str = "127.0.0.1") -> None:
 
 
 if __name__ == "__main__":
-    run_server()
+    run_server(port=_port_from_env())
