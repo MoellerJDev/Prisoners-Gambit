@@ -661,14 +661,13 @@ class FeaturedMatchWebSession:
                     self.snapshot.civil_war_context.thesis,
                 ),
             )
+            self.snapshot.session_status = "running"
         else:
             self.snapshot.current_phase = "ecosystem"
             self.snapshot.civil_war_context = None
             self._pending_screen = None
             self._pending_message = None
             self._begin_powerup_choice()
-
-        self.snapshot.session_status = "running"
         self._rebuild_dynasty_board()
 
     def _should_start_civil_war(self) -> bool:

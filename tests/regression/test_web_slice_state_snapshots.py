@@ -106,6 +106,7 @@ def test_regression_successor_transition_requires_civil_war_decision() -> None:
     assert session.view()["snapshot"]["completion"] is None
     assert session.view()["decision_type"] == "PowerupChoiceState"
     assert session.view()["snapshot"]["current_phase"] == "ecosystem"
+    assert session.view()["snapshot"]["session_status"] == "awaiting_decision"
 
 
 def test_regression_civil_war_transition_occurs_when_outsiders_are_exhausted() -> None:

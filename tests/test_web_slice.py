@@ -476,6 +476,7 @@ def test_web_session_successor_transition_does_not_require_civil_war_when_trigge
 
     assert session.view()["decision_type"] == "PowerupChoiceState"
     assert session.view()["snapshot"]["current_phase"] == "ecosystem"
+    assert session.view()["snapshot"]["session_status"] == "awaiting_decision"
     assert session.view()["status"] != "completed"
     assert session.view()["snapshot"]["completion"] is None
 
