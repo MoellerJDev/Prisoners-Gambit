@@ -121,7 +121,13 @@ A browser-based prototype is included for the decision flow.
 Start it with:
 
 ```bash
-python -m prisoners_gambit.web.server
+PYTHONPATH=src python -m prisoners_gambit.web.server
+```
+
+If `python` is not available in your shell, use:
+
+```bash
+PYTHONPATH=src python3 -m prisoners_gambit.web.server
 ```
 
 Then open:
