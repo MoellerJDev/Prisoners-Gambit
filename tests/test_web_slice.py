@@ -112,6 +112,60 @@ def test_featured_match_web_session_clears_match_autopilot_after_manual_move() -
     assert session.should_autopilot_featured_match is False
 
 
+
+
+def test_web_session_lineage_chronicle_records_major_milestones() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
+
+    chronicle = session.view()["snapshot"]["lineage_chronicle"]
+    event_types = [entry["event_type"] for entry in chronicle]
+
+    assert event_types[0] == "run_start"
+    assert "floor_complete" in event_types
+    assert "doctrine_pivot" in event_types
+    assert "successor_pressure" in event_types
+    assert "successor_choice" in event_types
+    assert "phase_transition" in event_types
+    assert event_types[-1] == "run_outcome"
+
+
+def test_web_session_lineage_chronicle_does_not_duplicate_on_refresh_paths() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+
+    before = list(session.view()["snapshot"]["lineage_chronicle"])
+    session.view()
+    session.view()
+    session.view()
+    after = session.view()["snapshot"]["lineage_chronicle"]
+
+    assert after == before
+
+
+def test_web_session_state_round_trip_preserves_lineage_chronicle() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=2)
+    session.start()
+    session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
+    session.advance()
+
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+
+    assert restored.view()["snapshot"]["lineage_chronicle"] == session.view()["snapshot"]["lineage_chronicle"]
+
 def test_web_session_state_serialization_round_trip_preserves_pending_decision_and_snapshot() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=3)
     session.start()

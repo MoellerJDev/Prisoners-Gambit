@@ -391,6 +391,15 @@ class RunCompletion:
 
 
 @dataclass(slots=True)
+class LineageChronicleEntry:
+    event_id: str
+    event_type: str
+    floor_number: int | None
+    phase: Literal["ecosystem", "civil_war"] | None
+    summary: str
+
+
+@dataclass(slots=True)
 class RunSnapshot:
     header: RunHeaderState | None = None
     current_floor: int | None = None
@@ -402,5 +411,6 @@ class RunSnapshot:
     successor_options: SuccessorChoiceState | None = None
     civil_war_context: CivilWarContext | None = None
     active_featured_stance: FeaturedRoundStanceView | None = None
+    lineage_chronicle: list[LineageChronicleEntry] = field(default_factory=list)
     session_status: SessionStatus = "running"
     completion: RunCompletion | None = None
