@@ -173,7 +173,7 @@ class TerminalRenderer(Renderer):
 
     def choose_powerup(self, offers: list[Powerup]) -> Powerup:
         from prisoners_gambit.core.interaction import PowerupOfferView
-        from prisoners_gambit.core.offer_guidance import guidance_for_powerup
+        from prisoners_gambit.core.offer_guidance import guidance_for_powerup, lineage_commitment_text
 
         state = PowerupChoiceState(
             floor_number=0,
@@ -181,13 +181,15 @@ class TerminalRenderer(Renderer):
                 PowerupOfferView(
                     name=offer.name,
                     description=offer.description,
-                    doctrine_vector=guidance_for_powerup(offer).doctrine_vector,
-                    branch_identity=guidance_for_powerup(offer).branch_identity,
-                    tradeoff=guidance_for_powerup(offer).tradeoff,
-                    phase_support=guidance_for_powerup(offer).phase_support,
-                    successor_pressure=guidance_for_powerup(offer).successor_pressure,
+                    lineage_commitment=lineage_commitment_text(guidance),
+                    doctrine_vector=guidance.doctrine_vector,
+                    branch_identity=guidance.branch_identity,
+                    tradeoff=guidance.tradeoff,
+                    phase_support=guidance.phase_support,
+                    successor_pressure=guidance.successor_pressure,
                 )
                 for offer in offers
+                for guidance in (guidance_for_powerup(offer),)
             ],
         )
         action = self.resolve_powerup_choice(state)
@@ -213,7 +215,7 @@ class TerminalRenderer(Renderer):
 
     def choose_genome_edit(self, offers: list[GenomeEdit], current_summary: str) -> GenomeEdit:
         from prisoners_gambit.core.interaction import GenomeEditOfferView
-        from prisoners_gambit.core.offer_guidance import guidance_for_genome_edit
+        from prisoners_gambit.core.offer_guidance import doctrine_drift_text, guidance_for_genome_edit, lineage_commitment_text
 
         state = GenomeEditChoiceState(
             floor_number=0,
@@ -222,13 +224,16 @@ class TerminalRenderer(Renderer):
                 GenomeEditOfferView(
                     name=offer.name,
                     description=offer.description,
-                    doctrine_vector=guidance_for_genome_edit(offer).doctrine_vector,
-                    branch_identity=guidance_for_genome_edit(offer).branch_identity,
-                    tradeoff=guidance_for_genome_edit(offer).tradeoff,
-                    phase_support=guidance_for_genome_edit(offer).phase_support,
-                    successor_pressure=guidance_for_genome_edit(offer).successor_pressure,
+                    lineage_commitment=lineage_commitment_text(guidance),
+                    doctrine_vector=guidance.doctrine_vector,
+                    branch_identity=guidance.branch_identity,
+                    tradeoff=guidance.tradeoff,
+                    phase_support=guidance.phase_support,
+                    successor_pressure=guidance.successor_pressure,
+                    doctrine_drift=doctrine_drift_text(guidance),
                 )
                 for offer in offers
+                for guidance in (guidance_for_genome_edit(offer),)
             ],
         )
         action = self.resolve_genome_edit_choice(state)

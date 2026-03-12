@@ -7,11 +7,21 @@ from prisoners_gambit.core.offer_guidance import guidance_for_powerup
 from prisoners_gambit.core.powerups import Powerup
 
 
+def _offer_novelty_score(powerup: Powerup, chosen_vectors: set[str], chosen_phases: set[str]) -> int:
+    guidance = guidance_for_powerup(powerup)
+    score = 0
+    if guidance.doctrine_vector not in chosen_vectors:
+        score += 3
+    if guidance.phase_support not in chosen_phases:
+        score += 1
+    return score
+
+
 def generate_powerup_offers(count: int, rng: random.Random) -> list[Powerup]:
     """Generate deterministic doctrine-facing offers with directional diversity.
 
-    For sets of 3+, the generator prefers at least two distinct doctrine vectors so
-    players choose between futures instead of taking flat-value upgrades.
+    For sets of 3+, the generator biases toward vectors and phase-support lanes not
+    already represented so players choose between distinct lineage futures.
     """
     pool = build_powerup_pool()
     if count <= 0:
@@ -19,36 +29,22 @@ def generate_powerup_offers(count: int, rng: random.Random) -> list[Powerup]:
 
     chosen: list[Powerup] = []
     chosen_vectors: set[str] = set()
-
-    # Anchor larger sets with two different doctrine directions when possible.
-    if count >= 3:
-        vector_groups: dict[str, list[Powerup]] = {}
-        for powerup in pool:
-            vector_groups.setdefault(guidance_for_powerup(powerup).doctrine_vector, []).append(powerup)
-
-        vectors = list(vector_groups.keys())
-        rng.shuffle(vectors)
-        for vector in vectors[:2]:
-            candidates = vector_groups.get(vector, [])
-            if candidates:
-                pick = rng.choice(candidates)
-                if all(type(pick) is not type(existing) for existing in chosen):
-                    chosen.append(pick)
-                    chosen_vectors.add(vector)
+    chosen_phases: set[str] = set()
 
     while len(chosen) < count:
         remaining_pool = [powerup for powerup in pool if all(type(powerup) is not type(existing) for existing in chosen)]
         if not remaining_pool:
             break
 
-        # Prefer vectors not represented yet to reduce obvious same-lane upgrades.
-        unseen_vectors = [
-            powerup for powerup in remaining_pool if guidance_for_powerup(powerup).doctrine_vector not in chosen_vectors
+        best_score = max(_offer_novelty_score(powerup, chosen_vectors, chosen_phases) for powerup in remaining_pool)
+        candidates = [
+            powerup for powerup in remaining_pool if _offer_novelty_score(powerup, chosen_vectors, chosen_phases) == best_score
         ]
-        selection_pool = unseen_vectors or remaining_pool
-        pick = rng.choice(selection_pool)
+        pick = rng.choice(candidates)
         chosen.append(pick)
-        chosen_vectors.add(guidance_for_powerup(pick).doctrine_vector)
+        guidance = guidance_for_powerup(pick)
+        chosen_vectors.add(guidance.doctrine_vector)
+        chosen_phases.add(guidance.phase_support)
 
     offers = [powerup.clone() for powerup in chosen]
 

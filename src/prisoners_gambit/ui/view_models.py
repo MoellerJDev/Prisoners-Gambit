@@ -58,6 +58,8 @@ def format_genome_edit_line(index: int, edit: GenomeEdit) -> str:
 
 def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list[str]:
     lines: list[str] = []
+    if offer.lineage_commitment:
+        lines.append(f"Lineage commitment: {offer.lineage_commitment}")
     if offer.doctrine_vector:
         lines.append(f"Doctrine vector: {offer.doctrine_vector}")
     if offer.branch_identity:
@@ -68,6 +70,8 @@ def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list
         lines.append(f"Phase support: {offer.phase_support}")
     if offer.successor_pressure:
         lines.append(f"Successor pressure: {offer.successor_pressure}")
+    if isinstance(offer, GenomeEditOfferView) and offer.doctrine_drift:
+        lines.append(f"Doctrine drift: {offer.doctrine_drift}")
     return lines
 
 

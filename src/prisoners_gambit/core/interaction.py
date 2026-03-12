@@ -155,6 +155,7 @@ class FloorSummaryEntryView:
 class PowerupOfferView:
     name: str
     description: str
+    lineage_commitment: str | None = None
     doctrine_vector: str | None = None
     branch_identity: str | None = None
     tradeoff: str | None = None
@@ -167,6 +168,7 @@ class PowerupOfferView:
 class GenomeEditOfferView:
     name: str
     description: str
+    lineage_commitment: str | None = None
     doctrine_vector: str | None = None
     branch_identity: str | None = None
     tradeoff: str | None = None
@@ -174,6 +176,7 @@ class GenomeEditOfferView:
     successor_pressure: str | None = None
     current_summary: str | None = None
     projected_summary: str | None = None
+    doctrine_drift: str | None = None
 
 
 @dataclass(slots=True)

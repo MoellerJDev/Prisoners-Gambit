@@ -138,3 +138,26 @@ def guidance_for_powerup(powerup: Powerup) -> OfferDoctrineGuidance:
 
 def guidance_for_genome_edit(edit: GenomeEdit) -> OfferDoctrineGuidance:
     return _GENOME_GUIDANCE_BY_NAME.get(edit.name, _DEFAULT_GUIDANCE)
+
+
+_COMMITMENT_BY_VECTOR: dict[str, str] = {
+    "trust / reciprocity": "Commit to reciprocal institutions and long-horizon trust.",
+    "coercion / control": "Commit to rule enforcement and compliance extraction.",
+    "opportunism / betrayal": "Commit to tempo theft and decisive betray windows.",
+    "referendum leverage": "Commit to vote-market manipulation and bloc control.",
+    "volatility / chaos": "Commit to instability as a weapon and gamble.",
+    "survivability / stabilization": "Commit to branch resilience and orderly recovery.",
+}
+
+
+def lineage_commitment_text(guidance: OfferDoctrineGuidance) -> str:
+    return _COMMITMENT_BY_VECTOR.get(guidance.doctrine_vector, "Commit to a mixed lineage doctrine.")
+
+
+def doctrine_drift_text(guidance: OfferDoctrineGuidance) -> str:
+    phase = guidance.phase_support or "both"
+    if phase == "ecosystem survival":
+        return "Doctrine drift: favors heirs optimized for ecosystem stewardship."
+    if phase == "civil-war readiness":
+        return "Doctrine drift: favors heirs optimized for branch-mirror conflict."
+    return "Doctrine drift: keeps both ecosystem and civil-war successor lanes active."

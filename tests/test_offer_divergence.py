@@ -25,3 +25,17 @@ def test_powerup_offers_bias_toward_directional_doctrine_choices() -> None:
     vectors = {guidance_for_powerup(offer).doctrine_vector for offer in offers}
 
     assert len(vectors) >= 2
+
+
+def test_genome_offers_bias_toward_phase_lane_diversity() -> None:
+    offers = generate_genome_edit_offers(3, random.Random(3))
+    phases = {guidance_for_genome_edit(offer).phase_support for offer in offers}
+
+    assert len(phases) >= 2
+
+
+def test_powerup_offers_bias_toward_phase_lane_diversity() -> None:
+    offers = generate_powerup_offers(3, random.Random(4))
+    phases = {guidance_for_powerup(offer).phase_support for offer in offers}
+
+    assert len(phases) >= 2

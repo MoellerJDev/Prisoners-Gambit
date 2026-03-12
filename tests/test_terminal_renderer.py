@@ -22,13 +22,14 @@ def test_terminal_powerup_choice_displays_name_and_description(monkeypatch, caps
     renderer.resolve_powerup_choice(
         PowerupChoiceState(
             floor_number=1,
-            offers=[PowerupOfferView(name="Trust Dividend", description="Mutual cooperation gives bonus", doctrine_vector="trust / reciprocity", tradeoff="Safer but slower")],
+            offers=[PowerupOfferView(name="Trust Dividend", description="Mutual cooperation gives bonus", lineage_commitment="Commit to reciprocal institutions.", doctrine_vector="trust / reciprocity", tradeoff="Safer but slower")],
         )
     )
 
     out = capsys.readouterr().out
     assert "Trust Dividend" in out
     assert "Mutual cooperation gives bonus" in out
+    assert "Lineage commitment: Commit to reciprocal institutions." in out
     assert "Doctrine vector: trust / reciprocity" in out
     assert "Tradeoff: Safer but slower" in out
 
@@ -41,15 +42,17 @@ def test_terminal_genome_edit_choice_displays_name_and_description(monkeypatch, 
         GenomeEditChoiceState(
             floor_number=2,
             current_summary="Tit-for-tat",
-            offers=[GenomeEditOfferView(name="Open with D", description="Set first move to defect", doctrine_vector="opportunism / betrayal", phase_support="civil-war readiness")],
+            offers=[GenomeEditOfferView(name="Open with D", description="Set first move to defect", lineage_commitment="Commit to tempo theft.", doctrine_vector="opportunism / betrayal", phase_support="civil-war readiness", doctrine_drift="Doctrine drift: favors heirs optimized for branch-mirror conflict.")],
         )
     )
 
     out = capsys.readouterr().out
     assert "Open with D" in out
     assert "Set first move to defect" in out
+    assert "Lineage commitment: Commit to tempo theft." in out
     assert "Doctrine vector: opportunism / betrayal" in out
     assert "Phase support: civil-war readiness" in out
+    assert "Doctrine drift: Doctrine drift: favors heirs optimized for branch-mirror conflict." in out
 
 
 def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, capsys) -> None:
