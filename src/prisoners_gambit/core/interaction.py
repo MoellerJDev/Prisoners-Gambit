@@ -289,6 +289,14 @@ class SuccessorChoiceState:
     valid_actions: tuple[Literal["choose_successor"], ...] = ("choose_successor",)
 
 
+@dataclass(slots=True)
+class CivilWarContext:
+    thesis: str
+    scoring_rules: list[str]
+    dangerous_branches: list[str]
+    doctrine_pressure: list[str]
+
+
 DecisionState = (
     FeaturedRoundDecisionState
     | FloorVoteDecisionState
@@ -385,6 +393,7 @@ class RunSnapshot:
     floor_summary: FloorSummaryState | None = None
     floor_vote_result: FloorVoteResult | None = None
     successor_options: SuccessorChoiceState | None = None
+    civil_war_context: CivilWarContext | None = None
     active_featured_stance: FeaturedRoundStanceView | None = None
     session_status: SessionStatus = "running"
     completion: RunCompletion | None = None

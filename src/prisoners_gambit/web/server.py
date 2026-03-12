@@ -384,6 +384,7 @@ function renderSnapshot(snapshot){
 
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
+  const civilWar = snapshot.civil_war_context;
   const successorLines = (pressure?.successor_candidates || []).map(entry =>
     `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml((entry.shaping_causes || []).join('; '))} · ${escapeHtml(entry.rationale)}</span></li>`
   ).join('');
@@ -395,8 +396,14 @@ function renderSnapshot(snapshot){
       + `<li><strong>If you died next floor</strong><ul>${successorLines || '<li class="muted">No visible successor candidates.</li>'}</ul></li>`
       + `<li><strong>Emerging threats</strong><ul>${threatLines || '<li class="muted">No external threats detected.</li>'}</ul></li>`
     : '';
+  const civilWarBlock = civilWar
+    ? `<li><strong>Lineage judgment</strong>: ${escapeHtml(civilWar.thesis)}</li>`
+      + `<li><strong>Civil-war rules</strong><ul>${(civilWar.scoring_rules || []).map(rule => `<li>${escapeHtml(rule)}</li>`).join('')}</ul></li>`
+      + `<li><strong>Dangerous branch lanes</strong>: ${escapeHtml((civilWar.dangerous_branches || []).join(' · ') || 'unknown')}</li>`
+      + `<li><strong>Doctrine pressure</strong>: ${escapeHtml((civilWar.doctrine_pressure || []).join(' · ') || 'none')}</li>`
+    : '';
   document.getElementById('floorSummary').innerHTML = summary.length
-    ? summary.map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('') + pressureBlock
+    ? summary.map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('') + pressureBlock + civilWarBlock
     : '<li>No summary yet.</li>';
 
   const successors = snapshot.successor_options?.candidates || [];

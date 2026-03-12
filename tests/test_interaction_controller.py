@@ -237,6 +237,24 @@ def test_successor_state_and_run_snapshot_are_populated() -> None:
     assert controller.snapshot.successor_options.civil_war_pressure == "low"
 
 
+
+
+def test_run_snapshot_can_store_civil_war_context() -> None:
+    from prisoners_gambit.core.interaction import CivilWarContext
+
+    renderer = NewRendererStub()
+    controller = InteractionController(renderer=renderer)
+    context = CivilWarContext(
+        thesis="Judgment arrives.",
+        scoring_rules=["No referendum", "Mirror rivalry bonus"],
+        dangerous_branches=["Future civil-war monster: 1"],
+        doctrine_pressure=["Control lanes rise"],
+    )
+
+    controller.set_civil_war_context(context)
+
+    assert controller.snapshot.civil_war_context is not None
+    assert controller.snapshot.civil_war_context.thesis == "Judgment arrives."
 def test_floor_summary_snapshot_uses_structured_entries() -> None:
     renderer = NewRendererStub()
     controller = InteractionController(renderer=renderer)

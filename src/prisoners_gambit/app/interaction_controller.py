@@ -16,6 +16,7 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundMoveAction,
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
+    CivilWarContext,
     DecisionState,
     FeaturedRoundDecisionState,
     FeaturedRoundResult,
@@ -130,6 +131,8 @@ class InteractionController:
             raise ValueError(f"Invalid phase: {phase}. Must be 'ecosystem' or 'civil_war'.")
         self.snapshot.current_floor = floor_number
         self.snapshot.current_phase = phase
+        if phase == "ecosystem":
+            self.snapshot.civil_war_context = None
         self._sync_session_snapshot()
 
     def set_floor_roster(self, floor_number: int, roster_entries: Sequence[RosterEntry]) -> None:
@@ -349,6 +352,11 @@ class InteractionController:
         if action.candidate_index < 0 or action.candidate_index >= len(candidates):
             raise ValueError("Successor choice index out of range.")
         return candidates[action.candidate_index]
+
+
+    def set_civil_war_context(self, context: CivilWarContext | None) -> None:
+        self.snapshot.civil_war_context = context
+        self._sync_session_snapshot()
 
     def set_latest_round_result(self, result: FeaturedRoundResult) -> None:
         self.snapshot.latest_featured_round = result

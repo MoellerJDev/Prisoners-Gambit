@@ -3,6 +3,7 @@ import random
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import (
+    OpeningGambit,
     CounterIntel,
     DirectivePriority,
     GoldenHandshake,
@@ -458,3 +459,31 @@ def test_referendum_uses_interaction_controller_without_renderer() -> None:
 
     assert controller.floor_vote_prompts == 1
     assert controller.floor_vote_result is not None
+
+def test_civil_war_phase_disables_referendum_flow() -> None:
+    renderer = StubRenderer()
+    player = static_agent("You", COOPERATE, is_player=True, lineage_id=1)
+    rival = static_agent("Rival", DEFECT, lineage_id=1)
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(2), renderer=renderer)
+    floor_config = make_floor_config(rounds_per_match=1, featured_matches=0, referendum_reward=99)
+
+    engine.run_floor([player, rival], floor_number=2, floor_config=floor_config, phase="civil_war")
+
+    assert renderer.last_referendum is None
+    assert renderer.floor_votes == 0
+
+
+def test_civil_war_grants_rivalry_bonus_for_same_lane_winners() -> None:
+    enforcer = static_agent("Enforcer", DEFECT, lineage_id=1)
+    enforcer.powerups.append(OpeningGambit(bonus=1))
+
+    rival = static_agent("Rival", DEFECT, lineage_id=1)
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(3))
+    floor_config = make_floor_config(rounds_per_match=1, featured_matches=0)
+
+    ranked = engine.run_floor([enforcer, rival], floor_number=2, floor_config=floor_config, phase="civil_war")
+
+    assert ranked[0].name == "Enforcer"
+    assert ranked[0].score >= 2

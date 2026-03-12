@@ -78,7 +78,7 @@ class ScriptedTournament:
         self.ranked_sequences = ranked_sequences
         self.call_count = 0
 
-    def run_floor(self, population, floor_number, floor_config):
+    def run_floor(self, population, floor_number, floor_config, phase="ecosystem"):
         ranked = self.ranked_sequences[self.call_count]
         self.call_count += 1
         return ranked
@@ -169,7 +169,7 @@ def test_civil_war_begins_when_outsiders_are_gone(monkeypatch) -> None:
 
     result = app.run()
 
-    assert "Outside Population Eliminated" in renderer.transitions
+    assert "Lineage Judgment: Civil War" in renderer.transitions
     assert result is player or result is child
     assert renderer.victory is not None
 
@@ -193,7 +193,7 @@ def test_civil_war_can_end_with_successor_transfer(monkeypatch) -> None:
 
     result = app.run()
 
-    assert "Outside Population Eliminated" in renderer.transitions
+    assert "Lineage Judgment: Civil War" in renderer.transitions
     assert renderer.successor_choices
     assert result is grandchild or result is child
 
@@ -213,6 +213,6 @@ def test_immediate_full_victory_if_only_one_lineage_member_remains_after_ecosyst
 
     result = app.run()
 
-    assert "Outside Population Eliminated" in renderer.transitions
+    assert "Lineage Judgment: Civil War" in renderer.transitions
     assert result is player
     assert renderer.victory is not None
