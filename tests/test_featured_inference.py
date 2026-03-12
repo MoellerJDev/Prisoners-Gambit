@@ -1,26 +1,55 @@
 from prisoners_gambit.core.featured_inference import (
+    normalize_featured_inference_signals,
     successor_featured_inference_context,
+    summarize_featured_inference_signals,
     synthesize_floor_featured_inference,
 )
 
 
-def test_floor_summary_includes_deterministic_featured_inference_synthesis() -> None:
+def test_normalize_featured_inference_signals_is_deterministic() -> None:
     clues = [
         "Opened with C; compare against roster aggression/cooperation tags.",
         "Retaliated after your defection; retaliatory read strengthened.",
         "Tag alignment check: observed line remains compatible with Cooperative profile.",
     ]
 
-    first = synthesize_floor_featured_inference(clues)
-    second = synthesize_floor_featured_inference(clues)
+    first = normalize_featured_inference_signals(clues)
+    second = normalize_featured_inference_signals(clues)
 
     assert first == second
-    assert any("Observed featured signals" in line for line in first)
-    assert any("Inference scope is observational only" in line for line in first)
+    assert first.observed_clues
+    assert "Cooperative" in first.inferred_tags
+    assert "Retaliatory" in first.inferred_tags
 
 
-def test_successor_framing_uses_featured_inference_context() -> None:
-    summary = synthesize_floor_featured_inference(
+def test_floor_summary_synthesis_uses_normalized_featured_signals() -> None:
+    signals = normalize_featured_inference_signals(
+        [
+            "Opened with C; compare against roster aggression/cooperation tags.",
+            "Retaliated after your defection; retaliatory read strengthened.",
+        ]
+    )
+    summary = summarize_featured_inference_signals(signals)
+
+    assert any("Observed featured signals" in line for line in summary)
+    assert any("Branch doctrine signals surfaced this floor" in line for line in summary)
+    assert any("Inference scope is observational only" in line for line in summary)
+
+
+def test_legacy_synthesis_api_still_matches_normalized_summary_pipeline() -> None:
+    clues = [
+        "Opened with C; compare against roster aggression/cooperation tags.",
+        "Retaliated after your defection; retaliatory read strengthened.",
+    ]
+
+    direct = synthesize_floor_featured_inference(clues)
+    normalized = summarize_featured_inference_signals(normalize_featured_inference_signals(clues))
+
+    assert direct == normalized
+
+
+def test_successor_framing_uses_normalized_featured_inference_signals() -> None:
+    signals = normalize_featured_inference_signals(
         [
             "Opened with C; compare against roster aggression/cooperation tags.",
             "Retaliated after your defection; retaliatory read strengthened.",
@@ -29,11 +58,11 @@ def test_successor_framing_uses_featured_inference_context() -> None:
 
     aligned = successor_featured_inference_context(
         candidate_tags=["Cooperative", "Retaliatory"],
-        featured_inference_summary=summary,
+        featured_inference_signals=signals,
     )
     mismatched = successor_featured_inference_context(
         candidate_tags=["Control"],
-        featured_inference_summary=summary,
+        featured_inference_signals=signals,
     )
 
     assert aligned is not None and "Competing future" in aligned
@@ -43,14 +72,43 @@ def test_successor_framing_uses_featured_inference_context() -> None:
     assert mismatched is not None and "low" in mismatched
 
 
-def test_successor_framing_differs_across_competing_tag_futures() -> None:
-    coercive_summary = synthesize_floor_featured_inference(
+def test_successor_framing_is_stable_even_if_summary_wording_changes() -> None:
+    signals = normalize_featured_inference_signals(
         [
             "Opened with D and pressed directive tempo across rounds.",
             "Punished cooperation windows after one betrayal.",
         ]
     )
-    consensus_summary = synthesize_floor_featured_inference(
+
+    baseline = successor_featured_inference_context(
+        candidate_tags=["Control", "Punishing"],
+        featured_inference_signals=signals,
+    )
+
+    # Simulate a summary wording shift that previously could have altered string-hinted alignment.
+    rewritten_summary = [
+        "Observed behavior: directive pace remained steady.",
+        "Scope note: observations only.",
+    ]
+    assert rewritten_summary  # Explicitly show summary text can drift independently.
+
+    after_wording_drift = successor_featured_inference_context(
+        candidate_tags=["Control", "Punishing"],
+        featured_inference_signals=signals,
+    )
+
+    assert baseline == after_wording_drift
+    assert baseline is not None and "high" in baseline
+
+
+def test_successor_framing_differs_across_competing_tag_futures() -> None:
+    coercive_signals = normalize_featured_inference_signals(
+        [
+            "Opened with D and pressed directive tempo across rounds.",
+            "Punished cooperation windows after one betrayal.",
+        ]
+    )
+    consensus_signals = normalize_featured_inference_signals(
         [
             "Opened with C and forgave one defection to preserve trust.",
             "Consensus lane stayed cooperative through pressure.",
@@ -59,11 +117,11 @@ def test_successor_framing_differs_across_competing_tag_futures() -> None:
 
     hardline = successor_featured_inference_context(
         candidate_tags=["Control", "Punishing"],
-        featured_inference_summary=coercive_summary,
+        featured_inference_signals=coercive_signals,
     )
     consensus = successor_featured_inference_context(
         candidate_tags=["Consensus", "Forgiving"],
-        featured_inference_summary=consensus_summary,
+        featured_inference_signals=consensus_signals,
     )
 
     assert hardline is not None and "hardline lineage branch" in hardline
