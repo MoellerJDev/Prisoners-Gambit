@@ -469,53 +469,64 @@ function renderSnapshot(snapshot){
     ? `${effectToken(`Vote ${moveLabel(vote.player_vote)}`)} — cooperators ${vote.cooperators}, defectors ${vote.defectors}, reward <span class='good'>+${vote.player_reward}</span>`
     : 'No vote yet.';
 
+  const capLines = (items, limit=2) => (items || []).slice(0, limit);
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
   const featuredInference = snapshot.floor_summary?.featured_inference_summary || [];
   const civilWar = snapshot.civil_war_context;
-  const successorLines = (pressure?.successor_candidates || []).map(entry =>
-    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml((entry.shaping_causes || []).join('; '))} · ${escapeHtml(entry.rationale)}</span></li>`
+  const successorPreview = capLines(pressure?.successor_candidates || [], 2).map(entry =>
+    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} · <span class='muted'>${escapeHtml((entry.shaping_causes || [entry.rationale])[0] || entry.rationale)}</span></li>`
   ).join('');
-  const threatLines = (pressure?.future_threats || []).map(entry =>
-    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml((entry.shaping_causes || []).join('; '))} · ${escapeHtml(entry.rationale)}</span></li>`
+  const threatPreview = capLines(pressure?.future_threats || [], 2).map(entry =>
+    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} · <span class='muted'>${escapeHtml((entry.shaping_causes || [entry.rationale])[0] || entry.rationale)}</span></li>`
   ).join('');
-  const featuredInferenceBlock = `<li><strong>Featured inference summary</strong><ul>${featuredInference.map(line => `<li>${escapeHtml(line)}</li>`).join('') || '<li class="muted">No confirmed featured clues survived this floor.</li>'}</ul></li>`;
+  const featuredLead = capLines(featuredInference, 2).map(line => `<li>${escapeHtml(line)}</li>`).join('') || '<li class="muted">No confirmed featured clues survived this floor.</li>';
   const pressureBlock = pressure
-    ? `<li><strong>Future successor pressure</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`
-      + `<li><strong>If you died next floor</strong><ul>${successorLines || '<li class="muted">No visible successor candidates.</li>'}</ul></li>`
-      + `<li><strong>Emerging threats</strong><ul>${threatLines || '<li class="muted">No external threats detected.</li>'}</ul></li>`
+    ? `<li><strong>Successor pressure</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`
+      + `<li><strong>Top heirs</strong><ul>${successorPreview || '<li class="muted">No visible successor candidates.</li>'}</ul></li>`
+      + `<li><strong>Top threats</strong><ul>${threatPreview || '<li class="muted">No external threats detected.</li>'}</ul></li>`
     : '';
   const civilWarBlock = civilWar
-    ? `<li><strong>Lineage judgment</strong>: ${escapeHtml(civilWar.thesis)}</li>`
-      + `<li><strong>Civil-war rules</strong><ul>${(civilWar.scoring_rules || []).map(rule => `<li>${escapeHtml(rule)}</li>`).join('')}</ul></li>`
-      + `<li><strong>Dangerous branch lanes</strong>: ${escapeHtml((civilWar.dangerous_branches || []).join(' · ') || 'unknown')}</li>`
-      + `<li><strong>Doctrine pressure</strong>: ${escapeHtml((civilWar.doctrine_pressure || []).join(' · ') || 'none')}</li>`
+    ? `<li><strong>Civil-war thesis</strong>: ${escapeHtml(civilWar.thesis)}</li>`
+      + `<li><strong>Rules (top 2)</strong><ul>${capLines(civilWar.scoring_rules || [], 2).map(rule => `<li>${escapeHtml(rule)}</li>`).join('') || '<li class="muted">No active scoring rules.</li>'}</ul></li>`
+      + `<li><strong>Danger lanes</strong>: ${escapeHtml(capLines(civilWar.dangerous_branches || [], 2).join(' · ') || 'unknown')}</li>`
     : '';
   document.getElementById('floorSummary').innerHTML = summary.length
-    ? summary.map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('') + featuredInferenceBlock + pressureBlock + civilWarBlock
+    ? summary.slice(0, 4).map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · score <span class='good'>${entry.score}</span> · wins ${entry.wins}</li>`).join('') + `<li><strong>Featured clues (top 2)</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
     : '<li>No summary yet.</li>';
 
   const successors = snapshot.successor_options?.candidates || [];
   const successorState = snapshot.successor_options;
   const successorContext = successorState
-    ? `<li><strong>Succession pivot</strong>: phase ${escapeHtml(successorState.current_phase || 'unknown')} · civil-war pressure ${escapeHtml(successorState.civil_war_pressure || 'unknown')}</li>`
-      + `<li><strong>Inherited doctrine</strong>: ${escapeHtml(successorState.lineage_doctrine || 'unknown')}</li>`
-      + `<li><strong>Threat profile</strong>: ${escapeHtml((successorState.threat_profile || []).join(', ') || 'none')}</li>`
-      + `<li><strong>Featured inference memory</strong><ul>${(successorState.featured_inference_summary || []).map(line => `<li>${escapeHtml(line)}</li>`).join('') || '<li class="muted">No floor featured inference memory available.</li>'}</ul></li>`
+    ? `<li><strong>Succession pivot</strong>: phase ${escapeHtml(successorState.current_phase || 'unknown')} · pressure ${escapeHtml(successorState.civil_war_pressure || 'unknown')}</li>`
+      + `<li><strong>Doctrine</strong>: ${escapeHtml(successorState.lineage_doctrine || 'unknown')}</li>`
+      + `<li><strong>Threat tags</strong>: ${escapeHtml(capLines(successorState.threat_profile || [], 3).join(', ') || 'none')}</li>`
+      + `<li><strong>Inference memory</strong>: ${escapeHtml((successorState.featured_inference_summary || [])[0] || 'No floor featured inference memory available.')}</li>`
     : '';
   document.getElementById('successors').innerHTML = successors.length
-    ? successorContext + successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml((candidate.shaping_causes || []).join('; '))}</span><br/><strong>Tradeoffs:</strong> ${escapeHtml((candidate.tradeoffs || []).join(' | '))}<br/><strong>Now/Later:</strong> ${escapeHtml(candidate.attractive_now)} · ${escapeHtml(candidate.danger_later)}<br/><strong>Plan/Risk:</strong> ${escapeHtml(candidate.succession_pitch)} · ${escapeHtml(candidate.succession_risk)}<br/><strong>Lineage future:</strong> ${escapeHtml(candidate.lineage_future)}<br/><strong>Featured inference:</strong> ${escapeHtml(candidate.featured_inference_context || 'No direct featured inference fit.') }<br/><span class='muted'>${escapeHtml(candidate.anti_score_note)}</span></li>`).join('')
+    ? successorContext + successors.map(candidate => {
+        const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch;
+        const topTradeoff = (candidate.tradeoffs || [])[0] || candidate.succession_risk;
+        return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml(topCause)}</span><br/><strong>Now/Later:</strong> ${escapeHtml(candidate.attractive_now)} · ${escapeHtml(candidate.danger_later)}<br/><strong>Tradeoff:</strong> ${escapeHtml(topTradeoff)}<br/><strong>Featured inference:</strong> ${escapeHtml(candidate.featured_inference_context || 'No direct featured inference fit.')}</li>`;
+      }).join('')
     : '<li>No successor choice active.</li>';
 
   const dynastyEntries = snapshot.dynasty_board?.entries || [];
   document.getElementById('dynastyBoard').innerHTML = dynastyEntries.length
     ? dynastyEntries.map(entry => {
-        const markers = [
+        const markerTokens = [
           entry.is_current_host ? effectToken('HOST') : '',
-          entry.has_successor_pressure ? `${effectToken('HEIR PRESSURE')} ${escapeHtml(entry.successor_pressure_cause || '')}` : '',
-          entry.has_civil_war_danger ? `${effectToken('DANGER')} ${escapeHtml(entry.civil_war_danger_cause || '')}` : '',
-        ].filter(Boolean).join(' ');
-        return `<li>${branchToken(entry.name)} · ${escapeHtml(entry.role)} · ${escapeHtml(entry.doctrine_signal)} · score ${entry.score} / wins ${entry.wins} · depth ${entry.lineage_depth}<br/>${markers || '<span class="muted">No active lineage pressure markers.</span>'}</li>`;
+          entry.has_successor_pressure ? effectToken('HEIR PRESSURE') : '',
+          entry.has_civil_war_danger ? effectToken('DANGER') : '',
+        ].filter(Boolean);
+        const markerCauses = [
+          entry.has_successor_pressure && entry.successor_pressure_cause ? `Heir pressure: ${escapeHtml(entry.successor_pressure_cause)}` : '',
+          entry.has_civil_war_danger && entry.civil_war_danger_cause ? `Danger: ${escapeHtml(entry.civil_war_danger_cause)}` : '',
+        ].filter(Boolean);
+        const markerBlock = markerTokens.length
+          ? `${markerTokens.join(' ')}${markerCauses.length ? `<br/><span class="muted">${markerCauses.slice(0, 2).join(' · ')}</span>` : ''}`
+          : '<span class="muted">No active lineage pressure markers.</span>';
+        return `<li>${branchToken(entry.name)} · ${escapeHtml(entry.role)} · score ${entry.score} · depth ${entry.lineage_depth}<br/>${markerBlock}</li>`;
       }).join('')
     : '<li>No lineage board yet.</li>';
 
@@ -526,10 +537,10 @@ function renderSnapshot(snapshot){
 
   const chronicle = snapshot.lineage_chronicle || [];
   document.getElementById('chronicle').innerHTML = chronicle.length
-    ? chronicle.map(entry => `<li><strong>${escapeHtml(entry.event_type.replaceAll('_', ' '))}</strong> · floor ${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}${entry.cause ? `<br/><span class='muted'>${escapeHtml(entry.cause)}</span>` : ''}</li>`).join('')
+    ? chronicle.slice(-6).reverse().map(entry => `<li><strong>${escapeHtml(entry.event_type.replaceAll('_', ' '))}</strong> · floor ${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}${entry.cause ? `<br/><span class='muted'>${escapeHtml(entry.cause)}</span>` : ''}</li>`).join('')
     : '<li>No lineage events yet.</li>';
 
-  const pending = latest?.pending_message ? `${latest.pending_screen}: ${latest.pending_message}` : '';
+  const pending = latest?.pending_message ? `Next action (${latest.pending_screen}): ${latest.pending_message}` : '';
   document.getElementById('pending').textContent = pending;
 }
 

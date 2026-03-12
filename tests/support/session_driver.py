@@ -125,15 +125,27 @@ def advance_through_transition_and_complete(
     candidate_index: int = 0,
     powerup_index: int = 0,
     genome_index: int = 0,
+    civil_war_featured_mode: str = "manual_cooperate",
+    civil_war_floor_vote: int = COOPERATE,
 ) -> None:
-    """Advance from successor choice to completed run."""
+    """Advance from successor choice through civil-war floor to completed run."""
     if decision_type(session) != "SuccessorChoiceState":
         raise AssertionError("Expected successor-choice decision before transition")
 
     session.submit_action(ChooseSuccessorAction(candidate_index=candidate_index))
     session.advance()  # sets civil-war transition pending screen
-    session.advance()  # clears transition and presents powerup choice
+    session.advance()  # clears transition and presents civil-war featured rounds
 
+    play_featured_rounds(session, mode=civil_war_featured_mode)
+    if decision_type(session) != "FloorVoteDecisionState":
+        raise AssertionError("Expected floor vote decision in civil-war floor")
+
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=civil_war_floor_vote))
+    session.advance()
+    if pending_screen(session) != "floor_summary":
+        raise AssertionError("Expected floor summary pending after civil-war floor")
+
+    session.advance()  # clears floor summary and presents powerup choice
     session.submit_action(ChoosePowerupAction(offer_index=powerup_index))
     session.advance()
     session.submit_action(ChooseGenomeEditAction(offer_index=genome_index))

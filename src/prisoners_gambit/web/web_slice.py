@@ -268,9 +268,13 @@ class FeaturedMatchWebSession:
             return
 
         if self._pending_screen is not None:
+            pending_screen = self._pending_screen
             self._pending_screen = None
             self._pending_message = None
-            self._begin_post_summary_flow()
+            if pending_screen == "civil_war_transition":
+                self._begin_civil_war_floor()
+            else:
+                self._begin_post_summary_flow()
             return
 
         if self.session.status != "awaiting_decision" or self.session.current_decision is None:
@@ -513,7 +517,8 @@ class FeaturedMatchWebSession:
         )
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
-        self._pending_message = f"Floor {self.floor_number} complete. Review standings, then continue."
+        next_step = "continue to successor choice" if self.floor_number == 1 else "continue to reward selection"
+        self._pending_message = f"Floor {self.floor_number} complete — {next_step}."
         featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No decisive featured inference survived this floor."
         doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Doctrine trend unresolved."
         self._append_chronicle_entry(
@@ -620,7 +625,7 @@ class FeaturedMatchWebSession:
         self.floor_number = 2
         self.snapshot.current_floor = self.floor_number
         self._pending_screen = "civil_war_transition"
-        self._pending_message = self.snapshot.civil_war_context.thesis
+        self._pending_message = f"{self.snapshot.civil_war_context.thesis} Continue to civil-war round."
         self._append_chronicle_entry(
             event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
             event_type="successor_choice",
@@ -639,6 +644,42 @@ class FeaturedMatchWebSession:
         )
         self.snapshot.session_status = "running"
         self._rebuild_dynasty_board()
+
+    def _begin_civil_war_floor(self) -> None:
+        self.round_index = 0
+        self.player_history = []
+        self.opponent_history = []
+        self.player_score = 0
+        self.opponent_score = 0
+        self.snapshot.floor_vote_result = None
+        self.snapshot.floor_summary = None
+        self._floor_clue_log = []
+
+        rivals = [agent for agent in self._successor_candidates if agent.name != self.player.name]
+        if rivals:
+            self.opponent = max(rivals, key=lambda agent: (agent.score, agent.wins, -agent.agent_id))
+        else:
+            self.opponent = Agent(name="Civil War Rival", genome=self._opponent_genome())
+        self.opponent.is_player = False
+
+        context = self.snapshot.civil_war_context
+        doctrine_pressure = []
+        if isinstance(context, dict):
+            doctrine_pressure = list(context.get("doctrine_pressure", []))
+        elif context is not None:
+            doctrine_pressure = list(context.doctrine_pressure)
+
+        self._append_chronicle_entry(
+            event_id=f"civil_war_floor_start:{self.floor_number}:{self.opponent.name}",
+            event_type="civil_war_round_start",
+            floor_number=self.floor_number,
+            summary=f"Civil-war round opened against {self.opponent.name}.",
+            cause=self._lineage_cause_phrase(
+                doctrine_pressure,
+                "civil-war pressure requires a direct duel",
+            ),
+        )
+        self._begin_featured_round_decision()
 
     def _resolve_powerup_choice(self, decision: PowerupChoiceState) -> None:
         action = self.session.resolve_current_decision(lambda _: ChoosePowerupAction(offer_index=0))

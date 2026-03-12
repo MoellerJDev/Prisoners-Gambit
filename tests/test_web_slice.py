@@ -126,6 +126,11 @@ def test_web_session_lineage_chronicle_records_major_milestones() -> None:
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
     session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
     session.submit_action(ChoosePowerupAction(offer_index=0))
     session.advance()
     session.submit_action(ChooseGenomeEditAction(offer_index=0))
@@ -201,6 +206,29 @@ def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice
     assert any(entry.get("civil_war_danger_cause", "").startswith("because ") for entry in board_entries if entry["has_civil_war_danger"])
 
 
+
+
+def test_web_session_dynasty_board_can_show_host_pressure_and_danger_on_same_entry() -> None:
+    session = FeaturedMatchWebSession(seed=1, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    candidates = session.view()["decision"]["candidates"]
+    top_candidate_index = max(range(len(candidates)), key=lambda idx: candidates[idx]["score"])
+    session.submit_action(ChooseSuccessorAction(candidate_index=top_candidate_index))
+    session.advance()
+
+    board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
+    host_entries = [entry for entry in board_entries if entry["is_current_host"]]
+    assert host_entries
+    host_entry = host_entries[0]
+    assert host_entry["has_successor_pressure"] is True
+    assert host_entry["has_civil_war_danger"] is True
+
 def test_web_session_lineage_chronicle_captures_causal_pivots_without_duplication() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
@@ -263,6 +291,26 @@ def test_web_session_state_restore_continues_deterministically() -> None:
     restored.advance()
     assert restored.view() == session.view()
 
+
+
+
+def test_web_session_restore_from_civil_war_transition_continues_to_civil_war_decision() -> None:
+    session = FeaturedMatchWebSession(seed=31, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+
+    session.advance()
+    restored.advance()
+    assert session.view() == restored.view()
+    assert restored.view()["decision_type"] == "FeaturedRoundDecisionState"
 
 def test_web_session_state_serializes_rng_as_safe_json_data() -> None:
     session = FeaturedMatchWebSession(seed=23, rounds=3)
@@ -372,10 +420,21 @@ def test_web_session_advances_through_full_run_loop() -> None:
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
     assert session.view()["pending_screen"] == "civil_war_transition"
+    assert "Continue to civil-war round." in session.view()["pending_message"]
     civil_war_context = session.view()["snapshot"]["civil_war_context"]
     assert civil_war_context is not None
     assert civil_war_context["scoring_rules"]
     assert session.view()["snapshot"]["floor_vote_result"] is None
+
+    session.advance()
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    assert session.view()["decision_type"] == "FloorVoteDecisionState"
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    assert session.view()["pending_screen"] == "floor_summary"
+    assert "continue to reward selection" in session.view()["pending_message"]
 
     session.advance()
     assert session.view()["decision_type"] == "PowerupChoiceState"
@@ -393,6 +452,60 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert session.view()["status"] == "completed"
     assert session.view()["snapshot"]["completion"] is not None
 
+
+
+
+def test_web_session_successor_transition_requires_civil_war_gameplay_before_completion() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.advance()
+
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert session.view()["status"] != "completed"
+    assert session.view()["snapshot"]["completion"] is None
+
+
+def test_web_session_pending_messages_describe_next_required_action() -> None:
+    session = FeaturedMatchWebSession(seed=19, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    assert session.view()["pending_message"] == "Floor 1 complete — continue to successor choice."
+
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    assert "Continue to civil-war round." in session.view()["pending_message"]
+
+    session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    assert session.view()["pending_message"] == "Floor 2 complete — continue to reward selection."
+
+
+
+def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "markerTokens.join(' ')" in web_server.HTML
+    assert "effectToken('HOST')" in web_server.HTML
+    assert "effectToken('HEIR PRESSURE')" in web_server.HTML
+    assert "effectToken('DANGER')" in web_server.HTML
 
 def test_web_api_drives_session_without_terminal_formatting() -> None:
     from http.server import ThreadingHTTPServer
