@@ -236,6 +236,7 @@ class TerminalRenderer(Renderer):
     def choose_successor(self, successors: list[Agent]) -> Agent:
         from prisoners_gambit.core.analysis import analyze_agent_identity, assess_successor_candidate
         from prisoners_gambit.core.interaction import SuccessorCandidateView
+        from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 
         top_score = max((agent.score for agent in successors), default=0)
         candidates: list[SuccessorCandidateView] = []
@@ -243,13 +244,14 @@ class TerminalRenderer(Renderer):
             identity = analyze_agent_identity(agent)
             assessment = assess_successor_candidate(agent, top_score=top_score, phase="ecosystem")
             candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
+        threat_profile: list[str] = []
         state = SuccessorChoiceState(
             floor_number=0,
             candidates=candidates,
             current_phase="ecosystem",
             lineage_doctrine="Lineage trend unavailable in direct terminal fallback mode.",
-            threat_profile=[],
-            civil_war_pressure="rising",
+            threat_profile=threat_profile,
+            civil_war_pressure=civil_war_pressure_for_threat_tags(set(threat_profile)),
         )
         action = self.resolve_successor_choice(state)
         return successors[action.candidate_index]
