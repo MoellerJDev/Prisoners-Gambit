@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.featured_inference import (
+    FeaturedInferenceSignals,
+    civil_war_featured_inference_context,
+)
 from prisoners_gambit.core.interaction import CivilWarContext
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.successor_analysis import classify_branch_role
 
 
-def build_civil_war_context(*, branches: list[Agent], current_host: Agent | None) -> CivilWarContext:
+def build_civil_war_context(
+    *,
+    branches: list[Agent],
+    current_host: Agent | None,
+    featured_inference_signals: FeaturedInferenceSignals | None = None,
+) -> CivilWarContext:
     role_counts: dict[str, int] = {}
     doctrine_lane_counts = {"control": 0, "referendum": 0, "tempo": 0, "unstable": 0}
 
@@ -40,6 +49,7 @@ def build_civil_war_context(*, branches: list[Agent], current_host: Agent | None
         doctrine_pressure.append("Unstable branches can steal rounds but are brittle under mirror pressure.")
 
     host_name = current_host.name if current_host is not None else "Your current host"
+    featured_framing = civil_war_featured_inference_context(featured_inference_signals or FeaturedInferenceSignals((), ()))
     thesis = (
         f"Judgment phase: outsiders are gone. {host_name} now faces sibling branches shaped by your own lineage doctrine."
     )
@@ -53,5 +63,5 @@ def build_civil_war_context(*, branches: list[Agent], current_host: Agent | None
             "Monster check: defeating a Future civil-war monster branch grants +1 score.",
         ],
         dangerous_branches=dangerous_branches,
-        doctrine_pressure=doctrine_pressure[:3],
+        doctrine_pressure=[*doctrine_pressure[:2], *featured_framing][:4],
     )

@@ -6,6 +6,7 @@ from prisoners_gambit.app.interaction_controller import InteractionController
 from prisoners_gambit.config.settings import Settings
 from prisoners_gambit.core.events import Event, EventBus
 from prisoners_gambit.core.civil_war import build_civil_war_context
+from prisoners_gambit.core.featured_inference import normalize_featured_inference_signals
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.systems.evolution import EvolutionEngine
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
@@ -159,7 +160,11 @@ class RunApplication:
                 ecosystem_phase = False
                 population = list(surviving_lineage)
 
-                civil_war_context = build_civil_war_context(branches=population, current_host=player)
+                civil_war_context = build_civil_war_context(
+                    branches=population,
+                    current_host=player,
+                    featured_inference_signals=normalize_featured_inference_signals(floor_clue_log),
+                )
                 self.interaction_controller.clear_floor_vote_result()
                 self.interaction_controller.set_civil_war_context(civil_war_context)
 

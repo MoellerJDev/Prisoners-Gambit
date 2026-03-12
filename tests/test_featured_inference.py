@@ -3,6 +3,7 @@ from prisoners_gambit.core.featured_inference import (
     successor_featured_inference_context,
     summarize_featured_inference_signals,
     synthesize_floor_featured_inference,
+    civil_war_featured_inference_context,
 )
 
 
@@ -130,3 +131,39 @@ def test_successor_framing_differs_across_competing_tag_futures() -> None:
     assert consensus is not None and "consensus lineage branch" in consensus
     assert consensus is not None and "trust loops hold" in consensus
     assert consensus is not None and "high" in consensus
+
+
+def test_civil_war_framing_uses_normalized_featured_signals_deterministically() -> None:
+    signals = normalize_featured_inference_signals(
+        [
+            "Opened with D and pressed directive tempo across rounds.",
+            "Punished cooperation windows after one betrayal.",
+        ]
+    )
+
+    first = civil_war_featured_inference_context(signals)
+    second = civil_war_featured_inference_context(signals)
+
+    assert first == second
+    assert any("coercion pressure" in line for line in first)
+    assert any("retaliation pressure" in line for line in first)
+
+
+def test_civil_war_framing_is_independent_of_floor_summary_wording() -> None:
+    clues = [
+        "Opened with C and forgave one defection to preserve trust.",
+        "Consensus lane stayed cooperative through pressure.",
+    ]
+    signals = normalize_featured_inference_signals(clues)
+    baseline = civil_war_featured_inference_context(signals)
+
+    rewritten_floor_summary = [
+        "Observed behavior: steady cooperative tempo.",
+        "Scope note: visible rounds only.",
+    ]
+    assert rewritten_floor_summary
+
+    after_reword = civil_war_featured_inference_context(normalize_featured_inference_signals(clues))
+
+    assert baseline == after_reword
+    assert any("legitimacy pressure" in line for line in baseline)
