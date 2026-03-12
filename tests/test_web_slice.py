@@ -174,10 +174,29 @@ def test_web_session_save_code_export_import_round_trip() -> None:
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
 
-    save_code = session.export_save_code()
-    restored = FeaturedMatchWebSession.import_save_code(save_code)
+    save_code = session.export_save_code(b"test-shared-secret")
+    restored = FeaturedMatchWebSession.import_save_code(save_code, b"test-shared-secret")
 
     assert restored.view() == session.view()
+
+
+def test_web_session_rejects_tampered_save_code() -> None:
+    session = FeaturedMatchWebSession(seed=13, rounds=2)
+    session.start()
+    save_code = session.export_save_code(b"integrity-secret")
+    tampered = save_code[:-1] + ("A" if save_code[-1] != "A" else "B")
+
+    with pytest.raises(ValueError, match="Invalid save code"):
+        FeaturedMatchWebSession.import_save_code(tampered, b"integrity-secret")
+
+
+def test_web_session_rejects_save_code_with_wrong_secret() -> None:
+    session = FeaturedMatchWebSession(seed=13, rounds=2)
+    session.start()
+    save_code = session.export_save_code(b"secret-one")
+
+    with pytest.raises(ValueError, match="Invalid save code"):
+        FeaturedMatchWebSession.import_save_code(save_code, b"secret-two")
 
 
 def test_web_session_rejects_malformed_save_payload() -> None:
@@ -584,8 +603,8 @@ def test_web_api_can_export_and_import_explicit_save_state() -> None:
         req = Request(f"http://127.0.0.1:{port}/api/run/export", method="POST")
         with urlopen(req) as resp:
             exported = json.loads(resp.read().decode("utf-8"))
-        assert exported["state"]["version"] == 1
         assert exported["save_code"]
+        assert exported["secret_mode"] in {"configured_shared_secret", "process_local_fallback"}
 
         req = Request(f"http://127.0.0.1:{port}/api/run/clear", method="POST")
         with urlopen(req):
@@ -594,7 +613,7 @@ def test_web_api_can_export_and_import_explicit_save_state() -> None:
             cleared = json.loads(resp.read().decode("utf-8"))
         assert cleared["status"] == "not_started"
 
-        import_body = json.dumps({"state": exported["state"]}).encode("utf-8")
+        import_body = json.dumps({"save_code": exported["save_code"]}).encode("utf-8")
         req = Request(
             f"http://127.0.0.1:{port}/api/run/import",
             data=import_body,
@@ -631,7 +650,102 @@ def test_web_api_rejects_malformed_import_payload_cleanly() -> None:
 
         assert exc_info.value.code == 400
         body = json.loads(exc_info.value.read().decode("utf-8"))
+        assert body["error"] == "missing save payload"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_web_api_rejects_tampered_save_code_payload() -> None:
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        req = Request(f"http://127.0.0.1:{port}/api/run/start", method="POST")
+        with urlopen(req):
+            pass
+
+        req = Request(f"http://127.0.0.1:{port}/api/run/export", method="POST")
+        with urlopen(req) as resp:
+            exported = json.loads(resp.read().decode("utf-8"))
+
+        tampered = exported["save_code"][:-1] + ("A" if exported["save_code"][-1] != "A" else "B")
+        req = Request(
+            f"http://127.0.0.1:{port}/api/run/import",
+            data=json.dumps({"save_code": tampered}).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(req)
+
+        body = json.loads(exc_info.value.read().decode("utf-8"))
+        assert exc_info.value.code == 400
         assert body["error"] == "invalid save payload"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_web_api_export_import_portable_with_configured_shared_secret(monkeypatch) -> None:
+    from http.server import ThreadingHTTPServer
+
+    monkeypatch.setenv("PG_WEB_SAVE_SECRET", "shared-secret-for-test")
+    server_a = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server_b = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port_a = server_a.server_address[1]
+    port_b = server_b.server_address[1]
+    thread_a = threading.Thread(target=server_a.serve_forever, daemon=True)
+    thread_b = threading.Thread(target=server_b.serve_forever, daemon=True)
+    thread_a.start()
+    thread_b.start()
+
+    try:
+        req = Request(f"http://127.0.0.1:{port_a}/api/run/start", method="POST")
+        with urlopen(req):
+            pass
+        req = Request(f"http://127.0.0.1:{port_a}/api/run/export", method="POST")
+        with urlopen(req) as resp:
+            exported = json.loads(resp.read().decode("utf-8"))
+        assert exported["secret_mode"] == "configured_shared_secret"
+
+        req = Request(
+            f"http://127.0.0.1:{port_b}/api/run/import",
+            data=json.dumps({"save_code": exported["save_code"]}).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urlopen(req) as resp:
+            restored = json.loads(resp.read().decode("utf-8"))
+        assert restored["status"] in {"awaiting_decision", "running", "completed"}
+    finally:
+        server_a.shutdown()
+        server_a.server_close()
+        server_b.shutdown()
+        server_b.server_close()
+
+
+def test_web_api_export_uses_process_local_fallback_without_configured_secret(monkeypatch) -> None:
+    from http.server import ThreadingHTTPServer
+
+    monkeypatch.delenv("PG_WEB_SAVE_SECRET", raising=False)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        req = Request(f"http://127.0.0.1:{port}/api/run/start", method="POST")
+        with urlopen(req):
+            pass
+        req = Request(f"http://127.0.0.1:{port}/api/run/export", method="POST")
+        with urlopen(req) as resp:
+            exported = json.loads(resp.read().decode("utf-8"))
+        assert exported["secret_mode"] == "process_local_fallback"
     finally:
         server.shutdown()
         server.server_close()

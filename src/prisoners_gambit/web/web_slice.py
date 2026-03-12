@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 from dataclasses import asdict
+import hashlib
+import hmac
 import json
 import random
 from typing import get_type_hints
@@ -142,8 +144,18 @@ class FeaturedMatchWebSession:
     def serialize_state_json(self) -> str:
         return json.dumps(self.serialize_state(), sort_keys=True, separators=(",", ":"))
 
-    def export_save_code(self) -> str:
-        return base64.urlsafe_b64encode(self.serialize_state_json().encode("utf-8")).decode("ascii")
+    def export_save_code(self, secret: bytes) -> str:
+        payload_json = self.serialize_state_json()
+        signature = hmac.new(secret, payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
+        # Security model: this is integrity protection against client-side payload editing.
+        # It does not protect against users who can modify/replace the server code or secret.
+        envelope = {
+            "version": SAVE_STATE_VERSION,
+            "payload": payload_json,
+            "signature": signature,
+        }
+        encoded = json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(encoded).decode("ascii")
 
     @classmethod
     def from_serialized_state(cls, payload: dict) -> "FeaturedMatchWebSession":
@@ -192,11 +204,25 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid save payload") from exc
 
     @classmethod
-    def import_save_code(cls, save_code: str) -> "FeaturedMatchWebSession":
+    def import_save_code(cls, save_code: str, secret: bytes) -> "FeaturedMatchWebSession":
         try:
             raw = base64.urlsafe_b64decode(save_code.encode("ascii")).decode("utf-8")
-            payload = json.loads(raw)
+            envelope = json.loads(raw)
         except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Invalid save code") from exc
+        if not isinstance(envelope, dict):
+            raise ValueError("Invalid save code")
+        if not isinstance(envelope.get("payload"), str) or not isinstance(envelope.get("signature"), str):
+            raise ValueError("Invalid save code")
+
+        payload_json = envelope["payload"]
+        provided_signature = envelope["signature"]
+        expected_signature = hmac.new(secret, payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(provided_signature, expected_signature):
+            raise ValueError("Invalid save code")
+        try:
+            payload = json.loads(payload_json)
+        except json.JSONDecodeError as exc:
             raise ValueError("Invalid save code") from exc
         if not isinstance(payload, dict):
             raise ValueError("Invalid save code")

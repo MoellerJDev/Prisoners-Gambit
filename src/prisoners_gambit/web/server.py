@@ -3,6 +3,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import os
+import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -29,6 +31,20 @@ _stance_options_default: tuple[str, ...] = next(
 _ROUND_STANCE_OPTIONS = set(_stance_options_default)
 _ROUND_STANCES_REQUIRING_ROUNDS = ROUND_STANCES_REQUIRING_ROUNDS
 _MAX_REQUEST_BODY_BYTES = 16 * 1024  # JSON action payloads are tiny; cap bodies to reject malformed or abusive requests early.
+_PROCESS_LOCAL_SAVE_SECRET = secrets.token_bytes(32)
+
+
+def _current_save_secret() -> bytes:
+    configured_secret = os.getenv("PG_WEB_SAVE_SECRET")
+    if configured_secret:
+        return configured_secret.encode("utf-8")
+    # Fallback keeps integrity checks active in local/dev use, but exported save codes
+    # are portable only for this process lifetime unless PG_WEB_SAVE_SECRET is shared.
+    return _PROCESS_LOCAL_SAVE_SECRET
+
+
+def _save_secret_mode() -> str:
+    return "configured_shared_secret" if os.getenv("PG_WEB_SAVE_SECRET") else "process_local_fallback"
 
 
 def _parse_json_body(handler: "Handler") -> tuple[dict | None, int, dict | None]:
@@ -488,18 +504,14 @@ function setSaveNotice(message){
   if (notice) notice.textContent = message;
 }
 
-function getSavedState(){
+function getSavedSaveCode(){
   const raw = localStorage.getItem(SAVE_STORAGE_KEY);
   if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (_) {
-    return null;
-  }
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
 }
 
-function setSavedState(state){
-  localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(state));
+function setSavedSaveCode(saveCode){
+  localStorage.setItem(SAVE_STORAGE_KEY, saveCode);
 }
 
 function clearSavedRun(){
@@ -513,28 +525,28 @@ async function autosaveFromServer(){
   const response = await fetch('/api/run/export', {method:'POST'});
   if (!response.ok) return;
   const payload = await response.json();
-  if (payload && payload.state) {
-    setSavedState(payload.state);
+  if (payload && payload.save_code) {
+    setSavedSaveCode(payload.save_code);
     setSaveNotice('Autosaved.');
   }
 }
 
-async function restoreSavedState(saved){
+async function restoreSavedCode(saveCode){
   await fetch('/api/run/import', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({state: saved}),
+    body: JSON.stringify({save_code: saveCode}),
   });
   await refresh();
 }
 
 async function resumeSavedRun(){
-  const saved = getSavedState();
-  if (!saved) {
+  const saveCode = getSavedSaveCode();
+  if (!saveCode) {
     setSaveNotice('No saved run found.');
     return;
   }
-  await restoreSavedState(saved);
+  await restoreSavedCode(saveCode);
   document.getElementById('resumePanel').style.display = 'none';
   setSaveNotice('Run resumed.');
 }
@@ -587,7 +599,7 @@ async function sendStanceN(stance){
 }
 
 window.addEventListener('load', async () => {
-  const saved = getSavedState();
+  const saved = getSavedSaveCode();
   if (saved) {
     document.getElementById('resumePanel').style.display = 'block';
     setSaveNotice('A local autosave is available.');
@@ -667,7 +679,13 @@ class Handler(BaseHTTPRequestHandler):
                 if session is None:
                     self._json({"error": "session not started"}, status=400)
                     return
-                self._json({"save_code": session.export_save_code(), "state": session.serialize_state()})
+                save_secret = _current_save_secret()
+                self._json(
+                    {
+                        "save_code": session.export_save_code(save_secret),
+                        "secret_mode": _save_secret_mode(),
+                    }
+                )
             return
 
         if self.path == "/api/run/import":
@@ -677,11 +695,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 save_code = payload.get("save_code")
-                state_payload = payload.get("state")
+                save_secret = _current_save_secret()
                 if isinstance(save_code, str) and save_code:
-                    session = FeaturedMatchWebSession.import_save_code(save_code)
-                elif isinstance(state_payload, dict):
-                    session = FeaturedMatchWebSession.from_serialized_state(state_payload)
+                    session = FeaturedMatchWebSession.import_save_code(save_code, save_secret)
                 else:
                     self._json({"error": "missing save payload"}, status=400)
                     return
