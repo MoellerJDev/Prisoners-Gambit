@@ -527,6 +527,10 @@ class FeaturedMatchWebSession:
             event_type="doctrine_pivot",
             floor_number=self.floor_number,
             summary=f"Lineage doctrine signal: {doctrine_note}",
+            cause=self._lineage_cause_phrase(
+                self.snapshot.floor_summary.featured_inference_summary,
+                doctrine_note,
+            ),
         )
         self._rebuild_dynasty_board()
 
@@ -582,6 +586,10 @@ class FeaturedMatchWebSession:
                 event_type="successor_pressure",
                 floor_number=self.floor_number,
                 summary=f"Succession pressure is {civil_war_pressure}; threat tags: {', '.join(sorted(threat_tags)) or 'none' }.",
+                cause=self._lineage_cause_phrase(
+                    list(self.snapshot.floor_summary.featured_inference_summary) if self.snapshot.floor_summary else [],
+                    f"threat profile {', '.join(sorted(threat_tags)) or 'none'}",
+                ),
             )
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)
             self.snapshot.session_status = "awaiting_decision"
@@ -624,6 +632,10 @@ class FeaturedMatchWebSession:
             event_type="phase_transition",
             floor_number=self.floor_number,
             summary=f"Civil war ignited: {self.snapshot.civil_war_context.thesis}",
+            cause=self._lineage_cause_phrase(
+                list(self.snapshot.civil_war_context.doctrine_pressure),
+                self.snapshot.civil_war_context.thesis,
+            ),
         )
         self.snapshot.session_status = "running"
         self._rebuild_dynasty_board()
@@ -676,14 +688,30 @@ class FeaturedMatchWebSession:
     def _rebuild_dynasty_board(self) -> None:
         pressure_names: set[str] = set()
         danger_names: set[str] = set()
+        pressure_causes: dict[str, str] = {}
+        danger_causes: dict[str, str] = {}
         floor_summary = self.snapshot.floor_summary
         if floor_summary and floor_summary.heir_pressure:
             pressure_names.update(entry.name for entry in floor_summary.heir_pressure.successor_candidates)
             danger_names.update(entry.name for entry in floor_summary.heir_pressure.future_threats)
+            for entry in floor_summary.heir_pressure.successor_candidates:
+                pressure_causes[entry.name] = self._lineage_cause_phrase(entry.shaping_causes, entry.rationale)
+            for entry in floor_summary.heir_pressure.future_threats:
+                danger_causes[entry.name] = self._lineage_cause_phrase(entry.shaping_causes, entry.rationale)
         successor_options = self.snapshot.successor_options
+        successor_candidate_views = {
+            candidate.name: candidate for candidate in successor_options.candidates
+        } if successor_options else {}
         if successor_options and successor_options.candidates:
             top_score = max(candidate.score for candidate in successor_options.candidates)
-            pressure_names.update(candidate.name for candidate in successor_options.candidates if candidate.score == top_score)
+            for candidate in successor_options.candidates:
+                if candidate.score == top_score:
+                    pressure_names.add(candidate.name)
+                    if candidate.name not in pressure_causes:
+                        pressure_causes[candidate.name] = self._lineage_cause_phrase(
+                            candidate.shaping_causes,
+                            candidate.succession_pitch,
+                        )
 
         entries: list[DynastyBoardEntryView] = []
         if self.snapshot.successor_options and self._successor_candidates:
@@ -704,6 +732,8 @@ class FeaturedMatchWebSession:
                         is_current_host=agent.is_player or agent.name == self.player.name,
                         has_successor_pressure=agent.name in pressure_names,
                         has_civil_war_danger=agent.name in danger_names,
+                        successor_pressure_cause=pressure_causes.get(agent.name),
+                        civil_war_danger_cause=danger_causes.get(agent.name),
                     )
                 )
         elif floor_summary and floor_summary.entries:
@@ -720,6 +750,8 @@ class FeaturedMatchWebSession:
                         is_current_host=entry.is_player,
                         has_successor_pressure=entry.name in pressure_names,
                         has_civil_war_danger=entry.name in danger_names,
+                        successor_pressure_cause=pressure_causes.get(entry.name),
+                        civil_war_danger_cause=danger_causes.get(entry.name),
                     )
                 )
         else:
@@ -737,6 +769,8 @@ class FeaturedMatchWebSession:
                         is_current_host=agent.is_player,
                         has_successor_pressure=False,
                         has_civil_war_danger=False,
+                        successor_pressure_cause=None,
+                        civil_war_danger_cause=None,
                     )
                 )
 
@@ -748,6 +782,12 @@ class FeaturedMatchWebSession:
                     continue
                 tags = set(analyze_agent_identity(candidate).tags)
                 if tags & threat_tags:
+                    existing_cause = entries[idx].civil_war_danger_cause
+                    candidate_view = successor_candidate_views.get(candidate.name)
+                    danger_cause = existing_cause or self._lineage_cause_phrase(
+                        candidate_view.shaping_causes if candidate_view else [],
+                        candidate_view.danger_later if candidate_view else "civil-war threat tags are active",
+                    )
                     entries[idx] = DynastyBoardEntryView(
                         name=board_entry.name,
                         role=board_entry.role,
@@ -758,10 +798,17 @@ class FeaturedMatchWebSession:
                         is_current_host=board_entry.is_current_host,
                         has_successor_pressure=board_entry.has_successor_pressure,
                         has_civil_war_danger=True,
+                        successor_pressure_cause=board_entry.successor_pressure_cause,
+                        civil_war_danger_cause=danger_cause,
                     )
 
         entries.sort(key=lambda entry: (-entry.score, entry.name, entry.lineage_depth))
         self.snapshot.dynasty_board = DynastyBoardState(phase=self.snapshot.current_phase, entries=entries)
+
+    def _lineage_cause_phrase(self, shaping_causes: list[str], fallback: str) -> str:
+        lead = shaping_causes[0] if shaping_causes else fallback
+        compact = lead.strip().rstrip(".")
+        return f"because {compact}"
 
     def _resolve_stance_move(self, prompt: FeaturedMatchPrompt) -> int:
         if self._active_stance is None:
@@ -796,6 +843,7 @@ class FeaturedMatchWebSession:
         event_type: str,
         floor_number: int | None,
         summary: str,
+        cause: str | None = None,
     ) -> None:
         if event_id in self._chronicle_event_ids:
             return
@@ -807,6 +855,7 @@ class FeaturedMatchWebSession:
                 floor_number=floor_number,
                 phase=self.snapshot.current_phase,
                 summary=summary,
+                cause=cause,
             )
         )
 

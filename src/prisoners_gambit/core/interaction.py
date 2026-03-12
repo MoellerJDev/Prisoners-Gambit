@@ -402,6 +402,8 @@ class DynastyBoardEntryView:
     is_current_host: bool
     has_successor_pressure: bool
     has_civil_war_danger: bool
+    successor_pressure_cause: str | None = None
+    civil_war_danger_cause: str | None = None
 
 
 @dataclass(slots=True)
@@ -417,6 +419,7 @@ class LineageChronicleEntry:
     floor_number: int | None
     phase: Literal["ecosystem", "civil_war"] | None
     summary: str
+    cause: str | None = None
 
 
 @dataclass(slots=True)
