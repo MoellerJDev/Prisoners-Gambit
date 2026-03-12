@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 
 _TAG_HINTS: dict[str, tuple[str, ...]] = {
@@ -17,20 +18,33 @@ _TAG_HINTS: dict[str, tuple[str, ...]] = {
 }
 
 
-def synthesize_floor_featured_inference(clue_log: Sequence[str], *, max_lines: int = 3) -> list[str]:
-    """Build a concise, deterministic floor-level summary from observed featured clues."""
+@dataclass(frozen=True)
+class FeaturedInferenceSignals:
+    """Deterministic, normalized featured-inference signals derived from observed clues."""
+
+    observed_clues: tuple[str, ...]
+    inferred_tags: tuple[str, ...]
+
+
+def normalize_featured_inference_signals(clue_log: Sequence[str], *, max_clues: int = 3) -> FeaturedInferenceSignals:
     unique_clues = _dedupe_clues(clue_log)
     if not unique_clues:
+        return FeaturedInferenceSignals(observed_clues=(), inferred_tags=())
+
+    observed_clues = tuple(unique_clues[-max_clues:])
+    inferred_tags = tuple(_hinted_tags(unique_clues))
+    return FeaturedInferenceSignals(observed_clues=observed_clues, inferred_tags=inferred_tags)
+
+
+def summarize_featured_inference_signals(signals: FeaturedInferenceSignals) -> list[str]:
+    if not signals.observed_clues:
         return []
 
-    focus_clues = unique_clues[-max_lines:]
-    summary: list[str] = [f"Observed featured signals: {' | '.join(focus_clues)}"]
-
-    hinted_tags = _hinted_tags(unique_clues)
-    if hinted_tags:
+    summary: list[str] = [f"Observed featured signals: {' | '.join(signals.observed_clues)}"]
+    if signals.inferred_tags:
         summary.append(
             "Branch doctrine signals surfaced this floor: "
-            + ", ".join(hinted_tags)
+            + ", ".join(signals.inferred_tags)
             + ". Use these reads to judge successor stability vs deception."
         )
 
@@ -38,12 +52,21 @@ def synthesize_floor_featured_inference(clue_log: Sequence[str], *, max_lines: i
     return summary
 
 
-def successor_featured_inference_context(*, candidate_tags: Sequence[str], featured_inference_summary: Sequence[str]) -> str | None:
-    if not candidate_tags or not featured_inference_summary:
+def synthesize_floor_featured_inference(clue_log: Sequence[str], *, max_lines: int = 3) -> list[str]:
+    """Build a concise, deterministic floor-level summary from observed featured clues."""
+    signals = normalize_featured_inference_signals(clue_log, max_clues=max_lines)
+    return summarize_featured_inference_signals(signals)
+
+
+def successor_featured_inference_context(
+    *,
+    candidate_tags: Sequence[str],
+    featured_inference_signals: FeaturedInferenceSignals,
+) -> str | None:
+    if not candidate_tags or not featured_inference_signals.observed_clues:
         return None
 
-    summary_text = " ".join(featured_inference_summary).lower()
-    aligned = [tag for tag in candidate_tags if any(hint in summary_text for hint in _TAG_HINTS.get(tag, ()))]
+    aligned = [tag for tag in candidate_tags if tag in set(featured_inference_signals.inferred_tags)]
     future_frame = _future_frame(candidate_tags)
     stability_frame = _stability_frame(candidate_tags=candidate_tags, aligned=aligned)
     confidence_frame = _confidence_frame(aligned)

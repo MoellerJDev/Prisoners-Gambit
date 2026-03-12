@@ -5,7 +5,11 @@ from typing import Callable, Sequence
 
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
-from prisoners_gambit.core.featured_inference import successor_featured_inference_context, synthesize_floor_featured_inference
+from prisoners_gambit.core.featured_inference import (
+    normalize_featured_inference_signals,
+    successor_featured_inference_context,
+    summarize_featured_inference_signals,
+)
 from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
@@ -177,7 +181,8 @@ class InteractionController:
         )
         heir_pressure = to_floor_summary_heir_pressure_view(heir_pressure_analysis)
         clues = list(floor_clue_log) if floor_clue_log is not None else list(self._latest_floor_clue_log)
-        featured_inference_summary = synthesize_floor_featured_inference(clues)
+        featured_inference_signals = normalize_featured_inference_signals(clues)
+        featured_inference_summary = summarize_featured_inference_signals(featured_inference_signals)
         self._latest_floor_clue_log = list(clues)
         self.snapshot.floor_summary = FloorSummaryState(
             floor_number=floor_number,
@@ -347,7 +352,7 @@ class InteractionController:
             )
             inference_context = successor_featured_inference_context(
                 candidate_tags=identity.tags,
-                featured_inference_summary=self.snapshot.floor_summary.featured_inference_summary if self.snapshot.floor_summary else [],
+                featured_inference_signals=normalize_featured_inference_signals(self._latest_floor_clue_log),
             )
             successor_views.append(
                 to_successor_candidate_view(
