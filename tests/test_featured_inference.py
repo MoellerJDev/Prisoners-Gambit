@@ -36,5 +36,39 @@ def test_successor_framing_uses_featured_inference_context() -> None:
         featured_inference_summary=summary,
     )
 
-    assert aligned is not None and "aligns" in aligned
-    assert mismatched is not None and "higher-uncertainty future" in mismatched
+    assert aligned is not None and "Competing future" in aligned
+    assert aligned is not None and "consensus lineage branch" in aligned
+    assert aligned is not None and "high" in aligned
+    assert mismatched is not None and "hardline lineage branch" in mismatched
+    assert mismatched is not None and "low" in mismatched
+
+
+def test_successor_framing_differs_across_competing_tag_futures() -> None:
+    coercive_summary = synthesize_floor_featured_inference(
+        [
+            "Opened with D and pressed directive tempo across rounds.",
+            "Punished cooperation windows after one betrayal.",
+        ]
+    )
+    consensus_summary = synthesize_floor_featured_inference(
+        [
+            "Opened with C and forgave one defection to preserve trust.",
+            "Consensus lane stayed cooperative through pressure.",
+        ]
+    )
+
+    hardline = successor_featured_inference_context(
+        candidate_tags=["Control", "Punishing"],
+        featured_inference_summary=coercive_summary,
+    )
+    consensus = successor_featured_inference_context(
+        candidate_tags=["Consensus", "Forgiving"],
+        featured_inference_summary=consensus_summary,
+    )
+
+    assert hardline is not None and "hardline lineage branch" in hardline
+    assert hardline is not None and "coercive reads persist" in hardline
+    assert hardline is not None and "high" in hardline
+    assert consensus is not None and "consensus lineage branch" in consensus
+    assert consensus is not None and "trust loops hold" in consensus
+    assert consensus is not None and "high" in consensus
