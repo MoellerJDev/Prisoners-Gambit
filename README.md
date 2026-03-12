@@ -24,6 +24,8 @@ Between floors you:
 - pick 1 genome edit,
 - continue with survivors (or choose a successor if your host died).
 
+Design intent: this is not just upkeep. Each floor should leave you asking what branch you are cultivating, what future threat landscape you are creating, and which successor you would want if your host died on the next floor.
+
 The run starts in the **ecosystem phase** (your lineage vs outsiders), then transitions to **civil war** once outsiders are gone (your surviving branches fight until one remains).
 
 ---

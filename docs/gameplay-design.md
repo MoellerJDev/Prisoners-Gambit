@@ -26,7 +26,7 @@ If one host dies, the strategy can survive elsewhere.
 
 That makes death feel less binary and more dynastic. A run is the story of a bloodline of ideas, not just a single avatar.
 
-## Core Loop
+## Core Loop Audit (Current)
 
 A run currently follows this pattern:
 
@@ -42,6 +42,33 @@ A run currently follows this pattern:
 10. Repopulate from survivors during ecosystem phase
 11. Transition into civil war when all outsiders are gone
 12. Continue until the lineage is destroyed or one final branch remains
+
+### Which current steps actually shape heirs?
+
+The current loop has strong heir-focused mechanics, but some are framed as maintenance instead of dynastic pressure.
+
+| Loop step | Direct heir value today | Design issue to address |
+| --- | --- | --- |
+| Tournament + featured matches | Generates behavioral evidence for branch identity and field reading. | Framed mostly as score optimization, not branch testing. |
+| Ranking + elimination | Applies selection pressure and creates successor stakes. | Read as generic roguelike culling pass. |
+| Successor selection | Core succession decision with real strategic consequences. | Happens as a fallback moment instead of a floor-level objective. |
+| Powerup + genome edit offers | Primary branch-shaping tools. | Reads like standard between-floor upgrades if not tied to successor intent. |
+| AI perk grants + repopulation | Creates future threats and branch divergence. | Feels like background simulation bookkeeping. |
+| Civil war transition | Pays off long-term branch planning. | Can feel abrupt if floor-by-floor threat seeding is under-emphasized. |
+
+### Refocused floor identity
+
+Each floor should be treated as a **breeding + evaluation stage** for future heirs:
+
+1. **Probe the field** in featured matches to learn which archetypes are rising.
+2. **Stress-test your branch** in the full tournament to reveal strengths and liabilities.
+3. **Apply selection pressure** (ranking/elimination) as a lineage filter, not just a loss gate.
+4. **Handle succession pressure immediately**: evaluate which surviving heir you would choose if death happened next floor.
+5. **Commit branch intent** through one powerup and one genome edit chosen for successor quality, not raw tempo.
+6. **Seed future threats** via AI growth + repopulation and deliberately read what kind of civil war this enables.
+7. Repeat until outsiders are gone, then resolve the branch contest in civil war.
+
+This preserves deterministic structure while changing the meaning of existing steps.
 
 ## Match Structure
 
@@ -67,6 +94,8 @@ Each floor includes:
 ### Featured matches
 
 These are the primary point of direct skill expression.
+
+They are also the floor's main **lineage scouting pass**: each featured match should help answer what future heir profile is safest against the likely next-floor field.
 
 During featured matches, the player sees:
 - a masked opponent label
@@ -205,6 +234,8 @@ Descendants inherit:
 
 Player-lineage descendants mutate more aggressively than normal outsiders. This gives the lineage a better chance to diversify and survive.
 
+Design intent: repopulation is not filler content. It is the mechanism that turns this floor's choices into next floor's succession dilemma.
+
 ## Lineage Succession
 
 If the current host dies, the run does not immediately end.
@@ -217,6 +248,13 @@ This creates a strong strategic question:
 - do I inhabit the strangest branch because it counters the field better?
 
 Succession should feel like a major dramatic beat, not just a fail-safe.
+
+Refocus rule: even when the current host survives, the player should evaluate each floor as if succession might happen on the next one.
+
+This keeps pressure on the three key questions:
+- what kind of branch am I creating?
+- what kind of future threat am I enabling?
+- what successor would I want if I died next floor?
 
 ## Naming and Branch Identity
 
@@ -327,8 +365,9 @@ The round breakdown and stance system address the pacing and transparency concer
 ## Design Priorities Going Forward
 
 The next layers should focus on:
-- richer branch comparison tools
-- more meaningful between-floor resource decisions
+- richer branch comparison tools that foreground successor readiness
+- between-floor choices framed as heir-shaping commitments, not maintenance
+- stronger floor summaries that explain which future threats were created
 - stronger endgame identity in civil war
 - expanded web UI beyond the featured match prototype
 
