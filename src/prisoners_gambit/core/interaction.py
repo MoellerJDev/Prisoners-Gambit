@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from prisoners_gambit.core.powerups import MoveDirective
@@ -27,6 +27,9 @@ class FeaturedMatchPrompt:
     opp_match_score: int
     suggested_move: int
     roster_entries: list[RosterEntry]
+    clue_channels: list[str] = field(default_factory=list)
+    floor_clue_log: list[str] = field(default_factory=list)
+    inference_focus: str | None = None
 
 
 @dataclass(slots=True)
@@ -43,6 +46,7 @@ class FeaturedRoundResult:
     player_reason: str
     opponent_reason: str
     breakdown: RoundResolutionBreakdown
+    inference_update: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

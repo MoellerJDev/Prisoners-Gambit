@@ -250,11 +250,16 @@ function renderDecision(data){
 
   if (t === 'FeaturedRoundDecisionState') {
     const p = decision.prompt;
+    const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No explicit clues.</li>';
+    const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No prior featured clues this floor.</li>';
     document.getElementById('decisionView').innerHTML = `
       <div>Opponent</div><div>${branchToken(p.masked_opponent_label)}</div>
       <div>Round</div><div>${p.round_index + 1}/${p.total_rounds}</div>
       <div>Score</div><div class='scoreline'>You <span class='good'>${p.my_match_score}</span> : <span class='danger'>${p.opp_match_score}</span> Opp</div>
-      <div>Suggested</div><div>${effectToken(`Autopilot recommends ${moveLabel(p.suggested_move)}`)}</div>`;
+      <div>Suggested</div><div>${effectToken(`Autopilot recommends ${moveLabel(p.suggested_move)}`)}</div>
+      <div>Inference focus</div><div>${escapeHtml(p.inference_focus || 'Pattern confirmation')}</div>
+      <div>Clues</div><div><ul>${clues}</ul></div>
+      <div>Floor clue memory</div><div><ul>${floorLog}</ul></div>`;
     actions.innerHTML = `
       <button class='btn' onclick="sendAction({type:'manual_move', move:'C'})">Cooperate</button>
       <button class='btn' onclick="sendAction({type:'manual_move', move:'D'})">Defect</button>

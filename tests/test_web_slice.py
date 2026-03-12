@@ -37,6 +37,30 @@ def test_featured_match_web_session_round_trip_typed_action() -> None:
     assert view["snapshot"]["latest_featured_round"]["breakdown"]["base_player_points"] >= 0
 
 
+
+
+def test_web_session_featured_prompt_and_round_payload_include_inference_fields() -> None:
+    session = FeaturedMatchWebSession(seed=13, rounds=2)
+    session.start()
+
+    decision = session.view()["decision"]
+    assert decision is not None
+    prompt = decision["prompt"]
+    assert isinstance(prompt["clue_channels"], list)
+    assert prompt["clue_channels"]
+    assert "inference_focus" in prompt
+    assert "floor_clue_log" in prompt
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    round_payload = session.view()["snapshot"]["latest_featured_round"]
+    assert round_payload is not None
+    assert "inference_update" in round_payload
+    assert round_payload["inference_update"]
+
+    second_prompt = session.view()["decision"]["prompt"]
+    assert second_prompt["floor_clue_log"]
+
 def test_featured_match_web_session_supports_stance_actions() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=3)
     session.start()

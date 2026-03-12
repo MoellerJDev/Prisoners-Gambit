@@ -109,6 +109,7 @@ class TournamentEngine:
             )
 
         featured_counter = 1
+        floor_clue_log: list[str] = []
 
         for left_index in range(len(population)):
             for right_index in range(left_index + 1, len(population)):
@@ -123,6 +124,7 @@ class TournamentEngine:
                         floor_number=floor_number,
                         roster_entries=roster_entries,
                         masked_opponent_label=f"Unknown Opponent {featured_counter}",
+                        floor_clue_log=floor_clue_log,
                     )
                     featured_counter += 1
                     left_agent.score += player_score
@@ -148,6 +150,7 @@ class TournamentEngine:
                         floor_number=floor_number,
                         roster_entries=roster_entries,
                         masked_opponent_label=f"Unknown Opponent {featured_counter}",
+                        floor_clue_log=floor_clue_log,
                     )
                     featured_counter += 1
                     right_agent.score += player_score
@@ -310,7 +313,9 @@ class TournamentEngine:
         floor_number: int,
         roster_entries: list[RosterEntry],
         masked_opponent_label: str,
+        floor_clue_log: list[str] | None = None,
     ) -> tuple[int, int]:
+        floor_clue_log = floor_clue_log or []
         player_history: list[int] = []
         opponent_history: list[int] = []
         player_score = 0
@@ -331,6 +336,9 @@ class TournamentEngine:
                 opp_match_score=opponent_score,
                 suggested_move=suggested_move,
                 roster_entries=roster_entries,
+                clue_channels=self._build_featured_clue_channels(opponent=opponent, floor_number=floor_number),
+                floor_clue_log=list(floor_clue_log),
+                inference_focus=self._build_inference_focus(player_history=player_history, opponent_history=opponent_history, round_index=round_index),
             )
 
             if self.interaction_controller:
@@ -423,6 +431,13 @@ class TournamentEngine:
                     opponent_total=opponent_score,
                     player_reason=player_directive_resolution.reason,
                     opponent_reason=opponent_directive_resolution.reason,
+                    inference_update=self._build_inference_update(
+                        opponent=opponent,
+                        player_move=player_move,
+                        opponent_move=opponent_move,
+                        player_history=player_history,
+                        opponent_history=opponent_history,
+                    ),
                     breakdown=RoundResolutionBreakdown(
                         player_plan=player_plan,
                         opponent_plan=opponent_plan,
@@ -439,6 +454,8 @@ class TournamentEngine:
                 self.renderer.show_round_result(round_result)
             if round_result is not None and self.interaction_controller:
                 self.interaction_controller.set_latest_round_result(round_result)
+            if round_result is not None:
+                floor_clue_log.extend(round_result.inference_update)
 
         if self.interaction_controller:
             self.interaction_controller.reset_featured_match_autopilot()
@@ -607,6 +624,55 @@ class TournamentEngine:
             )
 
         return entries
+
+
+    def _build_featured_clue_channels(self, *, opponent: Agent, floor_number: int) -> list[str]:
+        identity = analyze_agent_identity(opponent)
+        channels: list[str] = [
+            f"Profile signal: {opponent.public_profile}",
+            f"Visible tags: {', '.join(identity.tags) if identity.tags else 'none'}",
+            f"Known powerups: {', '.join(powerup.name for powerup in opponent.powerups) if opponent.powerups else 'none'}",
+            f"Floor branch signal: floor {floor_number} ecosystems reward stable doctrines before succession",
+        ]
+        return channels
+
+    def _build_inference_focus(self, *, player_history: list[int], opponent_history: list[int], round_index: int) -> str:
+        if round_index == 0:
+            return "Opening read: test whether opponent honors profile + tag signals."
+        if opponent_history and opponent_history[-1] == DEFECT:
+            return "Pressure read: verify if last-round defection was exploitative or directive-driven."
+        if player_history and player_history[-1] == DEFECT:
+            return "Punish response read: see if they retaliate, forgive, or stay scripted."
+        return "Pattern read: compare move rhythm to roster tags and visible powerups."
+
+    def _build_inference_update(
+        self,
+        *,
+        opponent: Agent,
+        player_move: int,
+        opponent_move: int,
+        player_history: list[int],
+        opponent_history: list[int],
+    ) -> list[str]:
+        identity = analyze_agent_identity(opponent)
+        updates: list[str] = []
+        if not opponent_history:
+            opener = "C" if opponent_move == COOPERATE else "D"
+            updates.append(f"Opened with {opener}; compare against roster aggression/cooperation tags.")
+        else:
+            if player_history and player_history[-1] == DEFECT and opponent_move == DEFECT:
+                updates.append("Retaliated after your defection; retaliatory read strengthened.")
+            if player_history and player_history[-1] == DEFECT and opponent_move == COOPERATE:
+                updates.append("Forgave your prior defection; forgiving/consensus read strengthened.")
+            if player_history and player_history[-1] == COOPERATE and opponent_move == DEFECT:
+                updates.append("Defected into your cooperation; exploitative pressure read strengthened.")
+
+        if identity.tags:
+            updates.append(f"Tag alignment check: observed line remains compatible with {identity.tags[0]} profile.")
+        updates.append(
+            "Floor learning: carry this read into successor planning if similar branch tags survive the floor."
+        )
+        return updates
 
     def _resolve_agent_move(
         self,
