@@ -82,12 +82,14 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
                     anti_score_note="Do not pick by score alone.",
                     genome_summary="Open C, retaliate D",
                     powerups=["Trust Dividend"],
+                    featured_inference_context="Featured inference fit: this branch aligns with floor reads on retaliatory behavior.",
                 )
             ],
             current_phase="ecosystem",
             lineage_doctrine="Lineage trend: Cooperative across 3 active branch(es).",
             threat_profile=["Aggressive"],
             civil_war_pressure="rising",
+            featured_inference_summary=["Observed featured signals: Retaliated after pressure."],
         )
     )
 
@@ -102,6 +104,8 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
     assert "Anti-score note:" in out
     assert "Build: Open C, retaliate D" in out
     assert "Powerups: Trust Dividend" in out
+    assert "[Featured inference summary]" in out
+    assert "Featured inference: Featured inference fit" in out
 
 
 def test_choose_round_action_warns_when_match_autopilot_unavailable(monkeypatch, capsys) -> None:
@@ -196,3 +200,23 @@ def test_floor_summary_surfaces_future_successor_pressure(capsys) -> None:
     assert "Heir Alpha" in out
     assert "Emerging external threats" in out
     assert "Outsider Prime" in out
+
+
+def test_terminal_floor_end_featured_inference_summary_is_printed(capsys) -> None:
+    renderer = TerminalRenderer()
+    ranked = [
+        _agent("Outsider Prime", score=12, wins=4, lineage_id=99),
+        _agent("You", score=10, wins=3, lineage_id=1, is_player=True),
+        _agent("Heir Alpha", score=9, wins=3, lineage_id=1),
+    ]
+
+    renderer.show_floor_summary(3, ranked)
+    renderer.show_floor_featured_inference_summary([
+        "Observed featured signals: Retaliated after your defection.",
+        "Branch doctrine signals surfaced this floor: Retaliatory.",
+    ])
+
+    out = capsys.readouterr().out
+    assert "[Featured inference summary]" in out
+    assert "Observed featured signals:" in out
+    assert "Branch doctrine signals surfaced this floor" in out

@@ -81,6 +81,9 @@ class TerminalRenderer(Renderer):
             print(f"Leader build: {ranked[0].build_summary()}")
             print(format_floor_heir_pressure(ranked))
 
+    def show_floor_featured_inference_summary(self, summary: list[str]) -> None:
+        print(format_featured_inference_summary(summary))
+
     def choose_round_action(self, prompt: FeaturedMatchPrompt) -> int:
         action = self.resolve_featured_round_decision(FeaturedRoundDecisionState(prompt=prompt))
         if isinstance(action, ChooseRoundMoveAction):
