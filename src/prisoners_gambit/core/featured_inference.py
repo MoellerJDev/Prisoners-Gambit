@@ -73,6 +73,31 @@ def successor_featured_inference_context(
     return f"Competing future: {future_frame} Stability: {stability_frame} Featured-read confidence: {confidence_frame}"
 
 
+def civil_war_featured_inference_context(featured_inference_signals: FeaturedInferenceSignals) -> list[str]:
+    """Map normalized featured signals to compact, deterministic civil-war framing."""
+    inferred = set(featured_inference_signals.inferred_tags)
+    if not inferred:
+        return []
+
+    framing: list[str] = []
+    coercive = inferred & {"Aggressive", "Control", "Punishing", "Exploitative"}
+    legitimacy = inferred & {"Cooperative", "Forgiving", "Consensus", "Referendum"}
+
+    if coercive and legitimacy:
+        framing.append("Featured read: doctrine tension is active—legitimacy heirs and coercive heirs can both claim lineage continuity.")
+    elif coercive:
+        framing.append("Featured read: coercion pressure is reinforced—expect legitimacy backlash if hardline branches stumble.")
+    elif legitimacy:
+        framing.append("Featured read: legitimacy pressure is reinforced—deception or punishment spikes can trigger abrupt trust collapse.")
+
+    if inferred & {"Retaliatory", "Punishing"}:
+        framing.append("Featured read: retaliation pressure is elevated—single betrayals can cascade into rivalry scoring races.")
+    if inferred & {"Exploitative", "Aggressive", "Punishing"}:
+        framing.append("Featured read: deception risk is live—mirror rounds can pivot on bait-and-retaliate traps.")
+
+    return framing[:2]
+
+
 def _future_frame(candidate_tags: Sequence[str]) -> str:
     tag_set = set(candidate_tags)
     hardline = tag_set & {"Aggressive", "Control", "Punishing", "Exploitative"}
