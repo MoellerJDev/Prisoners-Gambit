@@ -86,3 +86,26 @@ When adding tests:
 3. Add/extend seeded integration slices for new orchestration behavior.
 4. Add one regression-style structured contract assert for important state interfaces.
 5. Add invariant checks when introducing new randomization or state schemas.
+
+## 7) Practical contributor note (how to choose test type)
+
+### Choose the smallest useful layer first
+- Add a **unit test** when behavior is local/pure (no run orchestration needed).
+- Add an **integration slice** when behavior depends on session progression or multi-step flow.
+- Add a **regression contract test** when a serialized state/API contract must stay stable for clients.
+- Add an **invariant test** when a rule should hold across many seeds or inputs.
+
+### Seed selection guidance
+- Prefer a small, named set of fixed seeds per behavior (`[7, 21, 41]` style).
+- Use at least 2–5 seeds for invariants that claim cross-seed stability.
+- When a bug is seed-specific, add that seed directly to the test case list.
+
+### Avoid brittle assertions
+- Prefer asserting required keys, value types, and semantic transitions over exact text/content order.
+- Only freeze exact values if they are truly contractual (e.g., enum-like outcomes or required phase labels).
+- Snapshot small, structured slices rather than entire opaque blobs.
+
+### Using support helpers
+- Use `tests/support/builders.py` for common test objects (agents/genomes/successor contexts).
+- Use `tests/support/session_driver.py` for run milestones (reach summary, successor, completion).
+- If a helper becomes too specific to one test, keep that setup local instead of expanding shared helpers.
