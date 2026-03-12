@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
-from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
@@ -346,17 +346,37 @@ class InteractionController:
         return offers[action.offer_index]
 
     def choose_successor(self, floor_number: int, candidates: list[Agent]) -> Agent:
+        threat_tags: set[str] = set()
+        if self.snapshot.floor_summary and self.snapshot.floor_summary.heir_pressure:
+            for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
+                threat_tags.update(threat.tags)
+
+        top_score = max((candidate.score for candidate in candidates), default=0)
         successor_views: list[SuccessorCandidateView] = []
         for candidate in candidates:
             identity = analyze_agent_identity(candidate)
+            assessment = assess_successor_candidate(
+                candidate,
+                top_score=top_score,
+                threat_tags=threat_tags,
+                phase=self.snapshot.current_phase,
+            )
             successor_views.append(
                 SuccessorCandidateView(
                     name=candidate.name,
                     lineage_depth=candidate.lineage_depth,
                     score=candidate.score,
                     wins=candidate.wins,
+                    branch_role=assessment.branch_role,
+                    branch_doctrine=assessment.branch_doctrine,
                     tags=identity.tags,
                     descriptor=identity.descriptor,
+                    tradeoffs=list(assessment.tradeoffs),
+                    strengths=list(assessment.strengths),
+                    liabilities=list(assessment.liabilities),
+                    attractive_now=assessment.attractive_now,
+                    danger_later=assessment.danger_later,
+                    lineage_future=assessment.lineage_future,
                     genome_summary=candidate.genome.summary(),
                     powerups=[powerup.name for powerup in candidate.powerups],
                 )

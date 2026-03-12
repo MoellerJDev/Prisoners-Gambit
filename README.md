@@ -81,6 +81,8 @@ After featured matches, you vote in a floor referendum, then see floor results, 
 
 Genome edit offers now include stronger doctrine pivots (safe/ruthless/unstable) so branch divergence appears earlier in a run.
 
+When succession triggers, candidates are presented with role, doctrine, tradeoffs, strengths, liabilities, and near/far-term rationale so the choice feels like selecting a future strategy, not just a score line.
+
 ### Deterministic replay
 
 Use a seed to replay a run:

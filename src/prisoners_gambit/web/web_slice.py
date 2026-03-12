@@ -4,7 +4,7 @@ from dataclasses import asdict
 import random
 
 from prisoners_gambit.app.interaction_controller import RunSession
-from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
@@ -345,16 +345,26 @@ class FeaturedMatchWebSession:
         if self.floor_number == 1:
             self._successor_candidates = self._build_successor_candidates()
             candidates = []
+            top_score = max((agent.score for agent in self._successor_candidates), default=0)
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
+                assessment = assess_successor_candidate(agent, top_score=top_score, phase=self.snapshot.current_phase)
                 candidates.append(
                     SuccessorCandidateView(
                         name=agent.name,
                         lineage_depth=agent.lineage_depth,
                         score=agent.score,
                         wins=agent.wins,
+                        branch_role=assessment.branch_role,
+                        branch_doctrine=assessment.branch_doctrine,
                         tags=identity.tags,
                         descriptor=identity.descriptor,
+                        tradeoffs=list(assessment.tradeoffs),
+                        strengths=list(assessment.strengths),
+                        liabilities=list(assessment.liabilities),
+                        attractive_now=assessment.attractive_now,
+                        danger_later=assessment.danger_later,
+                        lineage_future=assessment.lineage_future,
                         genome_summary=agent.genome.summary(),
                         powerups=[p.name for p in agent.powerups],
                     )

@@ -82,6 +82,18 @@ class FloorHeirPressure:
     future_threats: list[HeirPressureCandidate]
 
 
+@dataclass(slots=True)
+class SuccessorAssessment:
+    branch_role: str
+    branch_doctrine: str
+    tradeoffs: list[str]
+    strengths: list[str]
+    liabilities: list[str]
+    attractive_now: str
+    danger_later: str
+    lineage_future: str
+
+
 def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | None) -> FloorHeirPressure:
     if not ranked:
         return FloorHeirPressure(
@@ -155,6 +167,96 @@ def _classify_branch_role(agent: Agent, identity: AgentIdentity, top_score: int)
     if "Aggressive" in tags and ("Exploitative" in tags or "Tempo" in tags):
         return "Ruthless heir"
     return "Safe heir"
+
+
+def assess_successor_candidate(
+    agent: Agent,
+    *,
+    top_score: int,
+    threat_tags: set[str] | None = None,
+    phase: str | None = None,
+) -> SuccessorAssessment:
+    identity = analyze_agent_identity(agent)
+    tags = set(identity.tags)
+    threat_tags = threat_tags or set()
+
+    role = _classify_branch_role(agent, identity, top_score=top_score)
+    doctrine = identity.descriptor
+
+    safe_side = "Safe edge" if ("Cooperative" in tags or "Defensive" in tags) and "Unstable" not in tags else "Explosive edge"
+    phase_side = "Civil-war-ready" if ({"Aggressive", "Exploitative", "Control", "Punishing", "Tempo"} & tags) else "Ecosystem-ready"
+    stability_side = "Volatile" if "Unstable" in tags or agent.genome.noise >= 0.20 else "Stable"
+    control_side = "Coercive" if ({"Control", "Punishing"} & tags) else "Trust-based"
+    referendum_side = "Referendum value" if "Referendum" in tags else "Duel value"
+
+    tradeoffs = [
+        f"Safe vs explosive: {safe_side}",
+        f"Ecosystem vs civil war: {phase_side}",
+        f"Stable vs volatile: {stability_side}",
+        f"Trust vs coercion: {control_side}",
+        f"Referendum vs duel: {referendum_side}",
+    ]
+
+    strengths: list[str] = []
+    if "Cooperative" in tags or "Consensus" in tags:
+        strengths.append("Can stabilize alliances and referendum pacing")
+    if {"Aggressive", "Exploitative", "Tempo"} & tags:
+        strengths.append("Punishes passivity and can swing duels quickly")
+    if "Referendum" in tags:
+        strengths.append("Can convert floor vote dynamics into value")
+    if "Control" in tags:
+        strengths.append("Applies directive pressure that scales in branch mirrors")
+    if not strengths:
+        strengths.append("Balanced profile with flexible adaptation")
+
+    liabilities: list[str] = []
+    if "Unstable" in tags or agent.genome.noise >= 0.20:
+        liabilities.append("Volatility can throw critical successor turns")
+    if "Aggressive" in tags and "Defensive" not in tags:
+        liabilities.append("Can trigger retaliation spirals in long rounds")
+    if "Referendum" not in tags:
+        liabilities.append("May underperform in referendum-heavy floors")
+    if "Cooperative" in tags and "Retaliatory" not in tags:
+        liabilities.append("May get farmed by exploiters before adapting")
+    if not liabilities:
+        liabilities.append("No obvious hard weakness, but ceiling may be lower")
+
+    attractive_now = "Strong immediate fit against current table pressure."
+    if "Aggressive" in threat_tags and "Defensive" in tags:
+        attractive_now = "Attractive now: defensive profile counters aggressive external pressure."
+    elif "Referendum" in threat_tags and "Referendum" in tags:
+        attractive_now = "Attractive now: can contest referendum specialists immediately."
+    elif "Control" in threat_tags and "Control" in tags:
+        attractive_now = "Attractive now: can answer control lines with control of its own."
+
+    danger_later = "Danger later: this branch may over-specialize before civil war."
+    if role == "Future civil-war monster":
+        danger_later = "Danger later: power spikes may provoke anti-you focus once outsiders collapse."
+    elif role == "Unstable heir":
+        danger_later = "Danger later: volatility can backfire in elimination-thin civil-war rounds."
+    elif role == "Safe heir":
+        danger_later = "Danger later: safer pacing can lose races to explosive cousins in civil war."
+
+    lineage_future = "Implies a balanced lineage future."
+    if phase == "civil_war" or phase_side == "Civil-war-ready":
+        lineage_future = "Implies a succession path built to dominate branch mirrors late."
+    elif referendum_side == "Referendum value":
+        lineage_future = "Implies a lineage future that farms macro floor incentives over pure duels."
+    elif safe_side == "Safe edge":
+        lineage_future = "Implies a slower, survivable lineage arc with fewer catastrophic swings."
+    else:
+        lineage_future = "Implies a high-risk lineage arc that can end runs quickly either way."
+
+    return SuccessorAssessment(
+        branch_role=role,
+        branch_doctrine=doctrine,
+        tradeoffs=tradeoffs,
+        strengths=strengths[:3],
+        liabilities=liabilities[:3],
+        attractive_now=attractive_now,
+        danger_later=danger_later,
+        lineage_future=lineage_future,
+    )
 
 
 def _build_descriptor(tags: list[str], agent: Agent) -> str:

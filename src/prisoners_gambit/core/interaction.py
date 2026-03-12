@@ -171,8 +171,16 @@ class SuccessorCandidateView:
     lineage_depth: int
     score: int
     wins: int
+    branch_role: str
+    branch_doctrine: str
     tags: list[str]
     descriptor: str
+    tradeoffs: list[str]
+    strengths: list[str]
+    liabilities: list[str]
+    attractive_now: str
+    danger_later: str
+    lineage_future: str
     genome_summary: str
     powerups: list[str]
 

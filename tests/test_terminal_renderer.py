@@ -61,8 +61,16 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
                     lineage_depth=2,
                     score=13,
                     wins=4,
+                    branch_role="Safe heir",
+                    branch_doctrine="Reciprocal cooperator",
                     tags=["Cooperative", "Retaliatory"],
                     descriptor="Reliable reciprocal responder",
+                    tradeoffs=["Safe vs explosive: Safe edge"],
+                    strengths=["Can stabilize alliances"],
+                    liabilities=["May lose to high-tempo cousins"],
+                    attractive_now="Attractive now: counters current aggression.",
+                    danger_later="Danger later: may be outpaced in civil war.",
+                    lineage_future="Implies slower stable lineage future.",
                     genome_summary="Open C, retaliate D",
                     powerups=["Trust Dividend"],
                 )
@@ -74,6 +82,9 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
     assert "Heir Alpha" in out
     assert "depth=2" in out
     assert "Tags: Cooperative, Retaliatory" in out
+    assert "Role: Safe heir" in out
+    assert "Tradeoffs:" in out
+    assert "Danger later:" in out
     assert "Build: Open C, retaliate D" in out
     assert "Powerups: Trust Dividend" in out
 

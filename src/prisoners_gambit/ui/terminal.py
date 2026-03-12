@@ -233,20 +233,30 @@ class TerminalRenderer(Renderer):
         print(f"New autopilot: {new_summary}")
 
     def choose_successor(self, successors: list[Agent]) -> Agent:
-        from prisoners_gambit.core.analysis import analyze_agent_identity
+        from prisoners_gambit.core.analysis import analyze_agent_identity, assess_successor_candidate
         from prisoners_gambit.core.interaction import SuccessorCandidateView
 
+        top_score = max((agent.score for agent in successors), default=0)
         candidates: list[SuccessorCandidateView] = []
         for agent in successors:
             identity = analyze_agent_identity(agent)
+            assessment = assess_successor_candidate(agent, top_score=top_score)
             candidates.append(
                 SuccessorCandidateView(
                     name=agent.name,
                     lineage_depth=agent.lineage_depth,
                     score=agent.score,
                     wins=agent.wins,
+                    branch_role=assessment.branch_role,
+                    branch_doctrine=assessment.branch_doctrine,
                     tags=identity.tags,
                     descriptor=identity.descriptor,
+                    tradeoffs=list(assessment.tradeoffs),
+                    strengths=list(assessment.strengths),
+                    liabilities=list(assessment.liabilities),
+                    attractive_now=assessment.attractive_now,
+                    danger_later=assessment.danger_later,
+                    lineage_future=assessment.lineage_future,
                     genome_summary=agent.genome.summary(),
                     powerups=[powerup.name for powerup in agent.powerups],
                 )

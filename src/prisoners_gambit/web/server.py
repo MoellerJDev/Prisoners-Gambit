@@ -311,7 +311,7 @@ function renderDecision(data){
     decision.candidates.forEach((candidate, idx) => {
       const btn = document.createElement('button');
       btn.className = 'btn';
-      btn.innerHTML = `${idx + 1}. ${branchToken(candidate.name)} (${candidate.score}/${candidate.wins})`;
+      btn.innerHTML = `${idx + 1}. ${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} (${candidate.score}/${candidate.wins})`;
       btn.onclick = () => sendAction({type:'choose_successor', candidate_index: idx});
       actions.appendChild(btn);
     });
@@ -387,7 +387,7 @@ function renderSnapshot(snapshot){
 
   const successors = snapshot.successor_options?.candidates || [];
   document.getElementById('successors').innerHTML = successors.length
-    ? successors.map(candidate => `<li>${branchToken(candidate.name)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}</li>`).join('')
+    ? successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml(candidate.attractive_now)} | ${escapeHtml(candidate.danger_later)}</span></li>`).join('')
     : '<li>No successor choice active.</li>';
 
   const completion = snapshot.completion;

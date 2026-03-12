@@ -67,10 +67,21 @@ def format_genome_edit_offer_view(index: int, offer: GenomeEditOfferView) -> str
 
 def format_successor_candidate_view(index: int, candidate: SuccessorCandidateView) -> str:
     powerups = ", ".join(candidate.powerups) if candidate.powerups else "No powerups"
+    tradeoffs = "; ".join(candidate.tradeoffs)
+    strengths = "; ".join(candidate.strengths)
+    liabilities = "; ".join(candidate.liabilities)
     return (
         f"{index}. {candidate.name} | depth={candidate.lineage_depth} | score={candidate.score} | wins={candidate.wins}\n"
+        f"   Role: {candidate.branch_role}\n"
+        f"   Doctrine: {candidate.branch_doctrine}\n"
         f"   Tags: {_tag_text(candidate.tags)}\n"
         f"   Read: {candidate.descriptor}\n"
+        f"   Tradeoffs: {tradeoffs}\n"
+        f"   Strengths: {strengths}\n"
+        f"   Liabilities: {liabilities}\n"
+        f"   Attractive now: {candidate.attractive_now}\n"
+        f"   Danger later: {candidate.danger_later}\n"
+        f"   Implied future: {candidate.lineage_future}\n"
         f"   Build: {candidate.genome_summary}\n"
         f"   Powerups: {powerups}"
     )
