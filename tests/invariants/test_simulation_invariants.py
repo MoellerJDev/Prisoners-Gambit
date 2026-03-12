@@ -131,7 +131,6 @@ def test_invariant_no_missing_required_fields_in_decision_payloads() -> None:
 
         session.submit_action(ChooseSuccessorAction(candidate_index=0))
         session.advance()
-        session.advance()
         powerup = session.view()
         assert required_by_state[powerup["decision_type"]].issubset(powerup["decision"].keys())
 

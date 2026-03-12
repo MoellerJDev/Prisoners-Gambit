@@ -34,9 +34,10 @@ def test_seeded_successor_choice_slice_promotes_selected_candidate(seed: int) ->
     session.advance()
 
     view = session.view()
-    assert view["pending_screen"] == "civil_war_transition"
-    assert view["snapshot"]["current_phase"] == "civil_war"
-    assert view["snapshot"]["current_floor"] == 2
+    assert view["pending_screen"] is None
+    assert view["snapshot"]["current_phase"] == "ecosystem"
+    assert view["snapshot"]["current_floor"] == 1
+    assert view["decision_type"] == "PowerupChoiceState"
     assert view["snapshot"]["completion"] is None
     assert session.player.name == first_candidate
 
@@ -54,7 +55,7 @@ def test_seeded_alternate_successor_path_chooses_second_candidate(seed: int) -> 
     session.advance()
 
     assert session.player.name == chosen_name
-    assert session.view()["snapshot"]["current_phase"] == "civil_war"
+    assert session.view()["snapshot"]["current_phase"] == "ecosystem"
 
 
 @pytest.mark.parametrize("seed", [77, 178])

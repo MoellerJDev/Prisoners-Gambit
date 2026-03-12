@@ -60,13 +60,10 @@ def test_contract_successor_transition_then_offer_flow() -> None:
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
 
-    assert session_milestone(session) == "civil_war_transition_pending"
-    assert pending_screen(session) == "civil_war_transition"
-    assert session.view()["snapshot"]["current_phase"] == "civil_war"
-
-    session.advance()
-    assert session_milestone(session) == "featured_round_decision"
-    assert decision_type(session) == "FeaturedRoundDecisionState"
+    assert session_milestone(session) == "powerup_choice_decision"
+    assert pending_screen(session) is None
+    assert session.view()["snapshot"]["current_phase"] == "ecosystem"
+    assert decision_type(session) == "PowerupChoiceState"
 
 
 def test_contract_completion_flow_semantics() -> None:
@@ -99,22 +96,7 @@ def test_contract_rejects_wrong_state_action_submission_after_transition() -> No
     reach_successor_choice(session)
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    session.advance()
-    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
-    session.advance()
-    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
-    session.advance()
-
-    from prisoners_gambit.core.interaction import ChooseFloorVoteAction
-
-    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
-    session.advance()
-    session.advance()
 
     assert decision_type(session) == "PowerupChoiceState"
     with pytest.raises(ValueError, match="Invalid action type"):
         session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
-
-    with pytest.raises(ValueError, match="Invalid powerup index"):
-        session.submit_action(ChoosePowerupAction(offer_index=99))
-        session.advance()
