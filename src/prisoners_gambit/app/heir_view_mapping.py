@@ -42,6 +42,9 @@ def to_successor_candidate_view(*, agent, identity, assessment) -> SuccessorCand
         attractive_now=assessment.attractive_now,
         danger_later=assessment.danger_later,
         lineage_future=assessment.lineage_future,
+        succession_pitch=assessment.succession_pitch,
+        succession_risk=assessment.succession_risk,
+        anti_score_note=assessment.anti_score_note,
         genome_summary=agent.genome.summary(),
         powerups=[powerup.name for powerup in agent.powerups],
     )

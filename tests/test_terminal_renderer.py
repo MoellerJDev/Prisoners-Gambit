@@ -72,10 +72,17 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
                     attractive_now="Attractive now: counters current aggression.",
                     danger_later="Danger later: may be outpaced in civil war.",
                     lineage_future="Implies slower stable lineage future.",
+                    succession_pitch="Take this heir to stabilize alliances before the mirror phase.",
+                    succession_risk="Choosing this line may lose ceiling in duel-heavy mirrors.",
+                    anti_score_note="Do not pick by score alone.",
                     genome_summary="Open C, retaliate D",
                     powerups=["Trust Dividend"],
                 )
             ],
+            current_phase="ecosystem",
+            lineage_doctrine="Lineage trend: Cooperative across 3 active branch(es).",
+            threat_profile=["Aggressive"],
+            civil_war_pressure="rising",
         )
     )
 
@@ -86,6 +93,8 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
     assert "Role: Safe heir" in out
     assert "Tradeoffs:" in out
     assert "Danger later:" in out
+    assert "Succession play:" in out
+    assert "Anti-score note:" in out
     assert "Build: Open C, retaliate D" in out
     assert "Powerups: Trust Dividend" in out
 

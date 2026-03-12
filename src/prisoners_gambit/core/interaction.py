@@ -183,6 +183,9 @@ class SuccessorCandidateView:
     attractive_now: str
     danger_later: str
     lineage_future: str
+    succession_pitch: str
+    succession_risk: str
+    anti_score_note: str
     genome_summary: str
     powerups: list[str]
 
@@ -266,6 +269,10 @@ class GenomeEditChoiceState:
 class SuccessorChoiceState:
     floor_number: int
     candidates: list[SuccessorCandidateView]
+    current_phase: str | None = None
+    lineage_doctrine: str | None = None
+    threat_profile: list[str] | None = None
+    civil_war_pressure: str | None = None
     valid_actions: tuple[Literal["choose_successor"], ...] = ("choose_successor",)
 
 

@@ -58,3 +58,21 @@ def test_assess_successor_candidate_returns_structured_tradeoffs() -> None:
     assert len(assessment.tradeoffs) == 5
     assert assessment.strengths
     assert assessment.liabilities
+    assert assessment.succession_pitch
+    assert assessment.succession_risk
+    assert assessment.anti_score_note
+
+
+def test_assessment_can_recommend_lower_score_for_matchup_coverage() -> None:
+    agent = _agent(first_move=COOPERATE, score=7)
+
+    assessment = assess_successor_candidate(
+        agent,
+        top_score=10,
+        threat_tags={"Aggressive", "Referendum"},
+        phase="ecosystem",
+        lineage_doctrine="Lineage trend: Aggressive, Tempo across 3 active branch(es).",
+    )
+
+    assert "Do not pick by score alone" in assessment.anti_score_note
+    assert "Implies" in assessment.lineage_future

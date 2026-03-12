@@ -320,7 +320,9 @@ class InteractionController:
 
     def choose_successor(self, floor_number: int, candidates: list[Agent]) -> Agent:
         threat_tags: set[str] = set()
+        lineage_doctrine: str | None = None
         if self.snapshot.floor_summary and self.snapshot.floor_summary.heir_pressure:
+            lineage_doctrine = self.snapshot.floor_summary.heir_pressure.branch_doctrine
             for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
                 threat_tags.update(threat.tags)
 
@@ -333,12 +335,21 @@ class InteractionController:
                 top_score=top_score,
                 threat_tags=threat_tags,
                 phase=self.snapshot.current_phase,
+                lineage_doctrine=lineage_doctrine,
             )
             successor_views.append(
                 to_successor_candidate_view(agent=candidate, identity=identity, assessment=assessment)
             )
 
-        state = SuccessorChoiceState(floor_number=floor_number, candidates=successor_views)
+        civil_war_pressure = "high" if {"Aggressive", "Control", "Punishing", "Tempo"} & threat_tags else "rising"
+        state = SuccessorChoiceState(
+            floor_number=floor_number,
+            candidates=successor_views,
+            current_phase=self.snapshot.current_phase,
+            lineage_doctrine=lineage_doctrine,
+            threat_profile=sorted(threat_tags),
+            civil_war_pressure=civil_war_pressure,
+        )
         self.snapshot.successor_options = state
         self._begin_decision(state, (ChooseSuccessorAction,))
         action = self.session.resolve_current_decision(lambda decision: self._resolve_successor_choice(decision, candidates))

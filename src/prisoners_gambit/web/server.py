@@ -387,8 +387,14 @@ function renderSnapshot(snapshot){
     : '<li>No summary yet.</li>';
 
   const successors = snapshot.successor_options?.candidates || [];
+  const successorState = snapshot.successor_options;
+  const successorContext = successorState
+    ? `<li><strong>Succession pivot</strong>: phase ${escapeHtml(successorState.current_phase || 'unknown')} · civil-war pressure ${escapeHtml(successorState.civil_war_pressure || 'unknown')}</li>`
+      + `<li><strong>Inherited doctrine</strong>: ${escapeHtml(successorState.lineage_doctrine || 'unknown')}</li>`
+      + `<li><strong>Threat profile</strong>: ${escapeHtml((successorState.threat_profile || []).join(', ') || 'none')}</li>`
+    : '';
   document.getElementById('successors').innerHTML = successors.length
-    ? successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml((candidate.shaping_causes || []).join('; '))}</span><br/><span class='muted'>${escapeHtml(candidate.attractive_now)} | ${escapeHtml(candidate.danger_later)}</span></li>`).join('')
+    ? successorContext + successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml((candidate.shaping_causes || []).join('; '))}</span><br/><span>${escapeHtml((candidate.tradeoffs || []).join(' | '))}</span><br/><span class='muted'>${escapeHtml(candidate.succession_pitch)} | ${escapeHtml(candidate.succession_risk)}</span><br/><span class='muted'>${escapeHtml(candidate.attractive_now)} | ${escapeHtml(candidate.danger_later)}</span><br/><span class='muted'>${escapeHtml(candidate.anti_score_note)}</span></li>`).join('')
     : '<li>No successor choice active.</li>';
 
   const completion = snapshot.completion;

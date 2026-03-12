@@ -373,6 +373,11 @@ The next layers should focus on:
 - stronger endgame identity in civil war
 - expanded web UI beyond the featured match prototype
 
+Successor comparison should now explicitly frame **competing futures**:
+- each candidate should surface safe/explosive, ecosystem/civil-war, stable/volatile, trust/coercion, and referendum/duel posture
+- each candidate should include context-sensitive rationale for "why now", "why dangerous later", and "what lineage future this implies"
+- selection copy should discourage score-only choices and instead emphasize phase fit, threat profile, and doctrine inheritance
+
 ## Summary
 
 Prisoner's Gambit works best when it feels like a game about evolving ideas under pressure. The prisoner's dilemma is the substrate, but the real design goal is lineage strategy: shaping branches, surviving selection, reading hidden opponents, and deciding which descendant becomes the final face of the bloodline.
