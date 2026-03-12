@@ -180,6 +180,7 @@ def test_web_session_dynasty_board_marks_host_and_successor_pressure_on_floor_su
     assert board_entries
     assert any(entry["is_current_host"] for entry in board_entries)
     assert any(entry["has_successor_pressure"] for entry in board_entries)
+    assert any(entry.get("successor_pressure_cause", "").startswith("because ") for entry in board_entries if entry["has_successor_pressure"])
 
 
 def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice() -> None:
@@ -197,6 +198,28 @@ def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice
     assert board_entries
     assert any(entry["is_current_host"] for entry in board_entries)
     assert any(entry["has_civil_war_danger"] for entry in board_entries)
+    assert any(entry.get("civil_war_danger_cause", "").startswith("because ") for entry in board_entries if entry["has_civil_war_danger"])
+
+
+def test_web_session_lineage_chronicle_captures_causal_pivots_without_duplication() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    chronicle = session.view()["snapshot"]["lineage_chronicle"]
+    doctrine_entries = [entry for entry in chronicle if entry["event_type"] == "doctrine_pivot"]
+    successor_pressure_entries = [entry for entry in chronicle if entry["event_type"] == "successor_pressure"]
+
+    assert len(doctrine_entries) == 1
+    assert doctrine_entries[0]["cause"] is not None
+    assert doctrine_entries[0]["cause"].startswith("because ")
+    assert len(successor_pressure_entries) == 1
+    assert successor_pressure_entries[0]["cause"] is not None
+    assert successor_pressure_entries[0]["cause"].startswith("because ")
 
 def test_web_session_state_serialization_round_trip_preserves_pending_decision_and_snapshot() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=3)

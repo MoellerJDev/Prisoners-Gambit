@@ -495,8 +495,8 @@ function renderSnapshot(snapshot){
     ? dynastyEntries.map(entry => {
         const markers = [
           entry.is_current_host ? effectToken('HOST') : '',
-          entry.has_successor_pressure ? effectToken('HEIR PRESSURE') : '',
-          entry.has_civil_war_danger ? effectToken('DANGER') : '',
+          entry.has_successor_pressure ? `${effectToken('HEIR PRESSURE')} ${escapeHtml(entry.successor_pressure_cause || '')}` : '',
+          entry.has_civil_war_danger ? `${effectToken('DANGER')} ${escapeHtml(entry.civil_war_danger_cause || '')}` : '',
         ].filter(Boolean).join(' ');
         return `<li>${branchToken(entry.name)} · ${escapeHtml(entry.role)} · ${escapeHtml(entry.doctrine_signal)} · score ${entry.score} / wins ${entry.wins} · depth ${entry.lineage_depth}<br/>${markers || '<span class="muted">No active lineage pressure markers.</span>'}</li>`;
       }).join('')
@@ -509,7 +509,7 @@ function renderSnapshot(snapshot){
 
   const chronicle = snapshot.lineage_chronicle || [];
   document.getElementById('chronicle').innerHTML = chronicle.length
-    ? chronicle.map(entry => `<li><strong>${escapeHtml(entry.event_type.replaceAll('_', ' '))}</strong> · floor ${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}</li>`).join('')
+    ? chronicle.map(entry => `<li><strong>${escapeHtml(entry.event_type.replaceAll('_', ' '))}</strong> · floor ${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}${entry.cause ? `<br/><span class='muted'>${escapeHtml(entry.cause)}</span>` : ''}</li>`).join('')
     : '<li>No lineage events yet.</li>';
 
   const pending = latest?.pending_message ? `${latest.pending_screen}: ${latest.pending_message}` : '';
