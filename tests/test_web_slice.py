@@ -123,6 +123,7 @@ def test_web_session_lineage_chronicle_records_major_milestones() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
     session.advance()
@@ -188,6 +189,23 @@ def test_web_session_dynasty_board_marks_host_and_successor_pressure_on_floor_su
     assert any(entry.get("successor_pressure_cause", "").startswith("because ") for entry in board_entries if entry["has_successor_pressure"])
 
 
+def test_floor_summary_lineage_doctrine_does_not_claim_no_survivors_when_lineage_entries_exist() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    floor_summary = session.view()["snapshot"]["floor_summary"]
+    assert floor_summary is not None
+    doctrine = floor_summary["heir_pressure"]["branch_doctrine"]
+    lineage_entries = [entry for entry in floor_summary["entries"] if entry["name"] in {"You", "Echo Branch"}]
+
+    assert len(lineage_entries) >= 2
+    assert "no active branch survived" not in doctrine.lower()
+
+
 def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
@@ -196,6 +214,7 @@ def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
 
@@ -219,6 +238,7 @@ def test_web_session_dynasty_board_can_show_host_pressure_and_danger_on_same_ent
 
     candidates = session.view()["decision"]["candidates"]
     top_candidate_index = max(range(len(candidates)), key=lambda idx: candidates[idx]["score"])
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
     session.submit_action(ChooseSuccessorAction(candidate_index=top_candidate_index))
     session.advance()
 
@@ -302,6 +322,7 @@ def test_web_session_restore_from_civil_war_transition_continues_to_civil_war_de
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
 
@@ -419,24 +440,9 @@ def test_web_session_advances_through_full_run_loop() -> None:
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    assert session.view()["pending_screen"] == "civil_war_transition"
-    assert "Start the civil-war round." in session.view()["pending_message"]
-    civil_war_context = session.view()["snapshot"]["civil_war_context"]
-    assert civil_war_context is not None
-    assert civil_war_context["scoring_rules"]
-    assert session.view()["snapshot"]["floor_vote_result"] is None
-
-    session.advance()
-    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
-    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
-    session.advance()
-    assert session.view()["decision_type"] == "FloorVoteDecisionState"
-    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
-    session.advance()
-    assert session.view()["pending_screen"] == "floor_summary"
-    assert "continue to reward selection" in session.view()["pending_message"]
-
-    session.advance()
+    assert session.view()["pending_screen"] is None
+    assert session.view()["snapshot"]["current_phase"] == "ecosystem"
+    assert session.view()["snapshot"]["civil_war_context"] is None
     assert session.view()["decision_type"] == "PowerupChoiceState"
     powerup_offer = session.view()["decision"]["offers"][0]
     assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure"}.issubset(powerup_offer.keys())
@@ -455,7 +461,7 @@ def test_web_session_advances_through_full_run_loop() -> None:
 
 
 
-def test_web_session_successor_transition_requires_civil_war_gameplay_before_completion() -> None:
+def test_web_session_successor_transition_does_not_require_civil_war_when_trigger_not_met() -> None:
     session = FeaturedMatchWebSession(seed=17, rounds=1)
     session.start()
 
@@ -467,9 +473,9 @@ def test_web_session_successor_transition_requires_civil_war_gameplay_before_com
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    session.advance()
 
-    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert session.view()["decision_type"] == "PowerupChoiceState"
+    assert session.view()["snapshot"]["current_phase"] == "ecosystem"
     assert session.view()["status"] != "completed"
     assert session.view()["snapshot"]["completion"] is None
 
@@ -488,14 +494,7 @@ def test_web_session_pending_messages_describe_next_required_action() -> None:
     session.advance()
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    assert "Start the civil-war round." in session.view()["pending_message"]
-
-    session.advance()
-    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
-    session.advance()
-    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
-    session.advance()
-    assert session.view()["pending_message"] == "Floor 2 complete — continue to reward selection."
+    assert session.view()["pending_message"] is None
 
 
 
@@ -521,9 +520,9 @@ def test_web_session_transition_action_label_is_contextual_for_pending_states() 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
 
-    assert session.view()["pending_screen"] == "civil_war_transition"
-    assert session.view()["transition_action_visible"] is True
-    assert session.view()["transition_action_label"] == "Start civil-war round"
+    assert session.view()["pending_screen"] is None
+    assert session.view()["transition_action_visible"] is False
+    assert session.view()["transition_action_label"] is None
 
 
 def test_web_session_transition_action_hidden_when_decision_is_active() -> None:

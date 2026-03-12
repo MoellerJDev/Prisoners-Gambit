@@ -614,6 +614,9 @@ class FeaturedMatchWebSession:
             self.snapshot.session_status = "awaiting_decision"
             return
 
+        self._begin_powerup_choice()
+
+    def _begin_powerup_choice(self) -> None:
         self._powerup_offers = generate_powerup_offers(3, self.rng)
         offers = [to_powerup_offer_view(offer) for offer in self._powerup_offers]
         state = PowerupChoiceState(floor_number=self.floor_number, offers=offers)
@@ -629,35 +632,50 @@ class FeaturedMatchWebSession:
         chosen.is_player = True
         self.player.is_player = False
         self.player = chosen
-        self.snapshot.current_phase = "civil_war"
-        self.snapshot.floor_vote_result = None
-        self.snapshot.civil_war_context = build_civil_war_context(
-            branches=list(self._successor_candidates),
-            current_host=chosen,
-            featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
-        )
-        self.floor_number = 2
-        self.snapshot.current_floor = self.floor_number
-        self._pending_screen = "civil_war_transition"
-        self._pending_message = f"{self.snapshot.civil_war_context.thesis} Start the civil-war round."
         self._append_chronicle_entry(
             event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
             event_type="successor_choice",
             floor_number=1,
             summary=f"Host shifted from {previous_host} to {chosen.name}.",
         )
-        self._append_chronicle_entry(
-            event_id="phase_transition:civil_war",
-            event_type="phase_transition",
-            floor_number=self.floor_number,
-            summary=f"Civil war started: {self.snapshot.civil_war_context.thesis}",
-            cause=self._lineage_cause_phrase(
-                list(self.snapshot.civil_war_context.doctrine_pressure),
-                self.snapshot.civil_war_context.thesis,
-            ),
-        )
+
+        if self._should_start_civil_war():
+            self.snapshot.current_phase = "civil_war"
+            self.snapshot.floor_vote_result = None
+            self.snapshot.civil_war_context = build_civil_war_context(
+                branches=list(self._successor_candidates),
+                current_host=chosen,
+                featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
+            )
+            self.floor_number = 2
+            self.snapshot.current_floor = self.floor_number
+            self._pending_screen = "civil_war_transition"
+            self._pending_message = f"{self.snapshot.civil_war_context.thesis} Start the civil-war round."
+            self._append_chronicle_entry(
+                event_id="phase_transition:civil_war",
+                event_type="phase_transition",
+                floor_number=self.floor_number,
+                summary=f"Civil war started: {self.snapshot.civil_war_context.thesis}",
+                cause=self._lineage_cause_phrase(
+                    list(self.snapshot.civil_war_context.doctrine_pressure),
+                    self.snapshot.civil_war_context.thesis,
+                ),
+            )
+        else:
+            self.snapshot.current_phase = "ecosystem"
+            self.snapshot.civil_war_context = None
+            self._pending_screen = None
+            self._pending_message = None
+            self._begin_powerup_choice()
+
         self.snapshot.session_status = "running"
         self._rebuild_dynasty_board()
+
+    def _should_start_civil_war(self) -> bool:
+        floor_summary = self.snapshot.floor_summary
+        if floor_summary is None or floor_summary.heir_pressure is None:
+            return False
+        return len(floor_summary.heir_pressure.future_threats) == 0
 
     def _begin_civil_war_floor(self) -> None:
         self.round_index = 0
@@ -971,14 +989,50 @@ class FeaturedMatchWebSession:
         return adjusted_my, adjusted_opp
 
     def _mock_floor_ranking(self) -> list[Agent]:
-        player_clone = Agent(name=self.player.name, genome=self.player.genome, is_player=True, score=self.player_score, wins=2, lineage_depth=self.player.lineage_depth)
-        rival_a = Agent(name="Echo Branch", genome=self._opponent_genome(), score=self.player_score - 1, wins=2, lineage_depth=2)
-        rival_b = Agent(name="Delta Branch", genome=self._default_genome(), score=self.player_score - 2, wins=1, lineage_depth=3)
+        player_clone = Agent(
+            name=self.player.name,
+            genome=self.player.genome,
+            is_player=True,
+            score=self.player_score,
+            wins=2,
+            lineage_id=self.player.lineage_id,
+            lineage_depth=self.player.lineage_depth,
+        )
+        rival_a = Agent(
+            name="Echo Branch",
+            genome=self._opponent_genome(),
+            score=self.player_score - 1,
+            wins=2,
+            lineage_id=self.player.lineage_id,
+            lineage_depth=2,
+        )
+        rival_b = Agent(
+            name="Delta Branch",
+            genome=self._default_genome(),
+            score=self.player_score - 2,
+            wins=1,
+            lineage_id=None,
+            lineage_depth=3,
+        )
         return [player_clone, rival_a, rival_b]
 
     def _build_successor_candidates(self) -> list[Agent]:
-        candidate_a = Agent(name="Heir A", genome=self._default_genome(), score=self.player_score + 1, wins=2, lineage_depth=2)
-        candidate_b = Agent(name="Heir B", genome=self._opponent_genome(), score=self.player_score, wins=1, lineage_depth=3)
+        candidate_a = Agent(
+            name="Heir A",
+            genome=self._default_genome(),
+            score=self.player_score + 1,
+            wins=2,
+            lineage_id=self.player.lineage_id,
+            lineage_depth=2,
+        )
+        candidate_b = Agent(
+            name="Heir B",
+            genome=self._opponent_genome(),
+            score=self.player_score,
+            wins=1,
+            lineage_id=self.player.lineage_id,
+            lineage_depth=3,
+        )
         return [candidate_a, candidate_b]
 
     @staticmethod

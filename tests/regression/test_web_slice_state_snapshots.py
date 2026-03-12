@@ -71,9 +71,9 @@ def test_regression_successor_transition_payload_contract() -> None:
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
     snapshot = session.view()["snapshot"]
-    assert session.view()["pending_screen"] == "civil_war_transition"
-    assert snapshot["current_phase"] == "civil_war"
-    assert snapshot["current_floor"] == 2
+    assert session.view()["pending_screen"] is None
+    assert snapshot["current_phase"] == "ecosystem"
+    assert snapshot["current_floor"] == 1
 
 
 def test_regression_completion_snapshot_contract() -> None:
@@ -102,9 +102,22 @@ def test_regression_successor_transition_requires_civil_war_decision() -> None:
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    assert session.view()["status"] == "running"
+    assert session.view()["status"] == "awaiting_decision"
     assert session.view()["snapshot"]["completion"] is None
+    assert session.view()["decision_type"] == "PowerupChoiceState"
+    assert session.view()["snapshot"]["current_phase"] == "ecosystem"
 
+
+def test_regression_civil_war_transition_occurs_when_outsiders_are_exhausted() -> None:
+    session = build_seeded_session(seed=7, rounds=1)
+    reach_successor_choice(session)
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
+
+    from prisoners_gambit.core.interaction import ChooseSuccessorAction
+
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+
+    assert session.view()["pending_screen"] == "civil_war_transition"
     assert session.view()["snapshot"]["current_phase"] == "civil_war"
+    assert session.view()["snapshot"]["current_floor"] == 2
