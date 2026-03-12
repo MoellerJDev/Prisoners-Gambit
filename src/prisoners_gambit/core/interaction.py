@@ -155,6 +155,11 @@ class FloorSummaryEntryView:
 class PowerupOfferView:
     name: str
     description: str
+    doctrine_vector: str | None = None
+    branch_identity: str | None = None
+    tradeoff: str | None = None
+    phase_support: str | None = None
+    successor_pressure: str | None = None
     tags: list[str] | None = None
 
 
@@ -162,6 +167,11 @@ class PowerupOfferView:
 class GenomeEditOfferView:
     name: str
     description: str
+    doctrine_vector: str | None = None
+    branch_identity: str | None = None
+    tradeoff: str | None = None
+    phase_support: str | None = None
+    successor_pressure: str | None = None
     current_summary: str | None = None
     projected_summary: str | None = None
 

@@ -285,7 +285,12 @@ function renderDecision(data){
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = 'btn';
-      btn.innerHTML = `${idx + 1}. ${powerupToken(offer.name)}`;
+      const label = `${idx + 1}. ${offer.name}`;
+      const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
+      const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
+      const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
+      btn.innerHTML = `${powerupToken(label)}<br/><span class='muted'>${escapeHtml(doctrine)}</span>`;
+      btn.title = [offer.branch_identity, doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
       actions.appendChild(btn);
     });
@@ -299,7 +304,12 @@ function renderDecision(data){
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = 'btn';
-      btn.innerHTML = `${idx + 1}. ${genomeToken(offer.name)}`;
+      const label = `${idx + 1}. ${offer.name}`;
+      const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
+      const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
+      const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
+      btn.innerHTML = `${genomeToken(label)}<br/><span class='muted'>${escapeHtml(doctrine)}</span>`;
+      btn.title = [offer.branch_identity, doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_genome_edit', offer_index: idx});
       actions.appendChild(btn);
     });
