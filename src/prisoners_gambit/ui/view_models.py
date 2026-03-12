@@ -56,13 +56,32 @@ def format_genome_edit_line(index: int, edit: GenomeEdit) -> str:
     return f"{index}. {edit.name} - {edit.description}"
 
 
+def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list[str]:
+    lines: list[str] = []
+    if offer.doctrine_vector:
+        lines.append(f"Doctrine vector: {offer.doctrine_vector}")
+    if offer.branch_identity:
+        lines.append(f"Branch identity: {offer.branch_identity}")
+    if offer.tradeoff:
+        lines.append(f"Tradeoff: {offer.tradeoff}")
+    if offer.phase_support:
+        lines.append(f"Phase support: {offer.phase_support}")
+    if offer.successor_pressure:
+        lines.append(f"Successor pressure: {offer.successor_pressure}")
+    return lines
+
+
 def format_powerup_offer_view(index: int, offer: PowerupOfferView) -> str:
-    return f"{index}. {offer.name} - {offer.description}"
+    lines = [f"{index}. {offer.name} - {offer.description}"]
+    lines.extend(f"   {line}" for line in _offer_doctrine_lines(offer))
+    return "\n".join(lines)
 
 
 def format_genome_edit_offer_view(index: int, offer: GenomeEditOfferView) -> str:
     projected_suffix = f" -> {offer.projected_summary}" if offer.projected_summary else ""
-    return f"{index}. {offer.name} - {offer.description}{projected_suffix}"
+    lines = [f"{index}. {offer.name} - {offer.description}{projected_suffix}"]
+    lines.extend(f"   {line}" for line in _offer_doctrine_lines(offer))
+    return "\n".join(lines)
 
 
 def format_successor_candidate_view(index: int, candidate: SuccessorCandidateView) -> str:
