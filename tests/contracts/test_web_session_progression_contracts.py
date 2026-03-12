@@ -65,8 +65,8 @@ def test_contract_successor_transition_then_offer_flow() -> None:
     assert session.view()["snapshot"]["current_phase"] == "civil_war"
 
     session.advance()
-    assert session_milestone(session) == "powerup_choice_decision"
-    assert decision_type(session) == "PowerupChoiceState"
+    assert session_milestone(session) == "featured_round_decision"
+    assert decision_type(session) == "FeaturedRoundDecisionState"
 
 
 def test_contract_completion_flow_semantics() -> None:
@@ -98,6 +98,16 @@ def test_contract_rejects_wrong_state_action_submission_after_transition() -> No
     session.start()
     reach_successor_choice(session)
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+
+    from prisoners_gambit.core.interaction import ChooseFloorVoteAction
+
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
 

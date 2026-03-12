@@ -92,3 +92,19 @@ def test_regression_completion_snapshot_contract() -> None:
     assert completion["floor_number"] == snapshot["current_floor"]
     assert completion["seed"] == 7
     assert completion["player_name"]
+
+
+def test_regression_successor_transition_requires_civil_war_decision() -> None:
+    session = build_seeded_session(seed=7, rounds=1)
+    reach_successor_choice(session)
+
+    from prisoners_gambit.core.interaction import ChooseSuccessorAction
+
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    assert session.view()["status"] == "running"
+    assert session.view()["snapshot"]["completion"] is None
+
+    session.advance()
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert session.view()["snapshot"]["current_phase"] == "civil_war"
