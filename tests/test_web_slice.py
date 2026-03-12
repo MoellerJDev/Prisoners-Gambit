@@ -780,6 +780,25 @@ def test_web_root_and_json_responses_include_content_length_for_http11() -> None
         server.server_close()
 
 
+
+
+def test_web_html_adds_mobile_viewport_and_touch_targets() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "name='viewport'" in web_server.HTML
+    assert ".actions .btn { flex:1 1 100%; min-height:48px; }" in web_server.HTML
+    assert ".controls .btn { flex:1 1 calc(50% - 10px); }" in web_server.HTML
+
+
+def test_web_html_prioritizes_mobile_panel_ordering() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "grid > .decision-panel { order:1; }" in web_server.HTML
+    assert "grid > .result-panel { order:2; }" in web_server.HTML
+    assert "grid > .summary-panel { order:3; }" in web_server.HTML
+    assert "panel panel-enter vote-panel panel-mobile-low" in web_server.HTML
+
+
 def test_web_root_contains_full_run_panels() -> None:
     from http.server import ThreadingHTTPServer
 
