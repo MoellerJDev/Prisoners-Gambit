@@ -41,5 +41,5 @@ def test_build_civil_war_context_adds_featured_inference_pressure() -> None:
         ]),
     )
 
-    assert any("coercion pressure" in line for line in context.doctrine_pressure)
-    assert any("retaliation pressure" in line for line in context.doctrine_pressure)
+    assert any("force-heavy pressure" in line for line in context.doctrine_pressure)
+    assert any("retaliation risk" in line for line in context.doctrine_pressure)

@@ -244,7 +244,7 @@ class FeaturedMatchWebSession:
             event_id=f"run_start:seed:{self.seed}",
             event_type="run_start",
             floor_number=self.floor_number,
-            summary=f"Run opened with seed {self.seed} in ecosystem phase.",
+            summary=f"Run started (seed {self.seed}) in ecosystem play.",
         )
         self._rebuild_dynasty_board()
         self._begin_featured_round_decision()
@@ -316,7 +316,7 @@ class FeaturedMatchWebSession:
         if self._pending_screen == "floor_summary":
             return "Review successor options" if self.floor_number == 1 else "Continue to reward selection"
         if self._pending_screen == "civil_war_transition":
-            return "Begin civil-war round"
+            return "Start civil-war round"
         if self.session.status == "running":
             return "Continue to next phase"
         return None
@@ -533,19 +533,19 @@ class FeaturedMatchWebSession:
         self._pending_screen = "floor_summary"
         next_step = "review successor options" if self.floor_number == 1 else "continue to reward selection"
         self._pending_message = f"Floor {self.floor_number} complete — {next_step}."
-        featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No decisive featured inference survived this floor."
-        doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Doctrine trend unresolved."
+        featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No solid clue read survived this floor."
+        doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Playstyle trend is unclear."
         self._append_chronicle_entry(
             event_id=f"floor_complete:{self.floor_number}",
             event_type="floor_complete",
             floor_number=self.floor_number,
-            summary=f"Floor {self.floor_number} closed at score {self.player_score}. {featured_note}",
+            summary=f"Floor {self.floor_number} ended at {self.player_score} points. {featured_note}",
         )
         self._append_chronicle_entry(
             event_id=f"doctrine_pivot:{self.floor_number}",
             event_type="doctrine_pivot",
             floor_number=self.floor_number,
-            summary=f"Lineage doctrine signal: {doctrine_note}",
+            summary=f"Lineage trend: {doctrine_note}",
             cause=self._lineage_cause_phrase(
                 self.snapshot.floor_summary.featured_inference_summary,
                 doctrine_note,
@@ -604,10 +604,10 @@ class FeaturedMatchWebSession:
                 event_id=f"successor_pressure:{self.floor_number}",
                 event_type="successor_pressure",
                 floor_number=self.floor_number,
-                summary=f"Succession pressure is {civil_war_pressure}; threat tags: {', '.join(sorted(threat_tags)) or 'none' }.",
+                summary=f"Succession pressure is {civil_war_pressure}; top threats: {', '.join(sorted(threat_tags)) or 'none' }.",
                 cause=self._lineage_cause_phrase(
                     list(self.snapshot.floor_summary.featured_inference_summary) if self.snapshot.floor_summary else [],
-                    f"threat profile {', '.join(sorted(threat_tags)) or 'none'}",
+                    f"threat mix {', '.join(sorted(threat_tags)) or 'none'}",
                 ),
             )
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)
@@ -639,7 +639,7 @@ class FeaturedMatchWebSession:
         self.floor_number = 2
         self.snapshot.current_floor = self.floor_number
         self._pending_screen = "civil_war_transition"
-        self._pending_message = f"{self.snapshot.civil_war_context.thesis} Begin civil-war round."
+        self._pending_message = f"{self.snapshot.civil_war_context.thesis} Start the civil-war round."
         self._append_chronicle_entry(
             event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
             event_type="successor_choice",
@@ -650,7 +650,7 @@ class FeaturedMatchWebSession:
             event_id="phase_transition:civil_war",
             event_type="phase_transition",
             floor_number=self.floor_number,
-            summary=f"Civil war ignited: {self.snapshot.civil_war_context.thesis}",
+            summary=f"Civil war started: {self.snapshot.civil_war_context.thesis}",
             cause=self._lineage_cause_phrase(
                 list(self.snapshot.civil_war_context.doctrine_pressure),
                 self.snapshot.civil_war_context.thesis,
@@ -687,10 +687,10 @@ class FeaturedMatchWebSession:
             event_id=f"civil_war_floor_start:{self.floor_number}:{self.opponent.name}",
             event_type="civil_war_round_start",
             floor_number=self.floor_number,
-            summary=f"Civil-war round opened against {self.opponent.name}.",
+            summary=f"Civil-war round started against {self.opponent.name}.",
             cause=self._lineage_cause_phrase(
                 doctrine_pressure,
-                "civil-war pressure requires a direct duel",
+                "civil-war pressure forces a direct duel",
             ),
         )
         self._begin_featured_round_decision()

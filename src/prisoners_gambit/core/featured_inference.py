@@ -40,15 +40,15 @@ def summarize_featured_inference_signals(signals: FeaturedInferenceSignals) -> l
     if not signals.observed_clues:
         return []
 
-    summary: list[str] = [f"Observed featured signals: {' | '.join(signals.observed_clues)}"]
+    summary: list[str] = [f"Clues seen: {' | '.join(signals.observed_clues)}"]
     if signals.inferred_tags:
         summary.append(
-            "Branch doctrine signals surfaced this floor: "
+            "Likely playstyle tags this floor: "
             + ", ".join(signals.inferred_tags)
-            + ". Use these reads to judge successor stability vs deception."
+            + ". Use this to compare heir fit and risk."
         )
 
-    summary.append("Inference scope is observational only: no hidden opponents were revealed.")
+    summary.append("Clues only: this does not reveal hidden opponents.")
     return summary
 
 
@@ -70,7 +70,7 @@ def successor_featured_inference_context(
     future_frame = _future_frame(candidate_tags)
     stability_frame = _stability_frame(candidate_tags=candidate_tags, aligned=aligned)
     confidence_frame = _confidence_frame(aligned)
-    return f"Competing future: {future_frame} Stability: {stability_frame} Featured-read confidence: {confidence_frame}"
+    return f"Future path: {future_frame} Stability: {stability_frame} Clue confidence: {confidence_frame}"
 
 
 def civil_war_featured_inference_context(featured_inference_signals: FeaturedInferenceSignals) -> list[str]:
@@ -84,16 +84,16 @@ def civil_war_featured_inference_context(featured_inference_signals: FeaturedInf
     legitimacy = inferred & {"Cooperative", "Forgiving", "Consensus", "Referendum"}
 
     if coercive and legitimacy:
-        framing.append("Featured read: doctrine tension is active—legitimacy heirs and coercive heirs can both claim lineage continuity.")
+        framing.append("Clue read: both trust and force plans look live right now.")
     elif coercive:
-        framing.append("Featured read: coercion pressure is reinforced—expect legitimacy backlash if hardline branches stumble.")
+        framing.append("Clue read: force-heavy pressure is rising; backlash risk is real if hardline branches stumble.")
     elif legitimacy:
-        framing.append("Featured read: legitimacy pressure is reinforced—deception or punishment spikes can trigger abrupt trust collapse.")
+        framing.append("Clue read: trust-heavy pressure is rising; betrayal spikes can break that trust quickly.")
 
     if inferred & {"Retaliatory", "Punishing"}:
-        framing.append("Featured read: retaliation pressure is elevated—single betrayals can cascade into rivalry scoring races.")
+        framing.append("Clue read: retaliation risk is high—one betrayal can snowball.")
     if inferred & {"Exploitative", "Aggressive", "Punishing"}:
-        framing.append("Featured read: deception risk is live—mirror rounds can pivot on bait-and-retaliate traps.")
+        framing.append("Clue read: deception risk is live—mirror rounds can flip on bait-and-punish traps.")
 
     return framing[:2]
 
