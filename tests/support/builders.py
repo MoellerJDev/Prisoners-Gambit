@@ -85,6 +85,33 @@ def build_featured_prompt(
     )
 
 
+def build_featured_prompt_scenario(
+    *,
+    floor_number: int = 1,
+    total_rounds: int = 4,
+    my_history: list[int] | None = None,
+    opp_history: list[int] | None = None,
+) -> FeaturedMatchPrompt:
+    """Build a prompt with internally consistent scores/history for scenario tests."""
+    my_hist = list(my_history) if my_history is not None else [COOPERATE, DEFECT]
+    opp_hist = list(opp_history) if opp_history is not None else [COOPERATE, COOPERATE]
+    if len(my_hist) != len(opp_hist):
+        raise ValueError("my_history and opp_history must be the same length")
+
+    return FeaturedMatchPrompt(
+        floor_number=floor_number,
+        masked_opponent_label="Scenario Opponent",
+        round_index=len(my_hist),
+        total_rounds=total_rounds,
+        my_history=my_hist,
+        opp_history=opp_hist,
+        my_match_score=sum(my_hist),
+        opp_match_score=sum(opp_hist),
+        suggested_move=COOPERATE,
+        roster_entries=[],
+    )
+
+
 def build_successor_candidates() -> list[Agent]:
     alpha = build_agent("Heir Alpha", lineage_id=1, lineage_depth=1, score=12, wins=3)
     alpha.powerups.append(TrustDividend())
@@ -93,7 +120,12 @@ def build_successor_candidates() -> list[Agent]:
     return [alpha, beta]
 
 
-def build_successor_choice_context(*, include_outsider_threat: bool = True) -> tuple[list[Agent], list[SuccessorCandidateView]]:
+def build_successor_choice_context(
+    *,
+    include_outsider_threat: bool = True,
+    threat_tag: str = "counterintel-heavy",
+    phase: str = "ecosystem",
+) -> tuple[list[Agent], list[SuccessorCandidateView]]:
     """Return ranked agents and successor views to test phase-aware successor framing."""
     player = build_agent("You", is_player=True, lineage_id=1, score=11, wins=2)
     candidates = build_successor_candidates()
@@ -101,13 +133,15 @@ def build_successor_choice_context(*, include_outsider_threat: bool = True) -> t
     if include_outsider_threat:
         threat = build_agent("Threat Node", lineage_id=9, score=13, wins=4, genome=build_genome(table_bits="DDDD", noise=0.05))
         threat.powerups.append(CounterIntel())
+        if threat_tag:
+            threat.public_profile = f"Threat profile: {threat_tag}"
         ranked.insert(0, threat)
 
     top_score = max(agent.score for agent in ranked)
     views = []
     for agent in candidates:
         identity = analyze_agent_identity(agent)
-        assessment = assess_successor_candidate(agent, top_score=top_score, phase="ecosystem")
+        assessment = assess_successor_candidate(agent, top_score=top_score, phase=phase)
         views.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
     return ranked, views
 
