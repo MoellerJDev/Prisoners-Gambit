@@ -420,7 +420,7 @@ def test_web_session_advances_through_full_run_loop() -> None:
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
     assert session.view()["pending_screen"] == "civil_war_transition"
-    assert "Continue to civil-war round." in session.view()["pending_message"]
+    assert "Begin civil-war round." in session.view()["pending_message"]
     civil_war_context = session.view()["snapshot"]["civil_war_context"]
     assert civil_war_context is not None
     assert civil_war_context["scoring_rules"]
@@ -483,12 +483,12 @@ def test_web_session_pending_messages_describe_next_required_action() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
 
-    assert session.view()["pending_message"] == "Floor 1 complete — continue to successor choice."
+    assert session.view()["pending_message"] == "Floor 1 complete — review successor options."
 
     session.advance()
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    assert "Continue to civil-war round." in session.view()["pending_message"]
+    assert "Begin civil-war round." in session.view()["pending_message"]
 
     session.advance()
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
@@ -497,6 +497,50 @@ def test_web_session_pending_messages_describe_next_required_action() -> None:
     session.advance()
     assert session.view()["pending_message"] == "Floor 2 complete — continue to reward selection."
 
+
+
+
+
+def test_web_session_transition_action_label_is_contextual_for_pending_states() -> None:
+    session = FeaturedMatchWebSession(seed=19, rounds=1)
+    session.start()
+
+    assert session.view()["transition_action_visible"] is False
+    assert session.view()["transition_action_label"] is None
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    assert session.view()["pending_screen"] == "floor_summary"
+    assert session.view()["transition_action_visible"] is True
+    assert session.view()["transition_action_label"] == "Review successor options"
+
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    assert session.view()["pending_screen"] == "civil_war_transition"
+    assert session.view()["transition_action_visible"] is True
+    assert session.view()["transition_action_label"] == "Begin civil-war round"
+
+
+def test_web_session_transition_action_hidden_when_decision_is_active() -> None:
+    session = FeaturedMatchWebSession(seed=21, rounds=1)
+    session.start()
+
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert session.view()["transition_action_visible"] is False
+    assert session.view()["transition_action_label"] is None
+
+
+def test_web_html_uses_contextual_transition_action_button() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "id='advanceBtn'" in web_server.HTML
+    assert "transition_action_label" in web_server.HTML
+    assert "Continue Screen" not in web_server.HTML
 
 
 def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:

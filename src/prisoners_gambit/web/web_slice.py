@@ -298,6 +298,7 @@ class FeaturedMatchWebSession:
             return
 
     def view(self) -> dict:
+        transition_label = self._transition_action_label()
         return {
             "status": self.session.status,
             "decision_type": type(self.session.current_decision).__name__ if self.session.current_decision else None,
@@ -305,7 +306,20 @@ class FeaturedMatchWebSession:
             "snapshot": asdict(self.snapshot),
             "pending_screen": self._pending_screen,
             "pending_message": self._pending_message,
+            "transition_action_label": transition_label,
+            "transition_action_visible": transition_label is not None,
         }
+
+    def _transition_action_label(self) -> str | None:
+        if self.session.current_decision is not None:
+            return None
+        if self._pending_screen == "floor_summary":
+            return "Review successor options" if self.floor_number == 1 else "Continue to reward selection"
+        if self._pending_screen == "civil_war_transition":
+            return "Begin civil-war round"
+        if self.session.status == "running":
+            return "Continue to next phase"
+        return None
 
     @property
     def should_autopilot_featured_match(self) -> bool:
@@ -517,7 +531,7 @@ class FeaturedMatchWebSession:
         )
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
-        next_step = "continue to successor choice" if self.floor_number == 1 else "continue to reward selection"
+        next_step = "review successor options" if self.floor_number == 1 else "continue to reward selection"
         self._pending_message = f"Floor {self.floor_number} complete — {next_step}."
         featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No decisive featured inference survived this floor."
         doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Doctrine trend unresolved."
@@ -625,7 +639,7 @@ class FeaturedMatchWebSession:
         self.floor_number = 2
         self.snapshot.current_floor = self.floor_number
         self._pending_screen = "civil_war_transition"
-        self._pending_message = f"{self.snapshot.civil_war_context.thesis} Continue to civil-war round."
+        self._pending_message = f"{self.snapshot.civil_war_context.thesis} Begin civil-war round."
         self._append_chronicle_entry(
             event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
             event_type="successor_choice",

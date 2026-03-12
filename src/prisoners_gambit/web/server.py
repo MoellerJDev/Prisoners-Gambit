@@ -235,7 +235,7 @@ HTML = """<!doctype html>
   <div class='panel panel-enter'>
     <div class='row'>
       <button class='btn' onclick='startRun()'>Start Run</button>
-      <button class='btn' onclick='advanceFlow()'>Continue Screen</button>
+      <button id='advanceBtn' class='btn' onclick='advanceFlow()' style='display:none;'>Continue to next phase</button>
       <button class='btn' onclick='exportSaveCode()'>Export Save Code</button>
       <button class='btn' onclick='importSaveCode()'>Import Save Code</button>
       <button class='btn' onclick='clearRun()'>Clear Run</button>
@@ -540,8 +540,14 @@ function renderSnapshot(snapshot){
     ? chronicle.slice(-6).reverse().map(entry => `<li><strong>${escapeHtml(entry.event_type.replaceAll('_', ' '))}</strong> · floor ${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}${entry.cause ? `<br/><span class='muted'>${escapeHtml(entry.cause)}</span>` : ''}</li>`).join('')
     : '<li>No lineage events yet.</li>';
 
-  const pending = latest?.pending_message ? `Next action (${latest.pending_screen}): ${latest.pending_message}` : '';
+  const pending = latest?.pending_message ? `Next action: ${latest.pending_message}` : '';
   document.getElementById('pending').textContent = pending;
+
+  const advanceBtn = document.getElementById('advanceBtn');
+  const transitionLabel = latest?.transition_action_label || '';
+  const transitionVisible = Boolean(latest?.transition_action_visible && transitionLabel);
+  advanceBtn.style.display = transitionVisible ? 'inline-flex' : 'none';
+  advanceBtn.textContent = transitionLabel || 'Continue to next phase';
 }
 
 async function refresh(){
