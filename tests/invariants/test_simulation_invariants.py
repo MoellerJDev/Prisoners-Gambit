@@ -26,7 +26,7 @@ def _seeded_summary_digest(seed: int) -> dict:
         "opponent_score": snapshot["latest_featured_round"]["opponent_total"],
         "vote": copy.deepcopy(snapshot["floor_vote_result"]),
         "entries": [
-            (entry["name"], entry["score"], entry["wins"])
+            (entry["is_player"], entry["score"], entry["wins"])
             for entry in snapshot["floor_summary"]["entries"]
         ],
     }
@@ -101,21 +101,28 @@ def test_invariant_floor_summary_heir_pressure_shape_across_multiple_seeds() -> 
 
 
 def test_invariant_no_missing_required_fields_in_decision_payloads() -> None:
-    session = build_seeded_session(seed=44, rounds=1)
+    required_by_state = {
+        "FeaturedRoundDecisionState": {"prompt", "valid_actions", "stance_options"},
+        "SuccessorChoiceState": {"floor_number", "candidates", "valid_actions"},
+        "PowerupChoiceState": {"floor_number", "offers", "valid_actions"},
+    }
 
-    first_decision = session.view()["decision"]
-    assert {"prompt", "valid_actions", "stance_options"}.issubset(first_decision.keys())
+    for seed in random_seed_set(base=144, size=4):
+        session = build_seeded_session(seed=seed, rounds=1)
 
-    play_until_floor_summary(session)
-    session.advance()
-    successor_decision = session.view()["decision"]
-    assert {"floor_number", "candidates", "valid_actions"}.issubset(successor_decision.keys())
+        first_decision = session.view()
+        assert required_by_state[first_decision["decision_type"]].issubset(first_decision["decision"].keys())
 
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
-    session.advance()
-    powerup_decision = session.view()["decision"]
-    assert {"floor_number", "offers", "valid_actions"}.issubset(powerup_decision.keys())
+        play_until_floor_summary(session)
+        session.advance()
+        successor = session.view()
+        assert required_by_state[successor["decision_type"]].issubset(successor["decision"].keys())
+
+        session.submit_action(ChooseSuccessorAction(candidate_index=0))
+        session.advance()
+        session.advance()
+        powerup = session.view()
+        assert required_by_state[powerup["decision_type"]].issubset(powerup["decision"].keys())
 
 
 def test_invariant_floor_summary_structure_is_possible_and_consistent() -> None:
@@ -132,3 +139,12 @@ def test_invariant_floor_summary_structure_is_possible_and_consistent() -> None:
     assert len(state.heir_pressure.successor_candidates) <= 3
     assert len(state.heir_pressure.future_threats) <= 3
     assert all(entry.score >= 0 and entry.wins >= 0 for entry in state.entries)
+
+
+def test_invariant_progression_digest_is_stable_across_repeated_runs() -> None:
+    seeds = random_seed_set(base=202, size=4)
+    for seed in seeds:
+        first = _seeded_summary_digest(seed)
+        second = _seeded_summary_digest(seed)
+        third = _seeded_summary_digest(seed)
+        assert first == second == third

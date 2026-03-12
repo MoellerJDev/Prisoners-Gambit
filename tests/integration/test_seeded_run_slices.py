@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from prisoners_gambit.core.constants import DEFECT
 from prisoners_gambit.core.interaction import ChooseSuccessorAction
 
 from support.builders import build_seeded_session
@@ -12,7 +13,7 @@ from support.session_driver import (
 )
 
 
-@pytest.mark.parametrize("seed", [7, 21, 41])
+@pytest.mark.parametrize("seed", [7, 21, 41, 77, 99])
 def test_seeded_floor_progression_slice_reaches_floor_summary(seed: int) -> None:
     session = build_seeded_session(seed=seed, rounds=2)
     play_until_floor_summary(session, featured_mode="manual_cooperate")
@@ -23,7 +24,7 @@ def test_seeded_floor_progression_slice_reaches_floor_summary(seed: int) -> None
     assert view["snapshot"]["floor_vote_result"] is not None
 
 
-@pytest.mark.parametrize("seed", [11, 41])
+@pytest.mark.parametrize("seed", [11, 41, 88])
 def test_seeded_successor_choice_slice_promotes_selected_candidate(seed: int) -> None:
     session = build_seeded_session(seed=seed, rounds=2)
     reach_successor_choice(session)
@@ -40,8 +41,9 @@ def test_seeded_successor_choice_slice_promotes_selected_candidate(seed: int) ->
     assert session.player.name == first_candidate
 
 
-def test_seeded_alternate_successor_path_chooses_second_candidate() -> None:
-    session = build_seeded_session(seed=41, rounds=2)
+@pytest.mark.parametrize("seed", [41, 123])
+def test_seeded_alternate_successor_path_chooses_second_candidate(seed: int) -> None:
+    session = build_seeded_session(seed=seed, rounds=2)
     reach_successor_choice(session)
 
     candidates = session.view()["decision"]["candidates"]
@@ -55,8 +57,9 @@ def test_seeded_alternate_successor_path_chooses_second_candidate() -> None:
     assert session.view()["snapshot"]["current_phase"] == "civil_war"
 
 
-def test_seeded_autopilot_match_slice_reaches_summary() -> None:
-    session = build_seeded_session(seed=77, rounds=3)
+@pytest.mark.parametrize("seed", [77, 178])
+def test_seeded_autopilot_match_slice_reaches_summary(seed: int) -> None:
+    session = build_seeded_session(seed=seed, rounds=3)
     play_until_floor_summary(session, featured_mode="autopilot_match")
 
     snapshot = session.view()["snapshot"]
@@ -65,20 +68,31 @@ def test_seeded_autopilot_match_slice_reaches_summary() -> None:
     assert session.view()["pending_screen"] == "floor_summary"
 
 
-def test_seeded_stance_slice_reaches_summary_with_active_stance_history() -> None:
-    session = build_seeded_session(seed=88, rounds=3)
+@pytest.mark.parametrize("seed", [88, 111])
+def test_seeded_stance_slice_reaches_summary_with_active_stance_history(seed: int) -> None:
+    session = build_seeded_session(seed=seed, rounds=3)
     play_until_floor_summary(session, featured_mode="stance_follow_autopilot")
 
     snapshot = session.view()["snapshot"]
     assert snapshot["latest_featured_round"] is not None
-    # stance may expire by summary time; contract is that session completed round resolution normally.
     assert snapshot["floor_vote_result"] is not None
 
 
-def test_seeded_completion_slice_with_nondefault_successor_finishes() -> None:
-    session = build_seeded_session(seed=41, rounds=2)
+def test_seeded_defect_vote_path_changes_vote_summary_shape() -> None:
+    session = build_seeded_session(seed=61, rounds=2)
+    play_until_floor_summary(session, featured_mode="manual_cooperate", floor_vote=DEFECT)
+
+    vote = session.view()["snapshot"]["floor_vote_result"]
+    assert vote["player_vote"] == DEFECT
+    assert vote["cooperation_prevailed"] is False
+    assert vote["defectors"] > vote["cooperators"]
+
+
+@pytest.mark.parametrize("seed,candidate_index", [(41, 1), (99, 0)])
+def test_seeded_completion_slice_finishes_for_multiple_paths(seed: int, candidate_index: int) -> None:
+    session = build_seeded_session(seed=seed, rounds=2)
     reach_successor_choice(session)
-    advance_through_transition_and_complete(session, candidate_index=1)
+    advance_through_transition_and_complete(session, candidate_index=candidate_index)
 
     completion = session.view()["snapshot"]["completion"]
     assert completion is not None

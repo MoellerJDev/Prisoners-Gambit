@@ -13,6 +13,15 @@ from support.session_driver import advance_through_transition_and_complete, play
 REQUIRED_COMPLETION_KEYS = {"outcome", "floor_number", "player_name", "seed"}
 REQUIRED_SUMMARY_ENTRY_KEYS = {"agent_id", "name", "is_player", "score", "wins", "tags", "descriptor", "genome_summary", "powerups"}
 REQUIRED_VOTE_KEYS = {"floor_number", "cooperation_prevailed", "cooperators", "defectors", "player_vote", "player_reward"}
+REQUIRED_SUCCESSOR_KEYS = {
+    "name",
+    "lineage_depth",
+    "branch_role",
+    "tradeoffs",
+    "strengths",
+    "liabilities",
+    "lineage_future",
+}
 
 
 def test_regression_floor_summary_snapshot_contract_shape() -> None:
@@ -30,6 +39,7 @@ def test_regression_floor_summary_snapshot_contract_shape() -> None:
     assert isinstance(summary, dict)
     assert summary["floor_number"] == snapshot["current_floor"]
     assert len(summary["entries"]) >= 2
+    assert sum(1 for entry in summary["entries"] if entry["is_player"]) == 1
     for entry in summary["entries"]:
         assert REQUIRED_SUMMARY_ENTRY_KEYS.issubset(entry.keys())
         assert isinstance(entry["score"], int)
@@ -46,19 +56,20 @@ def test_regression_successor_transition_payload_contract() -> None:
 
     decision = session.view()["decision"]
     assert decision is not None
+    assert decision["floor_number"] == session.view()["snapshot"]["current_floor"]
     assert len(decision["candidates"]) >= 1
 
     candidate = decision["candidates"][0]
-    assert {"name", "lineage_depth", "branch_role", "tradeoffs", "strengths", "liabilities", "lineage_future"}.issubset(
-        candidate.keys()
-    )
+    assert REQUIRED_SUCCESSOR_KEYS.issubset(candidate.keys())
 
     from prisoners_gambit.core.interaction import ChooseSuccessorAction
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
+    snapshot = session.view()["snapshot"]
     assert session.view()["pending_screen"] == "civil_war_transition"
-    assert session.view()["snapshot"]["current_phase"] == "civil_war"
+    assert snapshot["current_phase"] == "civil_war"
+    assert snapshot["current_floor"] == 2
 
 
 def test_regression_completion_snapshot_contract() -> None:
@@ -75,4 +86,5 @@ def test_regression_completion_snapshot_contract() -> None:
     assert REQUIRED_COMPLETION_KEYS.issubset(completion.keys())
     assert completion["outcome"] in {"victory", "eliminated"}
     assert completion["floor_number"] == snapshot["current_floor"]
+    assert completion["seed"] == 7
     assert completion["player_name"]

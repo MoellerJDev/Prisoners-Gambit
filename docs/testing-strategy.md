@@ -76,7 +76,9 @@ Over time, older files can be gradually migrated as they are touched.
 - Featured prompt builder (`build_featured_prompt`) for typed interaction tests.
 - Successor candidate builder (`build_successor_candidates`) for heir/succession tests.
 - Floor summary builder (`build_floor_summary_state`) with heir-pressure mapping included.
-- Session-driving helpers for common seeded flows (`play_until_floor_summary`, `advance_through_transition_and_complete`).
+- Session-driving helpers for common seeded flows (`play_until_floor_summary`, `reach_successor_choice`, `advance_through_transition_and_complete`).
+- Named milestone helpers (`session_milestone`, `pending_screen`) to keep progression assertions explicit.
+- Scenario-oriented helpers for richer setup (`build_featured_prompt_scenario`, phase-aware `build_successor_choice_context`).
 
 ## Contributor guidance
 
@@ -109,3 +111,10 @@ When adding tests:
 - Use `tests/support/builders.py` for common test objects (agents/genomes/successor contexts).
 - Use `tests/support/session_driver.py` for run milestones (reach summary, successor, completion).
 - If a helper becomes too specific to one test, keep that setup local instead of expanding shared helpers.
+
+### Practical seed and brittleness checklist
+- Pick seeds that cover at least one baseline and one alternate branch (e.g., different successor index or vote choice).
+- Keep seed lists short for integration tests (2-5), and larger only for invariants that assert cross-seed properties.
+- Assert **contract shape + semantics** (required keys, phase transitions, completion meaning) before asserting exact textual content.
+- Avoid freezing candidate names/order unless the interface contract explicitly promises them.
+- Prefer helper-driven progression checkpoints (`session_milestone`) instead of ad-hoc loops in each test file.
