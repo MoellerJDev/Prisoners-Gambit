@@ -112,6 +112,49 @@ def test_featured_match_web_session_clears_match_autopilot_after_manual_move() -
     assert session.should_autopilot_featured_match is False
 
 
+def test_web_session_state_serialization_round_trip_preserves_pending_decision_and_snapshot() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=3)
+    session.start()
+    session.submit_action(
+        ChooseRoundStanceAction(
+            mode="set_round_stance",
+            stance="follow_autopilot_for_n_rounds",
+            rounds=2,
+        )
+    )
+    session.advance()
+
+    saved = session.serialize_state()
+    restored = FeaturedMatchWebSession.from_serialized_state(saved)
+
+    assert restored.view() == session.view()
+
+
+def test_web_session_state_restore_continues_deterministically() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=3)
+    session.start()
+    session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
+    session.advance()
+
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+
+    session.advance()
+    restored.advance()
+    assert restored.view() == session.view()
+
+
+def test_web_session_save_code_export_import_round_trip() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=2)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+
+    save_code = session.export_save_code()
+    restored = FeaturedMatchWebSession.import_save_code(save_code)
+
+    assert restored.view() == session.view()
+
+
 def test_featured_match_web_session_rejects_duration_stance_without_rounds() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=3)
     session.start()
@@ -472,3 +515,56 @@ def test_web_api_keeps_session_state_isolated_per_server_instance() -> None:
         server_a.server_close()
         server_b.shutdown()
         server_b.server_close()
+
+
+def test_web_api_can_export_and_import_explicit_save_state() -> None:
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        req = Request(f"http://127.0.0.1:{port}/api/run/start", method="POST")
+        with urlopen(req) as resp:
+            started = json.loads(resp.read().decode("utf-8"))
+        assert started["status"] == "awaiting_decision"
+
+        action_body = json.dumps({"type": "manual_move", "move": "C"}).encode("utf-8")
+        req = Request(
+            f"http://127.0.0.1:{port}/api/action",
+            data=action_body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urlopen(req):
+            pass
+
+        req = Request(f"http://127.0.0.1:{port}/api/run/export", method="POST")
+        with urlopen(req) as resp:
+            exported = json.loads(resp.read().decode("utf-8"))
+        assert exported["state"]["version"] == 1
+        assert exported["save_code"]
+
+        req = Request(f"http://127.0.0.1:{port}/api/run/clear", method="POST")
+        with urlopen(req):
+            pass
+        with urlopen(f"http://127.0.0.1:{port}/api/state") as resp:
+            cleared = json.loads(resp.read().decode("utf-8"))
+        assert cleared["status"] == "not_started"
+
+        import_body = json.dumps({"state": exported["state"]}).encode("utf-8")
+        req = Request(
+            f"http://127.0.0.1:{port}/api/run/import",
+            data=import_body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urlopen(req) as resp:
+            restored = json.loads(resp.read().decode("utf-8"))
+        assert restored["status"] == "awaiting_decision"
+        assert restored["snapshot"]["latest_featured_round"] is not None
+    finally:
+        server.shutdown()
+        server.server_close()
