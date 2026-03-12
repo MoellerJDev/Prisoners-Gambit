@@ -420,7 +420,7 @@ def test_web_session_advances_through_full_run_loop() -> None:
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
     assert session.view()["pending_screen"] == "civil_war_transition"
-    assert "Begin civil-war round." in session.view()["pending_message"]
+    assert "Start the civil-war round." in session.view()["pending_message"]
     civil_war_context = session.view()["snapshot"]["civil_war_context"]
     assert civil_war_context is not None
     assert civil_war_context["scoring_rules"]
@@ -488,7 +488,7 @@ def test_web_session_pending_messages_describe_next_required_action() -> None:
     session.advance()
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
-    assert "Begin civil-war round." in session.view()["pending_message"]
+    assert "Start the civil-war round." in session.view()["pending_message"]
 
     session.advance()
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
@@ -523,7 +523,7 @@ def test_web_session_transition_action_label_is_contextual_for_pending_states() 
 
     assert session.view()["pending_screen"] == "civil_war_transition"
     assert session.view()["transition_action_visible"] is True
-    assert session.view()["transition_action_label"] == "Begin civil-war round"
+    assert session.view()["transition_action_label"] == "Start civil-war round"
 
 
 def test_web_session_transition_action_hidden_when_decision_is_active() -> None:
@@ -547,9 +547,9 @@ def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
     from prisoners_gambit.web import server as web_server
 
     assert "markerTokens.join(' ')" in web_server.HTML
-    assert "effectToken('HOST')" in web_server.HTML
-    assert "effectToken('HEIR PRESSURE')" in web_server.HTML
-    assert "effectToken('DANGER')" in web_server.HTML
+    assert "effectToken('YOU')" in web_server.HTML
+    assert "effectToken('HEIR')" in web_server.HTML
+    assert "effectToken('RISK')" in web_server.HTML
 
 def test_web_api_drives_session_without_terminal_formatting() -> None:
     from http.server import ThreadingHTTPServer

@@ -32,9 +32,9 @@ def test_floor_summary_synthesis_uses_normalized_featured_signals() -> None:
     )
     summary = summarize_featured_inference_signals(signals)
 
-    assert any("Observed featured signals" in line for line in summary)
-    assert any("Branch doctrine signals surfaced this floor" in line for line in summary)
-    assert any("Inference scope is observational only" in line for line in summary)
+    assert any("Clues seen" in line for line in summary)
+    assert any("Likely playstyle tags this floor" in line for line in summary)
+    assert any("Clues only" in line for line in summary)
 
 
 def test_legacy_synthesis_api_still_matches_normalized_summary_pipeline() -> None:
@@ -66,7 +66,7 @@ def test_successor_framing_uses_normalized_featured_inference_signals() -> None:
         featured_inference_signals=signals,
     )
 
-    assert aligned is not None and "Competing future" in aligned
+    assert aligned is not None and "Future path" in aligned
     assert aligned is not None and "consensus lineage branch" in aligned
     assert aligned is not None and "high" in aligned
     assert mismatched is not None and "hardline lineage branch" in mismatched
@@ -145,8 +145,8 @@ def test_civil_war_framing_uses_normalized_featured_signals_deterministically() 
     second = civil_war_featured_inference_context(signals)
 
     assert first == second
-    assert any("coercion pressure" in line for line in first)
-    assert any("retaliation pressure" in line for line in first)
+    assert any("force-heavy pressure" in line for line in first)
+    assert any("retaliation risk" in line for line in first)
 
 
 def test_civil_war_framing_is_independent_of_floor_summary_wording() -> None:
@@ -166,4 +166,4 @@ def test_civil_war_framing_is_independent_of_floor_summary_wording() -> None:
     after_reword = civil_war_featured_inference_context(normalize_featured_inference_signals(clues))
 
     assert baseline == after_reword
-    assert any("legitimacy pressure" in line for line in baseline)
+    assert any("trust-heavy pressure" in line for line in baseline)
