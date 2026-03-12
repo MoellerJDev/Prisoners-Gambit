@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
+from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
@@ -21,8 +22,6 @@ from prisoners_gambit.core.interaction import (
     FloorRosterEntryView,
     FloorRosterState,
     FloorSummaryEntryView,
-    FloorSummaryHeirPressureView,
-    FloorSummaryPressureEntryView,
     FloorSummaryState,
     FloorVoteDecisionState,
     FloorVoteResult,
@@ -171,35 +170,7 @@ class InteractionController:
             ranked=ranked,
             player_lineage_id=player.lineage_id if player else None,
         )
-        heir_pressure = FloorSummaryHeirPressureView(
-            branch_doctrine=heir_pressure_analysis.branch_doctrine,
-            successor_candidates=[
-                FloorSummaryPressureEntryView(
-                    name=candidate.name,
-                    branch_role=candidate.branch_role,
-                    shaping_causes=list(candidate.shaping_causes),
-                    score=candidate.score,
-                    wins=candidate.wins,
-                    tags=list(candidate.tags),
-                    descriptor=candidate.descriptor,
-                    rationale=candidate.rationale,
-                )
-                for candidate in heir_pressure_analysis.successor_candidates
-            ],
-            future_threats=[
-                FloorSummaryPressureEntryView(
-                    name=candidate.name,
-                    branch_role=candidate.branch_role,
-                    shaping_causes=list(candidate.shaping_causes),
-                    score=candidate.score,
-                    wins=candidate.wins,
-                    tags=list(candidate.tags),
-                    descriptor=candidate.descriptor,
-                    rationale=candidate.rationale,
-                )
-                for candidate in heir_pressure_analysis.future_threats
-            ],
-        )
+        heir_pressure = to_floor_summary_heir_pressure_view(heir_pressure_analysis)
         self.snapshot.floor_summary = FloorSummaryState(
             floor_number=floor_number,
             entries=entries,
@@ -364,25 +335,7 @@ class InteractionController:
                 phase=self.snapshot.current_phase,
             )
             successor_views.append(
-                SuccessorCandidateView(
-                    name=candidate.name,
-                    lineage_depth=candidate.lineage_depth,
-                    score=candidate.score,
-                    wins=candidate.wins,
-                    branch_role=assessment.branch_role,
-                    branch_doctrine=assessment.branch_doctrine,
-                    shaping_causes=list(assessment.shaping_causes),
-                    tags=identity.tags,
-                    descriptor=identity.descriptor,
-                    tradeoffs=list(assessment.tradeoffs),
-                    strengths=list(assessment.strengths),
-                    liabilities=list(assessment.liabilities),
-                    attractive_now=assessment.attractive_now,
-                    danger_later=assessment.danger_later,
-                    lineage_future=assessment.lineage_future,
-                    genome_summary=candidate.genome.summary(),
-                    powerups=[powerup.name for powerup in candidate.powerups],
-                )
+                to_successor_candidate_view(agent=candidate, identity=identity, assessment=assessment)
             )
 
         state = SuccessorChoiceState(floor_number=floor_number, candidates=successor_views)

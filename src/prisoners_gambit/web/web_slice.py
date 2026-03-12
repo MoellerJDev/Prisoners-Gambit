@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 import random
 
+from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
@@ -19,8 +20,6 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundResult,
     FeaturedRoundStanceView,
     FloorSummaryEntryView,
-    FloorSummaryHeirPressureView,
-    FloorSummaryPressureEntryView,
     FloorSummaryState,
     FloorVoteDecisionState,
     FloorVotePrompt,
@@ -305,35 +304,7 @@ class FeaturedMatchWebSession:
                 )
             )
         pressure = analyze_floor_heir_pressure(summary_agents, self.player.lineage_id)
-        heir_pressure = FloorSummaryHeirPressureView(
-            branch_doctrine=pressure.branch_doctrine,
-            successor_candidates=[
-                FloorSummaryPressureEntryView(
-                    name=c.name,
-                    branch_role=c.branch_role,
-                    shaping_causes=list(c.shaping_causes),
-                    score=c.score,
-                    wins=c.wins,
-                    tags=list(c.tags),
-                    descriptor=c.descriptor,
-                    rationale=c.rationale,
-                )
-                for c in pressure.successor_candidates
-            ],
-            future_threats=[
-                FloorSummaryPressureEntryView(
-                    name=c.name,
-                    branch_role=c.branch_role,
-                    shaping_causes=list(c.shaping_causes),
-                    score=c.score,
-                    wins=c.wins,
-                    tags=list(c.tags),
-                    descriptor=c.descriptor,
-                    rationale=c.rationale,
-                )
-                for c in pressure.future_threats
-            ],
-        )
+        heir_pressure = to_floor_summary_heir_pressure_view(pressure)
         self.snapshot.floor_summary = FloorSummaryState(
             floor_number=self.floor_number,
             entries=entries,
@@ -351,27 +322,7 @@ class FeaturedMatchWebSession:
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
                 assessment = assess_successor_candidate(agent, top_score=top_score, phase=self.snapshot.current_phase)
-                candidates.append(
-                    SuccessorCandidateView(
-                        name=agent.name,
-                        lineage_depth=agent.lineage_depth,
-                        score=agent.score,
-                        wins=agent.wins,
-                        branch_role=assessment.branch_role,
-                        branch_doctrine=assessment.branch_doctrine,
-                        shaping_causes=list(assessment.shaping_causes),
-                        tags=identity.tags,
-                        descriptor=identity.descriptor,
-                        tradeoffs=list(assessment.tradeoffs),
-                        strengths=list(assessment.strengths),
-                        liabilities=list(assessment.liabilities),
-                        attractive_now=assessment.attractive_now,
-                        danger_later=assessment.danger_later,
-                        lineage_future=assessment.lineage_future,
-                        genome_summary=agent.genome.summary(),
-                        powerups=[p.name for p in agent.powerups],
-                    )
-                )
+                candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
             state = SuccessorChoiceState(floor_number=self.floor_number, candidates=candidates)
             self.snapshot.successor_options = state
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)

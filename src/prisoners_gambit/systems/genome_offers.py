@@ -8,6 +8,10 @@ from prisoners_gambit.core.genome_edits import GenomeEdit
 
 
 def generate_genome_edit_offers(count: int, rng: random.Random) -> list[GenomeEdit]:
+    """Generate deterministic edit offers with at least one doctrine pivot in larger sets.
+
+    This keeps early branch identity shaping visible without adding extra offer systems.
+    """
     pool = build_genome_edit_pool()
     pivot_types = (FortressDoctrine, TyrantDoctrine, WildcardDoctrine)
 

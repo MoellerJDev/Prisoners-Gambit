@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from prisoners_gambit.app.heir_view_mapping import to_successor_candidate_view
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
@@ -241,27 +242,7 @@ class TerminalRenderer(Renderer):
         for agent in successors:
             identity = analyze_agent_identity(agent)
             assessment = assess_successor_candidate(agent, top_score=top_score)
-            candidates.append(
-                SuccessorCandidateView(
-                    name=agent.name,
-                    lineage_depth=agent.lineage_depth,
-                    score=agent.score,
-                    wins=agent.wins,
-                    branch_role=assessment.branch_role,
-                    branch_doctrine=assessment.branch_doctrine,
-                    shaping_causes=list(assessment.shaping_causes),
-                    tags=identity.tags,
-                    descriptor=identity.descriptor,
-                    tradeoffs=list(assessment.tradeoffs),
-                    strengths=list(assessment.strengths),
-                    liabilities=list(assessment.liabilities),
-                    attractive_now=assessment.attractive_now,
-                    danger_later=assessment.danger_later,
-                    lineage_future=assessment.lineage_future,
-                    genome_summary=agent.genome.summary(),
-                    powerups=[powerup.name for powerup in agent.powerups],
-                )
-            )
+            candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
         state = SuccessorChoiceState(floor_number=0, candidates=candidates)
         action = self.resolve_successor_choice(state)
         return successors[action.candidate_index]

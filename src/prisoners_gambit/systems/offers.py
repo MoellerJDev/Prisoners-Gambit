@@ -8,6 +8,10 @@ from prisoners_gambit.core.powerups import Powerup
 
 
 def generate_powerup_offers(count: int, rng: random.Random) -> list[Powerup]:
+    """Generate deterministic powerup offers with one doctrine-pillar nudge in larger sets.
+
+    The bias is small and explicit so branch divergence remains understandable and tuneable.
+    """
     pool = build_powerup_pool()
 
     pillar_groups = {

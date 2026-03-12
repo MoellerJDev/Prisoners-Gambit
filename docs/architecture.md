@@ -333,6 +333,7 @@ Player-lineage descendants receive:
 - increased mutation pressure
 - inherited perks
 - lineage naming
+- a branch-focus nudge (safe/ruthless/unstable/referendum) used to create earlier, legible successor divergence
 
 This causes the lineage to branch more aggressively over time.
 

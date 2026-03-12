@@ -85,6 +85,12 @@ class EvolutionEngine:
         return survivors, eliminated
 
     def repopulate(self, survivors: list[Agent], target_size: int) -> list[Agent]:
+        """Rebuild population while nudging active player-lineage branches to diverge earlier.
+
+        The divergence pressure is intentional: it creates legible successor alternatives
+        before late game. The focus + doctrine-powerup injection is deterministic under seed
+        and controlled by `BRANCH_FOCUS_CONFIG` for easier balancing.
+        """
         next_population = list(survivors)
         player_lineage_id = detect_player_lineage_id(survivors)
 
