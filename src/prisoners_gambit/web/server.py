@@ -514,12 +514,19 @@ function renderSnapshot(snapshot){
   const dynastyEntries = snapshot.dynasty_board?.entries || [];
   document.getElementById('dynastyBoard').innerHTML = dynastyEntries.length
     ? dynastyEntries.map(entry => {
-        const markers = [
+        const markerTokens = [
           entry.is_current_host ? effectToken('HOST') : '',
-          entry.has_successor_pressure ? `${effectToken('HEIR PRESSURE')} ${escapeHtml(entry.successor_pressure_cause || '')}` : '',
-          entry.has_civil_war_danger ? `${effectToken('DANGER')} ${escapeHtml(entry.civil_war_danger_cause || '')}` : '',
+          entry.has_successor_pressure ? effectToken('HEIR PRESSURE') : '',
+          entry.has_civil_war_danger ? effectToken('DANGER') : '',
         ].filter(Boolean);
-        return `<li>${branchToken(entry.name)} · ${escapeHtml(entry.role)} · score ${entry.score} · depth ${entry.lineage_depth}<br/>${markers[0] || '<span class="muted">No active lineage pressure markers.</span>'}${markers[1] ? `<br/><span class="muted">${markers[1]}</span>` : ''}</li>`;
+        const markerCauses = [
+          entry.has_successor_pressure && entry.successor_pressure_cause ? `Heir pressure: ${escapeHtml(entry.successor_pressure_cause)}` : '',
+          entry.has_civil_war_danger && entry.civil_war_danger_cause ? `Danger: ${escapeHtml(entry.civil_war_danger_cause)}` : '',
+        ].filter(Boolean);
+        const markerBlock = markerTokens.length
+          ? `${markerTokens.join(' ')}${markerCauses.length ? `<br/><span class="muted">${markerCauses.slice(0, 2).join(' · ')}</span>` : ''}`
+          : '<span class="muted">No active lineage pressure markers.</span>';
+        return `<li>${branchToken(entry.name)} · ${escapeHtml(entry.role)} · score ${entry.score} · depth ${entry.lineage_depth}<br/>${markerBlock}</li>`;
       }).join('')
     : '<li>No lineage board yet.</li>';
 

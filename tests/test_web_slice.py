@@ -206,6 +206,29 @@ def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice
     assert any(entry.get("civil_war_danger_cause", "").startswith("because ") for entry in board_entries if entry["has_civil_war_danger"])
 
 
+
+
+def test_web_session_dynasty_board_can_show_host_pressure_and_danger_on_same_entry() -> None:
+    session = FeaturedMatchWebSession(seed=1, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    candidates = session.view()["decision"]["candidates"]
+    top_candidate_index = max(range(len(candidates)), key=lambda idx: candidates[idx]["score"])
+    session.submit_action(ChooseSuccessorAction(candidate_index=top_candidate_index))
+    session.advance()
+
+    board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
+    host_entries = [entry for entry in board_entries if entry["is_current_host"]]
+    assert host_entries
+    host_entry = host_entries[0]
+    assert host_entry["has_successor_pressure"] is True
+    assert host_entry["has_civil_war_danger"] is True
+
 def test_web_session_lineage_chronicle_captures_causal_pivots_without_duplication() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
@@ -473,6 +496,16 @@ def test_web_session_pending_messages_describe_next_required_action() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     assert session.view()["pending_message"] == "Floor 2 complete — continue to reward selection."
+
+
+
+def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "markerTokens.join(' ')" in web_server.HTML
+    assert "effectToken('HOST')" in web_server.HTML
+    assert "effectToken('HEIR PRESSURE')" in web_server.HTML
+    assert "effectToken('DANGER')" in web_server.HTML
 
 def test_web_api_drives_session_without_terminal_formatting() -> None:
     from http.server import ThreadingHTTPServer
