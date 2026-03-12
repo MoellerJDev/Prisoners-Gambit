@@ -93,6 +93,7 @@ HTML = """<!doctype html>
 <html>
 <head>
   <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'/>
   <title>Prisoner's Gambit Web Prototype</title>
   <style>
     :root {
@@ -172,12 +173,21 @@ HTML = """<!doctype html>
     .btn {
       border:1px solid var(--border);
       border-radius:9px;
-      padding:8px 12px;
+      padding:10px 14px;
+      min-height:42px;
+      min-width:42px;
       cursor:pointer;
       background:#1b2639;
       color:var(--text);
       transition:transform .12s ease, border-color .15s ease, background .15s ease;
     }
+    .controls { gap:10px; }
+    .controls .btn { flex:0 1 auto; }
+    .decision-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 40%); }
+    .primary-action { border-color:var(--accent); background:#223553; font-weight:600; }
+    .actions { gap:10px; }
+    .actions .btn { flex:1 1 170px; justify-content:center; display:inline-flex; align-items:center; }
+    .panel-mobile-low { opacity:.98; }
     .btn:hover { transform:translateY(-1px); border-color:var(--accent); background:#24334d; }
     .btn:active { transform:translateY(0); }
 
@@ -224,7 +234,32 @@ HTML = """<!doctype html>
       .fx-item, .panel-enter, .score-pop, .btn { animation:none; transition:none; }
     }
 
-    @media(max-width:960px){ .grid { grid-template-columns:1fr; } }
+    @media(max-width:960px){
+      .grid { grid-template-columns:1fr; }
+      .kv { grid-template-columns:150px 1fr; }
+    }
+
+    @media(max-width:700px){
+      .wrap { padding:14px 12px 18px; }
+      .sub { margin-bottom:10px; font-size:14px; }
+      .panel { padding:12px; border-radius:11px; }
+      .controls .btn { flex:1 1 calc(50% - 10px); }
+      .pill { font-size:12px; padding:4px 8px; }
+      .kv { grid-template-columns:1fr; row-gap:4px; }
+      .kv > div:nth-child(odd) { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+      .actions { margin-top:8px; }
+      .actions .btn { flex:1 1 100%; min-height:48px; }
+      .grid > .decision-panel { order:1; }
+      .grid > .result-panel { order:2; }
+      .grid > .summary-panel { order:3; }
+      .grid > .successor-panel { order:4; }
+      .grid > .vote-panel { order:5; }
+      .grid > .completion-panel { order:6; }
+      .grid > .dynasty-panel { order:7; }
+      .grid > .chronicle-panel { order:8; }
+      .grid > .panel-mobile-low { order:9; }
+      pre { max-height:180px; font-size:11px; }
+    }
   </style>
 </head>
 <body>
@@ -233,9 +268,9 @@ HTML = """<!doctype html>
   <div class='sub'>Full-run web prototype with typed decisions and atmospheric table-style UI.</div>
 
   <div class='panel panel-enter'>
-    <div class='row'>
+    <div class='row controls'>
       <button class='btn' onclick='startRun()'>Start Run</button>
-      <button id='advanceBtn' class='btn' onclick='advanceFlow()' style='display:none;'>Continue to next phase</button>
+      <button id='advanceBtn' class='btn primary-action' onclick='advanceFlow()' style='display:none;'>Continue to next phase</button>
       <button class='btn' onclick='exportSaveCode()'>Export Save Code</button>
       <button class='btn' onclick='importSaveCode()'>Import Save Code</button>
       <button class='btn' onclick='clearRun()'>Clear Run</button>
@@ -257,46 +292,46 @@ HTML = """<!doctype html>
   </div>
 
   <div class='grid'>
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter decision-panel'>
       <h3>Current Decision</h3>
       <div id='decisionType' class='muted'>No decision yet.</div>
       <div id='decisionView' class='kv muted' style='margin-top:10px;'>Start run to begin.</div>
-      <div id='actions' class='row' style='margin-top:10px;'></div>
+      <div id='actions' class='row actions' style='margin-top:10px;'></div>
       <div id='pending' class='warn' style='margin-top:8px;'></div>
     </div>
 
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter result-panel'>
       <h3>Latest Round Result</h3>
       <div id='roundResult' class='muted'>No rounds resolved yet.</div>
       <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
     </div>
 
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter vote-panel panel-mobile-low'>
       <h3>Floor Referendum</h3>
       <div id='voteResult' class='muted'>No vote yet.</div>
     </div>
 
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter summary-panel'>
       <h3>Floor Summary</h3>
       <ul id='floorSummary' class='list muted'><li>No summary yet.</li></ul>
     </div>
 
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter successor-panel'>
       <h3>Successor Options</h3>
       <ul id='successors' class='list muted'><li>No successor choice active.</li></ul>
     </div>
 
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter dynasty-panel panel-mobile-low'>
       <h3>Dynasty Board</h3>
       <ul id='dynastyBoard' class='list muted'><li>No lineage board yet.</li></ul>
     </div>
 
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter completion-panel'>
       <h3>Run Completion</h3>
       <div id='completion' class='muted'>Run in progress.</div>
     </div>
 
-    <div class='panel panel-enter'>
+    <div class='panel panel-enter chronicle-panel panel-mobile-low'>
       <h3>Lineage Chronicle</h3>
       <ul id='chronicle' class='list muted'><li>No lineage events yet.</li></ul>
     </div>
