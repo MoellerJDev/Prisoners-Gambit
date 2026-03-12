@@ -273,6 +273,11 @@ HTML = """<!doctype html>
       <h3>Run Completion</h3>
       <div id='completion' class='muted'>Run in progress.</div>
     </div>
+
+    <div class='panel panel-enter'>
+      <h3>Lineage Chronicle</h3>
+      <ul id='chronicle' class='list muted'><li>No lineage events yet.</li></ul>
+    </div>
   </div>
 
   <div class='panel panel-enter' style='margin-top:14px;'>
@@ -484,6 +489,11 @@ function renderSnapshot(snapshot){
   document.getElementById('completion').innerHTML = completion
     ? `${effectToken(completion.outcome.toUpperCase())} on floor ${completion.floor_number} as ${branchToken(completion.player_name)}`
     : 'Run in progress.';
+
+  const chronicle = snapshot.lineage_chronicle || [];
+  document.getElementById('chronicle').innerHTML = chronicle.length
+    ? chronicle.map(entry => `<li><strong>${escapeHtml(entry.event_type.replaceAll('_', ' '))}</strong> · floor ${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}</li>`).join('')
+    : '<li>No lineage events yet.</li>';
 
   const pending = latest?.pending_message ? `${latest.pending_screen}: ${latest.pending_message}` : '';
   document.getElementById('pending').textContent = pending;

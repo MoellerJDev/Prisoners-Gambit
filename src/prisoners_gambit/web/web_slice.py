@@ -42,6 +42,7 @@ from prisoners_gambit.core.interaction import (
     PowerupOfferView,
     RoundDirectiveResolution,
     RoundResolutionBreakdown,
+    LineageChronicleEntry,
     RunCompletion,
     RunSnapshot,
     ScoreAdjustment,
@@ -106,6 +107,7 @@ class FeaturedMatchWebSession:
         self._genome_offers = []
         self._successor_candidates: list[Agent] = []
         self._floor_clue_log: list[str] = []
+        self._chronicle_event_ids: set[str] = set()
 
     def serialize_state(self) -> dict:
         decision = self.session.current_decision
@@ -139,6 +141,7 @@ class FeaturedMatchWebSession:
             "genome_offers": [self._serialize_genome_edit(edit) for edit in self._genome_offers],
             "successor_candidates": [self._serialize_agent(agent) for agent in self._successor_candidates],
             "floor_clue_log": list(self._floor_clue_log),
+            "chronicle_event_ids": sorted(self._chronicle_event_ids),
         }
 
     def serialize_state_json(self) -> str:
@@ -186,6 +189,7 @@ class FeaturedMatchWebSession:
             session._genome_offers = [cls._deserialize_genome_edit(entry) for entry in payload.get("genome_offers", [])]
             session._successor_candidates = [cls._deserialize_agent(entry) for entry in payload.get("successor_candidates", [])]
             session._floor_clue_log = list(payload.get("floor_clue_log", []))
+            session._chronicle_event_ids = set(payload.get("chronicle_event_ids", []))
 
             session_payload = payload["session"]
             session.session.status = session_payload["status"]
@@ -234,6 +238,12 @@ class FeaturedMatchWebSession:
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
         self._floor_clue_log = []
+        self._append_chronicle_entry(
+            event_id=f"run_start:seed:{self.seed}",
+            event_type="run_start",
+            floor_number=self.floor_number,
+            summary=f"Run opened with seed {self.seed} in ecosystem phase.",
+        )
         self._begin_featured_round_decision()
 
     def submit_action(
@@ -500,6 +510,20 @@ class FeaturedMatchWebSession:
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
         self._pending_message = f"Floor {self.floor_number} complete. Review standings, then continue."
+        featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No decisive featured inference survived this floor."
+        doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Doctrine trend unresolved."
+        self._append_chronicle_entry(
+            event_id=f"floor_complete:{self.floor_number}",
+            event_type="floor_complete",
+            floor_number=self.floor_number,
+            summary=f"Floor {self.floor_number} closed at score {self.player_score}. {featured_note}",
+        )
+        self._append_chronicle_entry(
+            event_id=f"doctrine_pivot:{self.floor_number}",
+            event_type="doctrine_pivot",
+            floor_number=self.floor_number,
+            summary=f"Lineage doctrine signal: {doctrine_note}",
+        )
 
     def _begin_post_summary_flow(self) -> None:
         if self.floor_number == 1:
@@ -547,6 +571,12 @@ class FeaturedMatchWebSession:
                 ),
             )
             self.snapshot.successor_options = state
+            self._append_chronicle_entry(
+                event_id=f"successor_pressure:{self.floor_number}",
+                event_type="successor_pressure",
+                floor_number=self.floor_number,
+                summary=f"Succession pressure is {civil_war_pressure}; threat tags: {', '.join(sorted(threat_tags)) or 'none' }.",
+            )
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)
             self.snapshot.session_status = "awaiting_decision"
             return
@@ -562,6 +592,7 @@ class FeaturedMatchWebSession:
         if action.candidate_index < 0 or action.candidate_index >= len(self._successor_candidates):
             raise ValueError("Invalid successor index")
         chosen = self._successor_candidates[action.candidate_index]
+        previous_host = self.player.name
         chosen.is_player = True
         self.player.is_player = False
         self.player = chosen
@@ -576,6 +607,18 @@ class FeaturedMatchWebSession:
         self.snapshot.current_floor = self.floor_number
         self._pending_screen = "civil_war_transition"
         self._pending_message = self.snapshot.civil_war_context.thesis
+        self._append_chronicle_entry(
+            event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
+            event_type="successor_choice",
+            floor_number=1,
+            summary=f"Host shifted from {previous_host} to {chosen.name}.",
+        )
+        self._append_chronicle_entry(
+            event_id="phase_transition:civil_war",
+            event_type="phase_transition",
+            floor_number=self.floor_number,
+            summary=f"Civil war ignited: {self.snapshot.civil_war_context.thesis}",
+        )
         self.snapshot.session_status = "running"
 
     def _resolve_powerup_choice(self, decision: PowerupChoiceState) -> None:
@@ -613,6 +656,12 @@ class FeaturedMatchWebSession:
             seed=self.seed,
         )
         self.snapshot.completion = completion
+        self._append_chronicle_entry(
+            event_id=f"run_outcome:{completion.outcome}",
+            event_type="run_outcome",
+            floor_number=self.floor_number,
+            summary=f"Run ended in {completion.outcome} on floor {self.floor_number} as {self.player.name}.",
+        )
         self.session.complete(completion, self.snapshot)
         self.snapshot.session_status = "completed"
 
@@ -641,6 +690,27 @@ class FeaturedMatchWebSession:
         if self._active_stance.rounds_remaining <= 0:
             self._active_stance = None
         self.snapshot.active_featured_stance = self._active_stance
+
+    def _append_chronicle_entry(
+        self,
+        *,
+        event_id: str,
+        event_type: str,
+        floor_number: int | None,
+        summary: str,
+    ) -> None:
+        if event_id in self._chronicle_event_ids:
+            return
+        self._chronicle_event_ids.add(event_id)
+        self.snapshot.lineage_chronicle.append(
+            LineageChronicleEntry(
+                event_id=event_id,
+                event_type=event_type,
+                floor_number=floor_number,
+                phase=self.snapshot.current_phase,
+                summary=summary,
+            )
+        )
 
     def _validated_stance_rounds(self, action: ChooseRoundStanceAction) -> int | None:
         return validated_stance_rounds(action.stance, action.rounds)
