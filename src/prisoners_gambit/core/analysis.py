@@ -67,6 +67,7 @@ def analyze_agent_identity(agent: Agent) -> AgentIdentity:
 @dataclass(slots=True)
 class HeirPressureCandidate:
     name: str
+    branch_role: str
     score: int
     wins: int
     tags: list[str]
@@ -108,6 +109,7 @@ def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | No
         successors.append(
             HeirPressureCandidate(
                 name=agent.name,
+                branch_role=_classify_branch_role(agent, identity, top_score=ranked[0].score),
                 score=agent.score,
                 wins=agent.wins,
                 tags=identity.tags,
@@ -125,6 +127,7 @@ def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | No
         threats.append(
             HeirPressureCandidate(
                 name=agent.name,
+                branch_role=_classify_branch_role(agent, identity, top_score=ranked[0].score),
                 score=agent.score,
                 wins=agent.wins,
                 tags=identity.tags,
@@ -139,6 +142,19 @@ def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | No
         successor_candidates=successors,
         future_threats=threats,
     )
+
+
+def _classify_branch_role(agent: Agent, identity: AgentIdentity, top_score: int) -> str:
+    tags = set(identity.tags)
+    if agent.score >= max(1, top_score - 1) and ({"Control", "Punishing"} & tags or "Tempo" in tags):
+        return "Future civil-war monster"
+    if "Referendum" in tags:
+        return "Referendum heir"
+    if "Unstable" in tags or agent.genome.noise >= 0.20:
+        return "Unstable heir"
+    if "Aggressive" in tags and ("Exploitative" in tags or "Tempo" in tags):
+        return "Ruthless heir"
+    return "Safe heir"
 
 
 def _build_descriptor(tags: list[str], agent: Agent) -> str:

@@ -310,6 +310,7 @@ class FeaturedMatchWebSession:
             successor_candidates=[
                 FloorSummaryPressureEntryView(
                     name=c.name,
+                    branch_role=c.branch_role,
                     score=c.score,
                     wins=c.wins,
                     tags=list(c.tags),
@@ -321,6 +322,7 @@ class FeaturedMatchWebSession:
             future_threats=[
                 FloorSummaryPressureEntryView(
                     name=c.name,
+                    branch_role=c.branch_role,
                     score=c.score,
                     wins=c.wins,
                     tags=list(c.tags),

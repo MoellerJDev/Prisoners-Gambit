@@ -26,13 +26,18 @@ class Agent:
         self.score = 0
         self.wins = 0
 
-    def clone_for_offspring(self, genome: StrategyGenome, name_override: str | None = None) -> "Agent":
-        inherited_powerups = [powerup.clone() for powerup in self.powerups[:3]]
+    def clone_for_offspring(
+        self,
+        genome: StrategyGenome,
+        name_override: str | None = None,
+        inherited_powerups: list[Powerup] | None = None,
+    ) -> "Agent":
+        inherited = inherited_powerups if inherited_powerups is not None else [powerup.clone() for powerup in self.powerups[:3]]
         return Agent(
             name=name_override or f"{self.name}*",
             genome=genome,
             public_profile=self.public_profile,
-            powerups=inherited_powerups,
+            powerups=inherited,
             is_player=False,
             lineage_id=self.lineage_id,
             lineage_depth=self.lineage_depth + 1,

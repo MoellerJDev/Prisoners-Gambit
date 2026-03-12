@@ -371,10 +371,10 @@ function renderSnapshot(snapshot){
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
   const successorLines = (pressure?.successor_candidates || []).map(entry =>
-    `<li>${branchToken(entry.name)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml(entry.rationale)}</span></li>`
+    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml(entry.rationale)}</span></li>`
   ).join('');
   const threatLines = (pressure?.future_threats || []).map(entry =>
-    `<li>${branchToken(entry.name)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml(entry.rationale)}</span></li>`
+    `<li>${branchToken(entry.name)} · ${escapeHtml(entry.branch_role)} · score ${entry.score} / wins ${entry.wins} · <span class='muted'>${escapeHtml(entry.rationale)}</span></li>`
   ).join('');
   const pressureBlock = pressure
     ? `<li><strong>Future successor pressure</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`

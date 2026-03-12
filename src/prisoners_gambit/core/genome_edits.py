@@ -100,3 +100,46 @@ class EmbraceChaos(GenomeEdit):
         updated = _copy_genome(genome)
         updated.noise = min(0.35, updated.noise + 0.05)
         return updated
+
+
+@dataclass(slots=True)
+class FortressDoctrine(GenomeEdit):
+    name: str = "Fortress Doctrine"
+    description: str = "Become a safer heir: open C, preserve C/C, forgive D/D, and lower noise."
+
+    def apply(self, genome: StrategyGenome) -> StrategyGenome:
+        updated = _copy_genome(genome)
+        updated.first_move = COOPERATE
+        updated.response_table[(COOPERATE, COOPERATE)] = COOPERATE
+        updated.response_table[(DEFECT, DEFECT)] = COOPERATE
+        updated.noise = max(0.0, updated.noise - 0.08)
+        return updated
+
+
+@dataclass(slots=True)
+class TyrantDoctrine(GenomeEdit):
+    name: str = "Tyrant Doctrine"
+    description: str = "Become a ruthless heir: open D and keep pressing after advantage or betrayal."
+
+    def apply(self, genome: StrategyGenome) -> StrategyGenome:
+        updated = _copy_genome(genome)
+        updated.first_move = DEFECT
+        updated.response_table[(COOPERATE, DEFECT)] = DEFECT
+        updated.response_table[(DEFECT, COOPERATE)] = DEFECT
+        updated.response_table[(DEFECT, DEFECT)] = DEFECT
+        updated.noise = min(0.35, updated.noise + 0.02)
+        return updated
+
+
+@dataclass(slots=True)
+class WildcardDoctrine(GenomeEdit):
+    name: str = "Wildcard Doctrine"
+    description: str = "Become an unstable heir: increase noise sharply and flip core responses."
+
+    def apply(self, genome: StrategyGenome) -> StrategyGenome:
+        updated = _copy_genome(genome)
+        updated.response_table[(COOPERATE, COOPERATE)] = DEFECT
+        updated.response_table[(COOPERATE, DEFECT)] = DEFECT
+        updated.response_table[(DEFECT, COOPERATE)] = COOPERATE
+        updated.noise = min(0.35, updated.noise + 0.12)
+        return updated

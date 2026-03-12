@@ -8,7 +8,23 @@ from prisoners_gambit.core.powerups import Powerup
 
 def generate_powerup_offers(count: int, rng: random.Random) -> list[Powerup]:
     pool = build_powerup_pool()
-    chosen = rng.sample(pool, k=min(count, len(pool)))
+
+    pillar_groups = {
+        "safe": {"Trust Dividend", "Mercy Shield", "Golden Handshake"},
+        "ruthless": {"Opening Gambit", "Spite Engine", "Compliance Dividend", "Last Laugh"},
+        "referendum": {"Unity Ticket", "Saboteur Bloc", "Bloc Politics"},
+        "control": {"Coercive Control", "Counter-Intel", "Panic Button"},
+    }
+
+    chosen: list[Powerup] = []
+    if count >= 3:
+        pillar_name = rng.choice(list(pillar_groups.keys()))
+        pillar_candidates = [powerup for powerup in pool if powerup.name in pillar_groups[pillar_name]]
+        if pillar_candidates:
+            chosen.append(rng.choice(pillar_candidates))
+
+    remaining_pool = [powerup for powerup in pool if all(type(powerup) is not type(existing) for existing in chosen)]
+    chosen.extend(rng.sample(remaining_pool, k=min(max(0, count - len(chosen)), len(remaining_pool))))
     offers = [powerup.clone() for powerup in chosen]
 
     while len(offers) < count:

@@ -176,6 +176,7 @@ class InteractionController:
             successor_candidates=[
                 FloorSummaryPressureEntryView(
                     name=candidate.name,
+                    branch_role=candidate.branch_role,
                     score=candidate.score,
                     wins=candidate.wins,
                     tags=list(candidate.tags),
@@ -187,6 +188,7 @@ class InteractionController:
             future_threats=[
                 FloorSummaryPressureEntryView(
                     name=candidate.name,
+                    branch_role=candidate.branch_role,
                     score=candidate.score,
                     wins=candidate.wins,
                     tags=list(candidate.tags),

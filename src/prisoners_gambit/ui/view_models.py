@@ -159,7 +159,7 @@ def format_floor_heir_pressure(ranked: list[Agent]) -> str:
         for candidate in pressure.successor_candidates:
             lines.append(
                 f"- {candidate.name} (score={candidate.score}, wins={candidate.wins}) | "
-                f"{_tag_text(candidate.tags)} | {candidate.rationale}"
+                f"{candidate.branch_role} | {_tag_text(candidate.tags)} | {candidate.rationale}"
             )
     else:
         lines.append("Potential successors if you die next floor: none visible yet.")
@@ -169,7 +169,7 @@ def format_floor_heir_pressure(ranked: list[Agent]) -> str:
         for threat in pressure.future_threats:
             lines.append(
                 f"- {threat.name} (score={threat.score}, wins={threat.wins}) | "
-                f"{_tag_text(threat.tags)} | {threat.rationale}"
+                f"{threat.branch_role} | {_tag_text(threat.tags)} | {threat.rationale}"
             )
     else:
         lines.append("Emerging external threats: none (civil war pressure dominates).")

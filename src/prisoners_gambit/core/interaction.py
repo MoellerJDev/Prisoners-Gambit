@@ -106,6 +106,7 @@ class FloorRosterState:
 @dataclass(slots=True)
 class FloorSummaryPressureEntryView:
     name: str
+    branch_role: str
     score: int
     wins: int
     tags: list[str]

@@ -79,6 +79,8 @@ During featured rounds, you will typically choose between:
 
 After featured matches, you vote in a floor referendum, then see floor results, including a future-successor pressure readout (branch doctrine, likely heirs, and emerging threats), eliminations, and post-floor choices (powerup + genome edit).
 
+Genome edit offers now include stronger doctrine pivots (safe/ruthless/unstable) so branch divergence appears earlier in a run.
+
 ### Deterministic replay
 
 Use a seed to replay a run:

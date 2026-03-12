@@ -4,11 +4,14 @@ from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import (
     CalmTheNoise,
     EmbraceChaos,
+    FortressDoctrine,
     OpenWithKnife,
     OpenWithTrust,
     PreservePeace,
     PressAdvantage,
     PunishBetrayal,
+    TyrantDoctrine,
+    WildcardDoctrine,
 )
 from prisoners_gambit.core.strategy import StrategyGenome
 
@@ -119,3 +122,32 @@ def test_genome_edits_do_not_mutate_original_genome() -> None:
     assert genome.first_move == DEFECT
     assert genome.noise == pytest.approx(0.22)
     assert genome.response_table == original_table
+
+
+def test_fortress_doctrine_pushes_safe_profile() -> None:
+    genome = make_genome(first_move=DEFECT, noise=0.2)
+    updated = FortressDoctrine().apply(genome)
+
+    assert updated.first_move == COOPERATE
+    assert updated.response_table[(COOPERATE, COOPERATE)] == COOPERATE
+    assert updated.response_table[(DEFECT, DEFECT)] == COOPERATE
+    assert updated.noise < genome.noise
+
+
+def test_tyrant_doctrine_pushes_ruthless_profile() -> None:
+    genome = make_genome(first_move=COOPERATE, noise=0.05)
+    updated = TyrantDoctrine().apply(genome)
+
+    assert updated.first_move == DEFECT
+    assert updated.response_table[(COOPERATE, DEFECT)] == DEFECT
+    assert updated.response_table[(DEFECT, COOPERATE)] == DEFECT
+    assert updated.response_table[(DEFECT, DEFECT)] == DEFECT
+
+
+def test_wildcard_doctrine_pushes_unstable_profile() -> None:
+    genome = make_genome(noise=0.01)
+    updated = WildcardDoctrine().apply(genome)
+
+    assert updated.response_table[(COOPERATE, COOPERATE)] == DEFECT
+    assert updated.response_table[(COOPERATE, DEFECT)] == DEFECT
+    assert updated.noise > genome.noise

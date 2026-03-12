@@ -258,6 +258,7 @@ def test_floor_summary_snapshot_includes_heir_pressure_analysis() -> None:
     assert pressure is not None
     assert "Lineage trend:" in pressure.branch_doctrine
     assert pressure.successor_candidates[0].name == "Heir Beta"
+    assert pressure.successor_candidates[0].branch_role
     assert pressure.future_threats[0].name == "Outsider"
     assert "if current host dies next floor" in pressure.successor_candidates[0].rationale
 
