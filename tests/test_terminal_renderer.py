@@ -82,7 +82,7 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
                     anti_score_note="Do not pick by score alone.",
                     genome_summary="Open C, retaliate D",
                     powerups=["Trust Dividend"],
-                    featured_inference_context="Featured inference fit: this branch aligns with floor reads on retaliatory behavior.",
+                    featured_inference_context="Competing future: consensus lineage branch centered on reciprocity, legitimacy, and coalition doctrine Stability: stable while trust loops hold, but vulnerable to betrayal cascades in civil-war mirrors Featured-read confidence: moderate—only retaliatory is directly reinforced; keep deception risk in view",
                 )
             ],
             current_phase="ecosystem",
@@ -105,7 +105,7 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
     assert "Build: Open C, retaliate D" in out
     assert "Powerups: Trust Dividend" in out
     assert "[Featured inference summary]" in out
-    assert "Featured inference: Featured inference fit" in out
+    assert "Featured inference: Competing future" in out
 
 
 def test_choose_round_action_warns_when_match_autopilot_unavailable(monkeypatch, capsys) -> None:
