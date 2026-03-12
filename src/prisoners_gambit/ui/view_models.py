@@ -120,6 +120,19 @@ def format_featured_prompt(prompt: FeaturedMatchPrompt) -> str:
     if prompt.roster_entries:
         roster_hint = "Use the floor roster and move patterns to infer who this may be.\n"
 
+    clue_lines = ""
+    if prompt.clue_channels:
+        clue_lines = "\n".join(f"- {line}" for line in prompt.clue_channels)
+        clue_lines = f"Clues in play:\n{clue_lines}\n"
+
+    floor_log = ""
+    if prompt.floor_clue_log:
+        recent = prompt.floor_clue_log[-3:]
+        floor_log = "\n".join(f"- {line}" for line in recent)
+        floor_log = f"Floor clue memory:\n{floor_log}\n"
+
+    focus = f"Inference focus: {prompt.inference_focus}\n" if prompt.inference_focus else ""
+
     return (
         f"\n[Featured Match] {prompt.masked_opponent_label}\n"
         f"Round {prompt.round_index + 1}/{prompt.total_rounds}\n"
@@ -127,6 +140,9 @@ def format_featured_prompt(prompt: FeaturedMatchPrompt) -> str:
         f"Your history: {_history_text(prompt.my_history)}\n"
         f"Their history: {_history_text(prompt.opp_history)}\n"
         f"{roster_hint}"
+        f"{clue_lines}"
+        f"{floor_log}"
+        f"{focus}"
         f"Autopilot suggests: {move_symbol(prompt.suggested_move)}"
     )
 
@@ -140,6 +156,11 @@ def format_round_result(result: FeaturedRoundResult) -> str:
         ]
         score_adjustments = ", ".join(lines)
 
+    inference = ""
+    if result.inference_update:
+        inference = "\n".join(f"  • {line}" for line in result.inference_update)
+        inference = f"\n- Inference update:\n{inference}"
+
     return (
         f"Round {result.round_index + 1}/{result.total_rounds}\n"
         f"- Autopilot planned: You={move_symbol(result.breakdown.player_plan)}, "
@@ -150,6 +171,7 @@ def format_round_result(result: FeaturedRoundResult) -> str:
         f"- Score modifiers: {score_adjustments}\n"
         f"- Final payoff: {result.player_delta} / {result.opponent_delta}\n"
         f"- Match total: {result.player_total} / {result.opponent_total}"
+        f"{inference}"
     )
 
 

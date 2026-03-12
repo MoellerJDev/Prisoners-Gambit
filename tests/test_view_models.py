@@ -210,3 +210,59 @@ def test_format_successor_line_includes_tags_descriptor_stats_summary_and_poweru
     assert "Build:" in text
     assert "Powerups:" in text
     assert "Trust Dividend" in text
+
+
+def test_format_featured_prompt_and_round_result_include_inference_channels() -> None:
+    prompt = FeaturedMatchPrompt(
+        floor_number=2,
+        masked_opponent_label="Unknown Opponent 1",
+        round_index=1,
+        total_rounds=5,
+        my_history=[COOPERATE, DEFECT],
+        opp_history=[DEFECT, COOPERATE],
+        my_match_score=3,
+        opp_match_score=2,
+        suggested_move=COOPERATE,
+        roster_entries=[],
+        clue_channels=["Profile signal: Volatile tactician", "Known powerups: Counter-Intel"],
+        floor_clue_log=["Opened with D", "Retaliated after pressure"],
+        inference_focus="Pattern read",
+    )
+    text = format_featured_prompt(prompt)
+    assert "Clues in play:" in text
+    assert "Floor clue memory:" in text
+    assert "Inference focus: Pattern read" in text
+
+    result = FeaturedRoundResult(
+        masked_opponent_label="Unknown Opponent 2",
+        round_index=0,
+        total_rounds=4,
+        player_move=COOPERATE,
+        opponent_move=DEFECT,
+        player_delta=0,
+        opponent_delta=2,
+        player_total=0,
+        opponent_total=2,
+        player_reason="base",
+        opponent_reason="Saboteur Bloc@200",
+        inference_update=["Exploitative pressure read strengthened."],
+        breakdown=RoundResolutionBreakdown(
+            player_plan=COOPERATE,
+            opponent_plan=DEFECT,
+            player_directives=RoundDirectiveResolution(base_move=COOPERATE, final_move=COOPERATE, reason="base", directives=[]),
+            opponent_directives=RoundDirectiveResolution(
+                base_move=DEFECT,
+                final_move=DEFECT,
+                reason="Saboteur Bloc@200",
+                directives=[MoveDirective(move=DEFECT, priority=200, source="Saboteur Bloc")],
+            ),
+            base_player_points=0,
+            base_opponent_points=1,
+            score_adjustments=[ScoreAdjustment(source="Spite Engine", player_delta=0, opponent_delta=1)],
+            final_player_points=0,
+            final_opponent_points=2,
+        ),
+    )
+    result_text = format_round_result(result)
+    assert "Inference update:" in result_text
+    assert "Exploitative pressure read strengthened." in result_text

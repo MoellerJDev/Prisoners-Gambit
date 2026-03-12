@@ -73,12 +73,14 @@ class FeaturedMatchWebSession:
         self._powerup_offers = []
         self._genome_offers = []
         self._successor_candidates: list[Agent] = []
+        self._floor_clue_log: list[str] = []
 
     def start(self) -> None:
         self.session.start(self.snapshot)
         self.snapshot.header = self.snapshot.header or None
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
+        self._floor_clue_log = []
         self._begin_featured_round_decision()
 
     def submit_action(
@@ -153,6 +155,17 @@ class FeaturedMatchWebSession:
                 opp_match_score=self.opponent_score,
                 suggested_move=suggested_move,
                 roster_entries=[],
+                clue_channels=[
+                    f"Profile signal: {self.opponent.public_profile}",
+                    f"Known powerups: {', '.join(powerup.name for powerup in self.opponent.powerups) if self.opponent.powerups else 'none'}",
+                    "Move-pattern signal: compare opening and retaliation cadence.",
+                ],
+                floor_clue_log=list(self._floor_clue_log),
+                inference_focus=(
+                    "Opening read: stress-test profile clues."
+                    if self.round_index == 0
+                    else "Pattern read: update tag confidence from response behavior."
+                ),
             )
         )
         if self._active_stance is not None:
@@ -244,6 +257,20 @@ class FeaturedMatchWebSession:
             opponent_total=self.opponent_score,
             player_reason=player_res.reason,
             opponent_reason=opp_res.reason,
+            inference_update=[
+                (
+                    "Opened cooperatively; cooperative tag read strengthened."
+                    if self.round_index == 0 and opponent_move == COOPERATE
+                    else "Opened aggressively; aggressive tag read strengthened."
+                )
+                if self.round_index == 0
+                else (
+                    "Retaliated after pressure; retaliatory read strengthened."
+                    if self.player_history and self.player_history[-1] == DEFECT and opponent_move == DEFECT
+                    else "Pattern remained mixed; keep branch read probabilistic."
+                ),
+                "Carry this clue into floor summary and successor threat interpretation.",
+            ],
             breakdown=RoundResolutionBreakdown(
                 player_plan=player_plan,
                 opponent_plan=opponent_plan,
@@ -256,6 +283,7 @@ class FeaturedMatchWebSession:
                 final_opponent_points=o_points,
             ),
         )
+        self._floor_clue_log.extend(self.snapshot.latest_featured_round.inference_update)
         self.round_index += 1
 
         if self.round_index < self.rounds:
