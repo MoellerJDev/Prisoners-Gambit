@@ -168,6 +168,7 @@ class InteractionController:
                     is_player=agent.is_player,
                     score=agent.score,
                     wins=agent.wins,
+                    lineage_depth=agent.lineage_depth,
                     tags=identity.tags,
                     descriptor=identity.descriptor,
                     genome_summary=agent.genome.summary(),

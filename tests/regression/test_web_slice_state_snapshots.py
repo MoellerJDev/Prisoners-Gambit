@@ -11,7 +11,7 @@ from support.session_driver import advance_through_transition_and_complete, play
 
 
 REQUIRED_COMPLETION_KEYS = {"outcome", "floor_number", "player_name", "seed"}
-REQUIRED_SUMMARY_ENTRY_KEYS = {"agent_id", "name", "is_player", "score", "wins", "tags", "descriptor", "genome_summary", "powerups"}
+REQUIRED_SUMMARY_ENTRY_KEYS = {"agent_id", "name", "is_player", "score", "wins", "lineage_depth", "tags", "descriptor", "genome_summary", "powerups"}
 REQUIRED_VOTE_KEYS = {"floor_number", "cooperation_prevailed", "cooperators", "defectors", "player_vote", "player_reward"}
 REQUIRED_SUCCESSOR_KEYS = {
     "name",
