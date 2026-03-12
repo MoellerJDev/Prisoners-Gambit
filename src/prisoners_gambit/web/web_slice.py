@@ -7,6 +7,7 @@ from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressur
 from prisoners_gambit.app.interaction_controller import RunSession
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.civil_war import build_civil_war_context
+from prisoners_gambit.core.featured_inference import successor_featured_inference_context, synthesize_floor_featured_inference
 from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
@@ -340,6 +341,7 @@ class FeaturedMatchWebSession:
             floor_number=self.floor_number,
             entries=entries,
             heir_pressure=heir_pressure,
+            featured_inference_summary=synthesize_floor_featured_inference(self._floor_clue_log),
         )
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
@@ -365,7 +367,21 @@ class FeaturedMatchWebSession:
                     threat_tags=threat_tags,
                     lineage_doctrine=lineage_doctrine,
                 )
-                candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
+                candidates.append(
+                    to_successor_candidate_view(
+                        agent=agent,
+                        identity=identity,
+                        assessment=assessment,
+                        featured_inference_context=successor_featured_inference_context(
+                            candidate_tags=identity.tags,
+                            featured_inference_summary=(
+                                self.snapshot.floor_summary.featured_inference_summary
+                                if self.snapshot.floor_summary
+                                else []
+                            ),
+                        ),
+                    )
+                )
             civil_war_pressure = civil_war_pressure_for_threat_tags(threat_tags)
             state = SuccessorChoiceState(
                 floor_number=self.floor_number,
@@ -374,6 +390,11 @@ class FeaturedMatchWebSession:
                 lineage_doctrine=lineage_doctrine,
                 threat_profile=sorted(threat_tags),
                 civil_war_pressure=civil_war_pressure,
+                featured_inference_summary=(
+                    list(self.snapshot.floor_summary.featured_inference_summary)
+                    if self.snapshot.floor_summary
+                    else []
+                ),
             )
             self.snapshot.successor_options = state
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)

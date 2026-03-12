@@ -131,6 +131,7 @@ class FloorSummaryState:
     floor_number: int
     entries: list[FloorSummaryEntryView]
     heir_pressure: FloorSummaryHeirPressureView | None = None
+    featured_inference_summary: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -205,6 +206,7 @@ class SuccessorCandidateView:
     anti_score_note: str
     genome_summary: str
     powerups: list[str]
+    featured_inference_context: str | None = None
 
 
 @dataclass(slots=True)
@@ -290,6 +292,7 @@ class SuccessorChoiceState:
     lineage_doctrine: str | None = None
     threat_profile: list[str] | None = None
     civil_war_pressure: str | None = None
+    featured_inference_summary: list[str] = field(default_factory=list)
     valid_actions: tuple[Literal["choose_successor"], ...] = ("choose_successor",)
 
 

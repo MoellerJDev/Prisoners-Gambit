@@ -112,7 +112,15 @@ def format_successor_candidate_view(index: int, candidate: SuccessorCandidateVie
         f"   Implied future: {candidate.lineage_future}\n"
         f"   Build: {candidate.genome_summary}\n"
         f"   Powerups: {powerups}"
+        + (f"\n   Featured inference: {candidate.featured_inference_context}" if candidate.featured_inference_context else "")
     )
+
+
+def format_featured_inference_summary(summary: list[str]) -> str:
+    if not summary:
+        return "[Featured inference summary] No confirmed featured clues survived this floor."
+    lines = "\n".join(f"- {line}" for line in summary)
+    return f"[Featured inference summary]\n{lines}"
 
 
 def format_featured_prompt(prompt: FeaturedMatchPrompt) -> str:

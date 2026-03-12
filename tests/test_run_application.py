@@ -23,6 +23,7 @@ class StubRenderer:
         self.headers: list[int | None] = []
         self.rosters: list[tuple[int, int]] = []
         self.floor_summaries: list[tuple[int, int]] = []
+        self.featured_floor_summaries: list[list[str]] = []
         self.selected_powerups: list[str] = []
         self.selected_edits: list[str] = []
         self.round_prompts: int = 0
@@ -39,6 +40,9 @@ class StubRenderer:
 
     def show_floor_summary(self, floor_number: int, ranked: list[Agent]) -> None:
         self.floor_summaries.append((floor_number, len(ranked)))
+
+    def show_floor_featured_inference_summary(self, summary: list[str]) -> None:
+        self.featured_floor_summaries.append(list(summary))
 
     def choose_round_action(self, prompt: FeaturedMatchPrompt) -> int:
         self.round_prompts += 1
@@ -149,6 +153,7 @@ def test_run_application_smoke() -> None:
     assert app.interaction_controller.snapshot.current_floor is not None
     assert app.interaction_controller.snapshot.current_phase is not None
     assert app.interaction_controller.snapshot.floor_summary is not None
+    assert renderer.featured_floor_summaries
     assert app.interaction_controller.snapshot.floor_roster is not None
     assert app.interaction_controller.snapshot.floor_vote_result is not None
     assert renderer.selected_powerups or renderer.eliminated_floor is not None or renderer.victory is not None

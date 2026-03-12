@@ -260,12 +260,13 @@ def test_floor_summary_snapshot_uses_structured_entries() -> None:
     controller = InteractionController(renderer=renderer)
     ranked = [_make_agent("A", score=5, wins=2, depth=1), _make_agent("B", score=3, wins=1, depth=2)]
 
-    controller.set_floor_summary(4, ranked)
+    controller.set_floor_summary(4, ranked, floor_clue_log=["Opened with C; compare against roster aggression/cooperation tags."])
 
     assert controller.snapshot.floor_summary is not None
     assert controller.snapshot.floor_summary.floor_number == 4
     assert controller.snapshot.floor_summary.entries[0].name == "A"
     assert controller.snapshot.floor_summary.entries[0].score == 5
+    assert controller.snapshot.floor_summary.featured_inference_summary
 
 
 
@@ -294,6 +295,33 @@ def test_floor_summary_snapshot_includes_heir_pressure_analysis() -> None:
     assert pressure.successor_candidates[0].branch_role
     assert pressure.future_threats[0].name == "Outsider"
     assert "if current host dies next floor" in pressure.successor_candidates[0].rationale
+
+def test_successor_state_can_surface_featured_inference_context() -> None:
+    class SuccessorRenderer(NewRendererStub):
+        def resolve_successor_choice(self, state):
+            self.last_successor_state = state
+            return ChooseSuccessorAction(candidate_index=0)
+
+    renderer = SuccessorRenderer()
+    controller = InteractionController(renderer=renderer)
+    controller.snapshot.current_phase = "ecosystem"
+
+    player = _make_agent("You", score=7, wins=2, depth=0)
+    player.is_player = True
+    player.lineage_id = 1
+    heir = _make_agent("Heir A", score=8, wins=3, depth=1)
+    heir.lineage_id = 1
+
+    controller.set_floor_summary(3, [player, heir], floor_clue_log=[
+        "Opened with C; compare against roster aggression/cooperation tags.",
+        "Retaliated after your defection; retaliatory read strengthened.",
+    ])
+    controller.choose_successor(3, [heir])
+
+    assert controller.snapshot.successor_options is not None
+    assert controller.snapshot.successor_options.featured_inference_summary
+    assert controller.snapshot.successor_options.candidates[0].featured_inference_context is not None
+
 
 def test_run_session_can_resume_with_submitted_action() -> None:
     class CoopRendererStub:

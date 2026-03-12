@@ -27,6 +27,7 @@ from prisoners_gambit.core.powerups import Powerup
 from prisoners_gambit.ui.renderers import Renderer
 from prisoners_gambit.ui.view_models import (
     format_agent_line,
+    format_featured_inference_summary,
     format_featured_prompt,
     format_floor_heir_pressure,
     format_floor_vote_prompt,
@@ -79,6 +80,9 @@ class TerminalRenderer(Renderer):
         if ranked:
             print(f"Leader build: {ranked[0].build_summary()}")
             print(format_floor_heir_pressure(ranked))
+
+    def show_floor_featured_inference_summary(self, summary: list[str]) -> None:
+        print(format_featured_inference_summary(summary))
 
     def choose_round_action(self, prompt: FeaturedMatchPrompt) -> int:
         action = self.resolve_featured_round_decision(FeaturedRoundDecisionState(prompt=prompt))
@@ -264,6 +268,7 @@ class TerminalRenderer(Renderer):
             print(f"Inherited trend: {state.lineage_doctrine}")
         if state.threat_profile:
             print(f"Threat profile: {', '.join(state.threat_profile)}")
+        print(format_featured_inference_summary(state.featured_inference_summary))
         print("Choose a surviving descendant to continue as:")
         for index, candidate in enumerate(state.candidates, start=1):
             print(format_successor_candidate_view(index=index, candidate=candidate))

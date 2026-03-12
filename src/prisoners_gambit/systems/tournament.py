@@ -55,6 +55,7 @@ class TournamentEngine:
         self.renderer = renderer
         self.interaction_controller = interaction_controller
         self.event_bus = event_bus
+        self._last_floor_clue_log: list[str] = []
 
     def run_floor(
         self,
@@ -224,7 +225,14 @@ class TournamentEngine:
             ranked[0].score if ranked else "n/a",
         )
 
+        self._last_floor_clue_log = list(floor_clue_log)
         return ranked
+
+
+    def consume_last_floor_clue_log(self) -> list[str]:
+        clues = list(self._last_floor_clue_log)
+        self._last_floor_clue_log = []
+        return clues
 
     def play_match(
         self,
