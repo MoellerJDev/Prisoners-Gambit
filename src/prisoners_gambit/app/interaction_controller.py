@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
-from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
@@ -164,7 +165,17 @@ class InteractionController:
                     powerups=[powerup.name for powerup in agent.powerups],
                 )
             )
-        self.snapshot.floor_summary = FloorSummaryState(floor_number=floor_number, entries=entries)
+        player = next((agent for agent in ranked if agent.is_player), None)
+        heir_pressure_analysis = analyze_floor_heir_pressure(
+            ranked=ranked,
+            player_lineage_id=player.lineage_id if player else None,
+        )
+        heir_pressure = to_floor_summary_heir_pressure_view(heir_pressure_analysis)
+        self.snapshot.floor_summary = FloorSummaryState(
+            floor_number=floor_number,
+            entries=entries,
+            heir_pressure=heir_pressure,
+        )
         self._sync_session_snapshot()
 
     def set_floor_vote_result(self, result: FloorVoteResult) -> None:
@@ -308,20 +319,23 @@ class InteractionController:
         return offers[action.offer_index]
 
     def choose_successor(self, floor_number: int, candidates: list[Agent]) -> Agent:
+        threat_tags: set[str] = set()
+        if self.snapshot.floor_summary and self.snapshot.floor_summary.heir_pressure:
+            for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
+                threat_tags.update(threat.tags)
+
+        top_score = max((candidate.score for candidate in candidates), default=0)
         successor_views: list[SuccessorCandidateView] = []
         for candidate in candidates:
             identity = analyze_agent_identity(candidate)
+            assessment = assess_successor_candidate(
+                candidate,
+                top_score=top_score,
+                threat_tags=threat_tags,
+                phase=self.snapshot.current_phase,
+            )
             successor_views.append(
-                SuccessorCandidateView(
-                    name=candidate.name,
-                    lineage_depth=candidate.lineage_depth,
-                    score=candidate.score,
-                    wins=candidate.wins,
-                    tags=identity.tags,
-                    descriptor=identity.descriptor,
-                    genome_summary=candidate.genome.summary(),
-                    powerups=[powerup.name for powerup in candidate.powerups],
-                )
+                to_successor_candidate_view(agent=candidate, identity=identity, assessment=assessment)
             )
 
         state = SuccessorChoiceState(floor_number=floor_number, candidates=successor_views)

@@ -37,6 +37,14 @@ class RunApplication:
         self.tournament.interaction_controller = self.interaction_controller
 
     def run(self) -> Agent:
+        """Execute the deterministic run loop as repeated heir-shaping floor cycles.
+
+        Each floor is intended to:
+        - reveal the current field through tournament outcomes,
+        - pressure lineage survival and succession choices,
+        - commit branch direction via limited offers,
+        - and seed the next floor's future civil-war threats.
+        """
         population = create_population(self.settings.population_size, self.progression.rng)
         player = next(agent for agent in population if agent.is_player)
         player_lineage_id = player.lineage_id

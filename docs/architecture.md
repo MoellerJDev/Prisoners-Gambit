@@ -257,6 +257,17 @@ At a high level, a run proceeds like this:
    - keep cutting the lineage down until one branch remains
 10. End with elimination or full lineage victory
 
+### Run-loop intent (heir-focused framing)
+
+The same deterministic loop should be read as a per-floor heir pipeline:
+
+- **Read the field** during featured matches and floor outcomes.
+- **Shape branch identity** via powerup + genome edits.
+- **Create successor pressure** by treating elimination/survival as lineage selection, not simple HP loss.
+- **Seed future conflict** through repopulation and outsider adaptation.
+
+This framing avoids adding extra systems while making each floor a breeding and evaluation stage for future hosts.
+
 ## Phase Model
 
 ### Phase 1: Ecosystem Survival
@@ -322,6 +333,7 @@ Player-lineage descendants receive:
 - increased mutation pressure
 - inherited perks
 - lineage naming
+- a branch-focus nudge (safe/ruthless/unstable/referendum) used to create earlier, legible successor divergence
 
 This causes the lineage to branch more aggressively over time.
 

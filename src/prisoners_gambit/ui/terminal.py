@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from prisoners_gambit.app.heir_view_mapping import to_successor_candidate_view
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
@@ -27,6 +28,7 @@ from prisoners_gambit.ui.renderers import Renderer
 from prisoners_gambit.ui.view_models import (
     format_agent_line,
     format_featured_prompt,
+    format_floor_heir_pressure,
     format_floor_vote_prompt,
     format_floor_vote_result,
     format_genome_edit_offer_view,
@@ -76,6 +78,7 @@ class TerminalRenderer(Renderer):
 
         if ranked:
             print(f"Leader build: {ranked[0].build_summary()}")
+            print(format_floor_heir_pressure(ranked))
 
     def choose_round_action(self, prompt: FeaturedMatchPrompt) -> int:
         action = self.resolve_featured_round_decision(FeaturedRoundDecisionState(prompt=prompt))
@@ -231,24 +234,15 @@ class TerminalRenderer(Renderer):
         print(f"New autopilot: {new_summary}")
 
     def choose_successor(self, successors: list[Agent]) -> Agent:
-        from prisoners_gambit.core.analysis import analyze_agent_identity
+        from prisoners_gambit.core.analysis import analyze_agent_identity, assess_successor_candidate
         from prisoners_gambit.core.interaction import SuccessorCandidateView
 
+        top_score = max((agent.score for agent in successors), default=0)
         candidates: list[SuccessorCandidateView] = []
         for agent in successors:
             identity = analyze_agent_identity(agent)
-            candidates.append(
-                SuccessorCandidateView(
-                    name=agent.name,
-                    lineage_depth=agent.lineage_depth,
-                    score=agent.score,
-                    wins=agent.wins,
-                    tags=identity.tags,
-                    descriptor=identity.descriptor,
-                    genome_summary=agent.genome.summary(),
-                    powerups=[powerup.name for powerup in agent.powerups],
-                )
-            )
+            assessment = assess_successor_candidate(agent, top_score=top_score)
+            candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
         state = SuccessorChoiceState(floor_number=0, candidates=candidates)
         action = self.resolve_successor_choice(state)
         return successors[action.candidate_index]

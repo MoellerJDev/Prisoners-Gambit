@@ -219,6 +219,9 @@ def test_successor_state_and_run_snapshot_are_populated() -> None:
     assert controller.snapshot.successor_options is not None
     assert controller.snapshot.successor_options.floor_number == 5
     assert controller.snapshot.successor_options.candidates[0].name == "Heir A"
+    assert controller.snapshot.successor_options.candidates[0].branch_role
+    assert controller.snapshot.successor_options.candidates[0].shaping_causes
+    assert controller.snapshot.successor_options.candidates[0].attractive_now
     assert controller.snapshot.successor_options.candidates[0].genome_summary
 
 
@@ -234,6 +237,33 @@ def test_floor_summary_snapshot_uses_structured_entries() -> None:
     assert controller.snapshot.floor_summary.entries[0].name == "A"
     assert controller.snapshot.floor_summary.entries[0].score == 5
 
+
+
+
+def test_floor_summary_snapshot_includes_heir_pressure_analysis() -> None:
+    renderer = NewRendererStub()
+    controller = InteractionController(renderer=renderer)
+
+    player = _make_agent("You", score=7, wins=2, depth=0)
+    player.is_player = True
+    player.lineage_id = 1
+
+    heir = _make_agent("Heir Beta", score=6, wins=2, depth=1)
+    heir.lineage_id = 1
+
+    outsider = _make_agent("Outsider", score=8, wins=3, depth=0)
+    outsider.lineage_id = 99
+
+    controller.set_floor_summary(2, [outsider, player, heir])
+
+    assert controller.snapshot.floor_summary is not None
+    pressure = controller.snapshot.floor_summary.heir_pressure
+    assert pressure is not None
+    assert "Lineage trend:" in pressure.branch_doctrine
+    assert pressure.successor_candidates[0].name == "Heir Beta"
+    assert pressure.successor_candidates[0].branch_role
+    assert pressure.future_threats[0].name == "Outsider"
+    assert "if current host dies next floor" in pressure.successor_candidates[0].rationale
 
 def test_run_session_can_resume_with_submitted_action() -> None:
     class CoopRendererStub:

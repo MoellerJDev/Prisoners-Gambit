@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
     FeaturedMatchPrompt,
@@ -67,10 +67,23 @@ def format_genome_edit_offer_view(index: int, offer: GenomeEditOfferView) -> str
 
 def format_successor_candidate_view(index: int, candidate: SuccessorCandidateView) -> str:
     powerups = ", ".join(candidate.powerups) if candidate.powerups else "No powerups"
+    shaping_causes = "; ".join(candidate.shaping_causes)
+    tradeoffs = "; ".join(candidate.tradeoffs)
+    strengths = "; ".join(candidate.strengths)
+    liabilities = "; ".join(candidate.liabilities)
     return (
         f"{index}. {candidate.name} | depth={candidate.lineage_depth} | score={candidate.score} | wins={candidate.wins}\n"
+        f"   Role: {candidate.branch_role}\n"
+        f"   Doctrine: {candidate.branch_doctrine}\n"
         f"   Tags: {_tag_text(candidate.tags)}\n"
+        f"   Shaping causes: {shaping_causes}\n"
         f"   Read: {candidate.descriptor}\n"
+        f"   Tradeoffs: {tradeoffs}\n"
+        f"   Strengths: {strengths}\n"
+        f"   Liabilities: {liabilities}\n"
+        f"   Attractive now: {candidate.attractive_now}\n"
+        f"   Danger later: {candidate.danger_later}\n"
+        f"   Implied future: {candidate.lineage_future}\n"
         f"   Build: {candidate.genome_summary}\n"
         f"   Powerups: {powerups}"
     )
@@ -146,3 +159,32 @@ def format_successor_line(index: int, agent: Agent) -> str:
         f"   Build: {agent.genome.summary()}\n"
         f"   Powerups: {powerups}"
     )
+
+
+def format_floor_heir_pressure(ranked: list[Agent]) -> str:
+    player = next((agent for agent in ranked if agent.is_player), None)
+    pressure = analyze_floor_heir_pressure(ranked, player.lineage_id if player else None)
+
+    lines: list[str] = ["[Future Successor Pressure]", pressure.branch_doctrine]
+
+    if pressure.successor_candidates:
+        lines.append("Potential successors if you die next floor:")
+        for candidate in pressure.successor_candidates:
+            lines.append(
+                f"- {candidate.name} (score={candidate.score}, wins={candidate.wins}) | "
+                f"{candidate.branch_role} | {_tag_text(candidate.tags)} | causes: {'; '.join(candidate.shaping_causes)} | {candidate.rationale}"
+            )
+    else:
+        lines.append("Potential successors if you die next floor: none visible yet.")
+
+    if pressure.future_threats:
+        lines.append("Emerging external threats:")
+        for threat in pressure.future_threats:
+            lines.append(
+                f"- {threat.name} (score={threat.score}, wins={threat.wins}) | "
+                f"{threat.branch_role} | {_tag_text(threat.tags)} | causes: {'; '.join(threat.shaping_causes)} | {threat.rationale}"
+            )
+    else:
+        lines.append("Emerging external threats: none (civil war pressure dominates).")
+
+    return "\n".join(lines)

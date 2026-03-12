@@ -24,6 +24,8 @@ Between floors you:
 - pick 1 genome edit,
 - continue with survivors (or choose a successor if your host died).
 
+Design intent: this is not just upkeep. Each floor should leave you asking what branch you are cultivating, what future threat landscape you are creating, and which successor you would want if your host died on the next floor.
+
 The run starts in the **ecosystem phase** (your lineage vs outsiders), then transitions to **civil war** once outsiders are gone (your surviving branches fight until one remains).
 
 ---
@@ -75,7 +77,11 @@ During featured rounds, you will typically choose between:
 - stance controls (short-term behavioral locks),
 - autopilot-driven options.
 
-After featured matches, you vote in a floor referendum, then see floor results, eliminations, and post-floor choices (powerup + genome edit).
+After featured matches, you vote in a floor referendum, then see floor results, including a future-successor pressure readout (branch doctrine, likely heirs, and emerging threats), eliminations, and post-floor choices (powerup + genome edit).
+
+Genome edit offers now include stronger doctrine pivots (safe/ruthless/unstable) so branch divergence appears earlier in a run.
+
+When succession triggers, candidates are presented with role, doctrine, tradeoffs, strengths, liabilities, and near/far-term rationale so the choice feels like selecting a future strategy, not just a score line.
 
 ### Deterministic replay
 
@@ -119,7 +125,13 @@ A browser-based prototype is included for the decision flow.
 Start it with:
 
 ```bash
-python -m prisoners_gambit.web.server
+PYTHONPATH=src python -m prisoners_gambit.web.server
+```
+
+If `python` is not available in your shell, use:
+
+```bash
+PYTHONPATH=src python3 -m prisoners_gambit.web.server
 ```
 
 Then open:

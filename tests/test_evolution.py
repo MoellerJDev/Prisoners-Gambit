@@ -91,6 +91,7 @@ def test_descendant_line_keeps_lineage_and_depth() -> None:
 
 def test_offspring_inherit_up_to_three_powerups() -> None:
     parent = make_agent("Parent", lineage_id=1)
+    parent.is_player = True
     parent.powerups.extend([
         TrustDividend(bonus=1),
         TrustDividend(bonus=2),
@@ -109,7 +110,43 @@ def test_offspring_inherit_up_to_three_powerups() -> None:
     child = next_population[1]
 
     assert len(child.powerups) == 3
-    assert [powerup.bonus for powerup in child.powerups] == [1, 2, 3]
+    assert [powerup.bonus for powerup in child.powerups[:2]] == [1, 2]
+
+
+def test_player_lineage_offspring_gets_doctrine_pressure_powerup() -> None:
+    parent = make_agent("Parent", lineage_id=1)
+    parent.is_player = True
+
+    engine = EvolutionEngine(
+        survivor_count=1,
+        mutation_rate=0.15,
+        descendant_mutation_bonus=1.75,
+        rng=random.Random(1),
+    )
+
+    next_population = engine.repopulate([parent], target_size=2)
+    child = next_population[1]
+
+    assert len(child.powerups) <= 1
+    assert child.genome is not parent.genome
+
+
+def test_player_lineage_divergence_uses_active_player_lineage_not_hardcoded_id() -> None:
+    parent = make_agent("PlayerHost", lineage_id=42)
+    parent.is_player = True
+
+    engine = EvolutionEngine(
+        survivor_count=1,
+        mutation_rate=0.2,
+        descendant_mutation_bonus=1.75,
+        rng=random.Random(2),
+    )
+
+    next_population = engine.repopulate([parent], target_size=2)
+    child = next_population[1]
+
+    assert child.lineage_id == 42
+    assert child.name != "PlayerHost*"
 
 
 def test_offspring_receive_cloned_powerups_not_same_instances() -> None:

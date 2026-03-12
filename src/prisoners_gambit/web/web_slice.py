@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import asdict
 import random
 
+from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
-from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
@@ -302,7 +303,13 @@ class FeaturedMatchWebSession:
                     powerups=[p.name for p in agent.powerups],
                 )
             )
-        self.snapshot.floor_summary = FloorSummaryState(floor_number=self.floor_number, entries=entries)
+        pressure = analyze_floor_heir_pressure(summary_agents, self.player.lineage_id)
+        heir_pressure = to_floor_summary_heir_pressure_view(pressure)
+        self.snapshot.floor_summary = FloorSummaryState(
+            floor_number=self.floor_number,
+            entries=entries,
+            heir_pressure=heir_pressure,
+        )
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
         self._pending_message = f"Floor {self.floor_number} complete. Review standings, then continue."
@@ -311,20 +318,11 @@ class FeaturedMatchWebSession:
         if self.floor_number == 1:
             self._successor_candidates = self._build_successor_candidates()
             candidates = []
+            top_score = max((agent.score for agent in self._successor_candidates), default=0)
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
-                candidates.append(
-                    SuccessorCandidateView(
-                        name=agent.name,
-                        lineage_depth=agent.lineage_depth,
-                        score=agent.score,
-                        wins=agent.wins,
-                        tags=identity.tags,
-                        descriptor=identity.descriptor,
-                        genome_summary=agent.genome.summary(),
-                        powerups=[p.name for p in agent.powerups],
-                    )
-                )
+                assessment = assess_successor_candidate(agent, top_score=top_score, phase=self.snapshot.current_phase)
+                candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
             state = SuccessorChoiceState(floor_number=self.floor_number, candidates=candidates)
             self.snapshot.successor_options = state
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)

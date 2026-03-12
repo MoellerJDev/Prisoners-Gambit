@@ -104,9 +104,29 @@ class FloorRosterState:
 
 
 @dataclass(slots=True)
+class FloorSummaryPressureEntryView:
+    name: str
+    branch_role: str
+    shaping_causes: list[str]
+    score: int
+    wins: int
+    tags: list[str]
+    descriptor: str
+    rationale: str
+
+
+@dataclass(slots=True)
+class FloorSummaryHeirPressureView:
+    branch_doctrine: str
+    successor_candidates: list[FloorSummaryPressureEntryView]
+    future_threats: list[FloorSummaryPressureEntryView]
+
+
+@dataclass(slots=True)
 class FloorSummaryState:
     floor_number: int
     entries: list[FloorSummaryEntryView]
+    heir_pressure: FloorSummaryHeirPressureView | None = None
 
 
 @dataclass(slots=True)
@@ -152,8 +172,17 @@ class SuccessorCandidateView:
     lineage_depth: int
     score: int
     wins: int
+    branch_role: str
+    branch_doctrine: str
+    shaping_causes: list[str]
     tags: list[str]
     descriptor: str
+    tradeoffs: list[str]
+    strengths: list[str]
+    liabilities: list[str]
+    attractive_now: str
+    danger_later: str
+    lineage_future: str
     genome_summary: str
     powerups: list[str]
 
