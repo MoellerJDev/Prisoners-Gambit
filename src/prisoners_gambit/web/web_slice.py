@@ -4,7 +4,7 @@ from dataclasses import asdict
 import random
 
 from prisoners_gambit.app.interaction_controller import RunSession
-from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
@@ -19,6 +19,8 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundResult,
     FeaturedRoundStanceView,
     FloorSummaryEntryView,
+    FloorSummaryHeirPressureView,
+    FloorSummaryPressureEntryView,
     FloorSummaryState,
     FloorVoteDecisionState,
     FloorVotePrompt,
@@ -302,7 +304,37 @@ class FeaturedMatchWebSession:
                     powerups=[p.name for p in agent.powerups],
                 )
             )
-        self.snapshot.floor_summary = FloorSummaryState(floor_number=self.floor_number, entries=entries)
+        pressure = analyze_floor_heir_pressure(summary_agents, self.player.lineage_id)
+        heir_pressure = FloorSummaryHeirPressureView(
+            branch_doctrine=pressure.branch_doctrine,
+            successor_candidates=[
+                FloorSummaryPressureEntryView(
+                    name=c.name,
+                    score=c.score,
+                    wins=c.wins,
+                    tags=list(c.tags),
+                    descriptor=c.descriptor,
+                    rationale=c.rationale,
+                )
+                for c in pressure.successor_candidates
+            ],
+            future_threats=[
+                FloorSummaryPressureEntryView(
+                    name=c.name,
+                    score=c.score,
+                    wins=c.wins,
+                    tags=list(c.tags),
+                    descriptor=c.descriptor,
+                    rationale=c.rationale,
+                )
+                for c in pressure.future_threats
+            ],
+        )
+        self.snapshot.floor_summary = FloorSummaryState(
+            floor_number=self.floor_number,
+            entries=entries,
+            heir_pressure=heir_pressure,
+        )
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
         self._pending_message = f"Floor {self.floor_number} complete. Review standings, then continue."

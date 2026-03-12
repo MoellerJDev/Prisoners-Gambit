@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import Counter
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
@@ -61,6 +62,83 @@ def analyze_agent_identity(agent: Agent) -> AgentIdentity:
     descriptor = _build_descriptor(tags, agent)
 
     return AgentIdentity(tags=tags, descriptor=descriptor)
+
+
+@dataclass(slots=True)
+class HeirPressureCandidate:
+    name: str
+    score: int
+    wins: int
+    tags: list[str]
+    descriptor: str
+    rationale: str
+
+
+@dataclass(slots=True)
+class FloorHeirPressure:
+    branch_doctrine: str
+    successor_candidates: list[HeirPressureCandidate]
+    future_threats: list[HeirPressureCandidate]
+
+
+def analyze_floor_heir_pressure(ranked: list[Agent], player_lineage_id: int | None) -> FloorHeirPressure:
+    if not ranked:
+        return FloorHeirPressure(
+            branch_doctrine="No floor data yet.",
+            successor_candidates=[],
+            future_threats=[],
+        )
+
+    lineage_agents = [a for a in ranked if a.lineage_id == player_lineage_id] if player_lineage_id is not None else []
+    tag_counts: Counter[str] = Counter()
+    for agent in lineage_agents:
+        tag_counts.update(analyze_agent_identity(agent).tags)
+
+    if lineage_agents:
+        top_tags = [tag for tag, _ in tag_counts.most_common(3)]
+        doctrine = f"Lineage trend: {', '.join(top_tags) if top_tags else 'Mixed'} across {len(lineage_agents)} active branch(es)."
+    else:
+        doctrine = "Lineage trend unavailable: no active branch survived this floor summary."
+
+    successors: list[HeirPressureCandidate] = []
+    for agent in ranked:
+        if agent.lineage_id != player_lineage_id or agent.is_player:
+            continue
+        identity = analyze_agent_identity(agent)
+        successors.append(
+            HeirPressureCandidate(
+                name=agent.name,
+                score=agent.score,
+                wins=agent.wins,
+                tags=identity.tags,
+                descriptor=identity.descriptor,
+                rationale="Viable successor branch if current host dies next floor.",
+            )
+        )
+    successors = successors[:3]
+
+    threats: list[HeirPressureCandidate] = []
+    for agent in ranked:
+        if agent.lineage_id == player_lineage_id:
+            continue
+        identity = analyze_agent_identity(agent)
+        threats.append(
+            HeirPressureCandidate(
+                name=agent.name,
+                score=agent.score,
+                wins=agent.wins,
+                tags=identity.tags,
+                descriptor=identity.descriptor,
+                rationale="External pressure likely to shape upcoming heir choices.",
+            )
+        )
+    threats = threats[:3]
+
+    return FloorHeirPressure(
+        branch_doctrine=doctrine,
+        successor_candidates=successors,
+        future_threats=threats,
+    )
 
 
 def _build_descriptor(tags: list[str], agent: Agent) -> str:

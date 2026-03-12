@@ -27,6 +27,7 @@ from prisoners_gambit.ui.renderers import Renderer
 from prisoners_gambit.ui.view_models import (
     format_agent_line,
     format_featured_prompt,
+    format_floor_heir_pressure,
     format_floor_vote_prompt,
     format_floor_vote_result,
     format_genome_edit_offer_view,
@@ -76,6 +77,7 @@ class TerminalRenderer(Renderer):
 
         if ranked:
             print(f"Leader build: {ranked[0].build_summary()}")
+            print(format_floor_heir_pressure(ranked))
 
     def choose_round_action(self, prompt: FeaturedMatchPrompt) -> int:
         action = self.resolve_featured_round_decision(FeaturedRoundDecisionState(prompt=prompt))

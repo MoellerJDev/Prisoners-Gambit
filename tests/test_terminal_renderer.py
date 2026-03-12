@@ -10,6 +10,8 @@ from prisoners_gambit.core.interaction import (
     SuccessorCandidateView,
     SuccessorChoiceState,
 )
+from prisoners_gambit.core.models import Agent
+from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.ui.terminal import TerminalRenderer
 
 
@@ -130,3 +132,41 @@ def test_choose_round_action_warns_when_stance_unavailable(monkeypatch, capsys) 
     out = capsys.readouterr().out
     assert move == DEFECT
     assert "Stance choices require an interaction controller" in out
+
+
+def _agent(name: str, score: int, wins: int, lineage_id: int, is_player: bool = False) -> Agent:
+    return Agent(
+        name=name,
+        genome=StrategyGenome(
+            first_move=COOPERATE,
+            response_table={
+                (COOPERATE, COOPERATE): COOPERATE,
+                (COOPERATE, DEFECT): DEFECT,
+                (DEFECT, COOPERATE): COOPERATE,
+                (DEFECT, DEFECT): DEFECT,
+            },
+            noise=0.0,
+        ),
+        score=score,
+        wins=wins,
+        lineage_id=lineage_id,
+        is_player=is_player,
+    )
+
+
+def test_floor_summary_surfaces_future_successor_pressure(capsys) -> None:
+    renderer = TerminalRenderer()
+    ranked = [
+        _agent("Outsider Prime", score=12, wins=4, lineage_id=99),
+        _agent("You", score=10, wins=3, lineage_id=1, is_player=True),
+        _agent("Heir Alpha", score=9, wins=3, lineage_id=1),
+    ]
+
+    renderer.show_floor_summary(3, ranked)
+
+    out = capsys.readouterr().out
+    assert "[Future Successor Pressure]" in out
+    assert "Potential successors if you die next floor" in out
+    assert "Heir Alpha" in out
+    assert "Emerging external threats" in out
+    assert "Outsider Prime" in out

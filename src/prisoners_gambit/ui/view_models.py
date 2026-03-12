@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
     FeaturedMatchPrompt,
@@ -146,3 +146,32 @@ def format_successor_line(index: int, agent: Agent) -> str:
         f"   Build: {agent.genome.summary()}\n"
         f"   Powerups: {powerups}"
     )
+
+
+def format_floor_heir_pressure(ranked: list[Agent]) -> str:
+    player = next((agent for agent in ranked if agent.is_player), None)
+    pressure = analyze_floor_heir_pressure(ranked, player.lineage_id if player else None)
+
+    lines: list[str] = ["[Future Successor Pressure]", pressure.branch_doctrine]
+
+    if pressure.successor_candidates:
+        lines.append("Potential successors if you die next floor:")
+        for candidate in pressure.successor_candidates:
+            lines.append(
+                f"- {candidate.name} (score={candidate.score}, wins={candidate.wins}) | "
+                f"{_tag_text(candidate.tags)} | {candidate.rationale}"
+            )
+    else:
+        lines.append("Potential successors if you die next floor: none visible yet.")
+
+    if pressure.future_threats:
+        lines.append("Emerging external threats:")
+        for threat in pressure.future_threats:
+            lines.append(
+                f"- {threat.name} (score={threat.score}, wins={threat.wins}) | "
+                f"{_tag_text(threat.tags)} | {threat.rationale}"
+            )
+    else:
+        lines.append("Emerging external threats: none (civil war pressure dominates).")
+
+    return "\n".join(lines)

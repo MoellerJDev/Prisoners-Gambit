@@ -104,9 +104,27 @@ class FloorRosterState:
 
 
 @dataclass(slots=True)
+class FloorSummaryPressureEntryView:
+    name: str
+    score: int
+    wins: int
+    tags: list[str]
+    descriptor: str
+    rationale: str
+
+
+@dataclass(slots=True)
+class FloorSummaryHeirPressureView:
+    branch_doctrine: str
+    successor_candidates: list[FloorSummaryPressureEntryView]
+    future_threats: list[FloorSummaryPressureEntryView]
+
+
+@dataclass(slots=True)
 class FloorSummaryState:
     floor_number: int
     entries: list[FloorSummaryEntryView]
+    heir_pressure: FloorSummaryHeirPressureView | None = None
 
 
 @dataclass(slots=True)

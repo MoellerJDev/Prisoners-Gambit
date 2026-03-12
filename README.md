@@ -77,7 +77,7 @@ During featured rounds, you will typically choose between:
 - stance controls (short-term behavioral locks),
 - autopilot-driven options.
 
-After featured matches, you vote in a floor referendum, then see floor results, eliminations, and post-floor choices (powerup + genome edit).
+After featured matches, you vote in a floor referendum, then see floor results, including a future-successor pressure readout (branch doctrine, likely heirs, and emerging threats), eliminations, and post-floor choices (powerup + genome edit).
 
 ### Deterministic replay
 

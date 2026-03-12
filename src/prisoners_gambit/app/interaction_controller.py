@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
-from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
@@ -21,6 +21,8 @@ from prisoners_gambit.core.interaction import (
     FloorRosterEntryView,
     FloorRosterState,
     FloorSummaryEntryView,
+    FloorSummaryHeirPressureView,
+    FloorSummaryPressureEntryView,
     FloorSummaryState,
     FloorVoteDecisionState,
     FloorVoteResult,
@@ -164,7 +166,41 @@ class InteractionController:
                     powerups=[powerup.name for powerup in agent.powerups],
                 )
             )
-        self.snapshot.floor_summary = FloorSummaryState(floor_number=floor_number, entries=entries)
+        player = next((agent for agent in ranked if agent.is_player), None)
+        heir_pressure_analysis = analyze_floor_heir_pressure(
+            ranked=ranked,
+            player_lineage_id=player.lineage_id if player else None,
+        )
+        heir_pressure = FloorSummaryHeirPressureView(
+            branch_doctrine=heir_pressure_analysis.branch_doctrine,
+            successor_candidates=[
+                FloorSummaryPressureEntryView(
+                    name=candidate.name,
+                    score=candidate.score,
+                    wins=candidate.wins,
+                    tags=list(candidate.tags),
+                    descriptor=candidate.descriptor,
+                    rationale=candidate.rationale,
+                )
+                for candidate in heir_pressure_analysis.successor_candidates
+            ],
+            future_threats=[
+                FloorSummaryPressureEntryView(
+                    name=candidate.name,
+                    score=candidate.score,
+                    wins=candidate.wins,
+                    tags=list(candidate.tags),
+                    descriptor=candidate.descriptor,
+                    rationale=candidate.rationale,
+                )
+                for candidate in heir_pressure_analysis.future_threats
+            ],
+        )
+        self.snapshot.floor_summary = FloorSummaryState(
+            floor_number=floor_number,
+            entries=entries,
+            heir_pressure=heir_pressure,
+        )
         self._sync_session_snapshot()
 
     def set_floor_vote_result(self, result: FloorVoteResult) -> None:
