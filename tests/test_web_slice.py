@@ -786,8 +786,26 @@ def test_web_html_adds_mobile_viewport_and_touch_targets() -> None:
     from prisoners_gambit.web import server as web_server
 
     assert "name='viewport'" in web_server.HTML
-    assert ".actions .btn { flex:1 1 100%; min-height:48px; }" in web_server.HTML
-    assert ".controls .btn { flex:1 1 calc(50% - 10px); }" in web_server.HTML
+    assert ".actions .btn { flex:1 1 100%; min-height:54px; }" in web_server.HTML
+    assert ".controls .btn { flex:1 1 calc(50% - 10px); min-height:50px; }" in web_server.HTML
+
+
+def test_web_html_mobile_layout_prioritizes_decision_context_and_reduces_clutter() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert ".decision-panel { position:sticky; top:8px; z-index:3; }" in web_server.HTML
+    assert "<div class='row controls action-controls'>" in web_server.HTML
+    assert "<div class='row controls status-controls'>" in web_server.HTML
+    assert "<details open>" in web_server.HTML
+    assert "Expand raw state/debug JSON" in web_server.HTML
+
+
+def test_web_html_marks_primary_actions_for_mobile_tap_focus() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "p.suggested_move === 0 ? 'primary-action' : ''" in web_server.HTML
+    assert "p.suggested_vote === 0 ? 'primary-action' : ''" in web_server.HTML
+    assert "btn.className = idx === 0 ? 'btn primary-action' : 'btn';" in web_server.HTML
 
 
 def test_web_html_prioritizes_mobile_panel_ordering() -> None:

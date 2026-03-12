@@ -183,11 +183,14 @@ HTML = """<!doctype html>
     }
     .controls { gap:10px; }
     .controls .btn { flex:0 1 auto; }
+    .action-controls { margin-bottom:8px; }
+    .status-controls { gap:6px; }
     .decision-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 40%); }
     .primary-action { border-color:var(--accent); background:#223553; font-weight:600; }
     .actions { gap:10px; }
-    .actions .btn { flex:1 1 170px; justify-content:center; display:inline-flex; align-items:center; }
+    .actions .btn { flex:1 1 170px; justify-content:center; display:inline-flex; align-items:center; min-height:46px; }
     .panel-mobile-low { opacity:.98; }
+    .raw-state-panel summary { cursor:pointer; color:var(--muted); margin-bottom:8px; }
     .btn:hover { transform:translateY(-1px); border-color:var(--accent); background:#24334d; }
     .btn:active { transform:translateY(0); }
 
@@ -243,12 +246,15 @@ HTML = """<!doctype html>
       .wrap { padding:14px 12px 18px; }
       .sub { margin-bottom:10px; font-size:14px; }
       .panel { padding:12px; border-radius:11px; }
-      .controls .btn { flex:1 1 calc(50% - 10px); }
-      .pill { font-size:12px; padding:4px 8px; }
+      .controls .btn { flex:1 1 calc(50% - 10px); min-height:50px; }
+      .action-controls { margin-bottom:10px; }
+      .status-controls { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); width:100%; gap:6px; }
+      .pill { font-size:12px; padding:6px 8px; text-align:center; }
       .kv { grid-template-columns:1fr; row-gap:4px; }
       .kv > div:nth-child(odd) { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
-      .actions { margin-top:8px; }
-      .actions .btn { flex:1 1 100%; min-height:48px; }
+      .decision-panel { position:sticky; top:8px; z-index:3; }
+      .actions { margin-top:8px; gap:8px; }
+      .actions .btn { flex:1 1 100%; min-height:54px; }
       .grid > .decision-panel { order:1; }
       .grid > .result-panel { order:2; }
       .grid > .summary-panel { order:3; }
@@ -258,6 +264,7 @@ HTML = """<!doctype html>
       .grid > .dynasty-panel { order:7; }
       .grid > .chronicle-panel { order:8; }
       .grid > .panel-mobile-low { order:9; }
+      .raw-state-panel details:not([open]) pre { display:none; }
       pre { max-height:180px; font-size:11px; }
     }
   </style>
@@ -268,12 +275,14 @@ HTML = """<!doctype html>
   <div class='sub'>Full-run web prototype with typed decisions and atmospheric table-style UI.</div>
 
   <div class='panel panel-enter'>
-    <div class='row controls'>
+    <div class='row controls action-controls'>
       <button class='btn' onclick='startRun()'>Start Run</button>
       <button id='advanceBtn' class='btn primary-action' onclick='advanceFlow()' style='display:none;'>Continue to next phase</button>
       <button class='btn' onclick='exportSaveCode()'>Export Save Code</button>
       <button class='btn' onclick='importSaveCode()'>Import Save Code</button>
       <button class='btn' onclick='clearRun()'>Clear Run</button>
+    </div>
+    <div class='row controls status-controls'>
       <span id='status' class='pill'>status: not_started</span>
       <span id='phase' class='pill'>phase: -</span>
       <span id='floor' class='pill'>floor: -</span>
@@ -337,9 +346,12 @@ HTML = """<!doctype html>
     </div>
   </div>
 
-  <div class='panel panel-enter' style='margin-top:14px;'>
+  <div class='panel panel-enter panel-mobile-low raw-state-panel' style='margin-top:14px;'>
     <h3>Raw State</h3>
-    <pre id='stateJson'>{}</pre>
+    <details open>
+      <summary>Expand raw state/debug JSON</summary>
+      <pre id='stateJson'>{}</pre>
+    </details>
   </div>
 </div>
 <script>
@@ -378,9 +390,9 @@ function renderDecision(data){
       <div>Clues</div><div><ul>${clues}</ul></div>
       <div>Floor clue memory</div><div><ul>${floorLog}</ul></div>`;
     actions.innerHTML = `
-      <button class='btn' onclick="sendAction({type:'manual_move', move:'C'})">Cooperate</button>
-      <button class='btn' onclick="sendAction({type:'manual_move', move:'D'})">Defect</button>
-      <button class='btn' onclick="sendAction({type:'autopilot_round'})">Autopilot Round</button>
+      <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">Cooperate</button>
+      <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">Defect</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">Autopilot Round</button>
       <button class='btn' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">C until betrayed</button>
       <button class='btn' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">D until punished</button>
       <button class='btn' onclick="sendStanceN('follow_autopilot_for_n_rounds')">Autopilot N</button>
@@ -396,9 +408,9 @@ function renderDecision(data){
       <div>Floor Score</div><div>${p.current_floor_score}</div>
       <div>Powerups</div><div>${(p.powerups || []).map(powerupToken).join(' ') || 'none'}</div>`;
     actions.innerHTML = `
-      <button class='btn' onclick="sendAction({type:'manual_vote', vote:'C'})">Vote Cooperate</button>
-      <button class='btn' onclick="sendAction({type:'manual_vote', vote:'D'})">Vote Defect</button>
-      <button class='btn' onclick="sendAction({type:'autopilot_vote'})">Autopilot Vote</button>`;
+      <button class='btn ${p.suggested_vote === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'C'})">Vote Cooperate</button>
+      <button class='btn ${p.suggested_vote === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'D'})">Vote Defect</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_vote'})">Autopilot Vote</button>`;
     return;
   }
 
@@ -406,7 +418,7 @@ function renderDecision(data){
     document.getElementById('decisionView').innerHTML = `<div>Floor</div><div>${decision.floor_number}</div><div>Offers</div><div>${decision.offers.length}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
-      btn.className = 'btn';
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn';
       const label = `${idx + 1}. ${offer.name}`;
       const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
@@ -426,7 +438,7 @@ function renderDecision(data){
       <div>Current Genome</div><div>${genomeToken(decision.current_summary)}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
-      btn.className = 'btn';
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn';
       const label = `${idx + 1}. ${offer.name}`;
       const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
@@ -445,7 +457,7 @@ function renderDecision(data){
     document.getElementById('decisionView').innerHTML = `<div>Floor</div><div>${decision.floor_number}</div><div>Candidates</div><div>${decision.candidates.length}</div>`;
     decision.candidates.forEach((candidate, idx) => {
       const btn = document.createElement('button');
-      btn.className = 'btn';
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn';
       btn.innerHTML = `${idx + 1}. ${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} (${candidate.score}/${candidate.wins})`;
       btn.title = (candidate.shaping_causes || []).join('; ');
       btn.onclick = () => sendAction({type:'choose_successor', candidate_index: idx});
