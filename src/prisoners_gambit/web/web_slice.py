@@ -6,6 +6,7 @@ import random
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
+from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
@@ -319,11 +320,31 @@ class FeaturedMatchWebSession:
             self._successor_candidates = self._build_successor_candidates()
             candidates = []
             top_score = max((agent.score for agent in self._successor_candidates), default=0)
+            threat_tags: set[str] = set()
+            lineage_doctrine: str | None = None
+            if self.snapshot.floor_summary and self.snapshot.floor_summary.heir_pressure:
+                lineage_doctrine = self.snapshot.floor_summary.heir_pressure.branch_doctrine
+                for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
+                    threat_tags.update(threat.tags)
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
-                assessment = assess_successor_candidate(agent, top_score=top_score, phase=self.snapshot.current_phase)
+                assessment = assess_successor_candidate(
+                    agent,
+                    top_score=top_score,
+                    phase=self.snapshot.current_phase,
+                    threat_tags=threat_tags,
+                    lineage_doctrine=lineage_doctrine,
+                )
                 candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
-            state = SuccessorChoiceState(floor_number=self.floor_number, candidates=candidates)
+            civil_war_pressure = civil_war_pressure_for_threat_tags(threat_tags)
+            state = SuccessorChoiceState(
+                floor_number=self.floor_number,
+                candidates=candidates,
+                current_phase=self.snapshot.current_phase,
+                lineage_doctrine=lineage_doctrine,
+                threat_profile=sorted(threat_tags),
+                civil_war_pressure=civil_war_pressure,
+            )
             self.snapshot.successor_options = state
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)
             self.snapshot.session_status = "awaiting_decision"

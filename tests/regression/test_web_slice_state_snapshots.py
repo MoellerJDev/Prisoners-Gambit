@@ -21,6 +21,9 @@ REQUIRED_SUCCESSOR_KEYS = {
     "strengths",
     "liabilities",
     "lineage_future",
+    "succession_pitch",
+    "succession_risk",
+    "anti_score_note",
 }
 
 
@@ -58,6 +61,7 @@ def test_regression_successor_transition_payload_contract() -> None:
     assert decision is not None
     assert decision["floor_number"] == session.view()["snapshot"]["current_floor"]
     assert len(decision["candidates"]) >= 1
+    assert {"current_phase", "lineage_doctrine", "threat_profile", "civil_war_pressure"}.issubset(decision.keys())
 
     candidate = decision["candidates"][0]
     assert REQUIRED_SUCCESSOR_KEYS.issubset(candidate.keys())

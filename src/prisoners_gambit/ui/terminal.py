@@ -236,19 +236,34 @@ class TerminalRenderer(Renderer):
     def choose_successor(self, successors: list[Agent]) -> Agent:
         from prisoners_gambit.core.analysis import analyze_agent_identity, assess_successor_candidate
         from prisoners_gambit.core.interaction import SuccessorCandidateView
+        from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 
         top_score = max((agent.score for agent in successors), default=0)
         candidates: list[SuccessorCandidateView] = []
         for agent in successors:
             identity = analyze_agent_identity(agent)
-            assessment = assess_successor_candidate(agent, top_score=top_score)
+            assessment = assess_successor_candidate(agent, top_score=top_score, phase="ecosystem")
             candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
-        state = SuccessorChoiceState(floor_number=0, candidates=candidates)
+        threat_profile: list[str] = []
+        state = SuccessorChoiceState(
+            floor_number=0,
+            candidates=candidates,
+            current_phase="ecosystem",
+            lineage_doctrine="Lineage trend unavailable in direct terminal fallback mode.",
+            threat_profile=threat_profile,
+            civil_war_pressure=civil_war_pressure_for_threat_tags(set(threat_profile)),
+        )
         action = self.resolve_successor_choice(state)
         return successors[action.candidate_index]
 
     def resolve_successor_choice(self, state: SuccessorChoiceState) -> ChooseSuccessorAction:
         print("\nYour current host was eliminated, but your lineage survives.")
+        print("Succession checkpoint: choose the future doctrine your lineage inherits.")
+        print(f"Phase: {state.current_phase or 'unknown'} | Civil-war pressure: {state.civil_war_pressure or 'unknown'}")
+        if state.lineage_doctrine:
+            print(f"Inherited trend: {state.lineage_doctrine}")
+        if state.threat_profile:
+            print(f"Threat profile: {', '.join(state.threat_profile)}")
         print("Choose a surviving descendant to continue as:")
         for index, candidate in enumerate(state.candidates, start=1):
             print(format_successor_candidate_view(index=index, candidate=candidate))

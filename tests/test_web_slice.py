@@ -110,6 +110,10 @@ def test_web_session_advances_through_full_run_loop() -> None:
 
     session.advance()
     assert session.view()["decision_type"] == "SuccessorChoiceState"
+    successor_decision = session.view()["decision"]
+    assert successor_decision is not None
+    assert {"current_phase", "lineage_doctrine", "threat_profile", "civil_war_pressure"}.issubset(successor_decision.keys())
+    assert successor_decision["civil_war_pressure"] in {"low", "rising", "high"}
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()

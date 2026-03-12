@@ -213,6 +213,7 @@ def test_successor_state_and_run_snapshot_are_populated() -> None:
     a = _make_agent("Heir A", score=8, wins=2, depth=1)
     b = _make_agent("Heir B", score=7, wins=1, depth=2)
 
+    controller.snapshot.current_phase = "ecosystem"
     choice = controller.choose_successor(5, [a, b])
 
     assert choice is a
@@ -223,6 +224,9 @@ def test_successor_state_and_run_snapshot_are_populated() -> None:
     assert controller.snapshot.successor_options.candidates[0].shaping_causes
     assert controller.snapshot.successor_options.candidates[0].attractive_now
     assert controller.snapshot.successor_options.candidates[0].genome_summary
+    assert controller.snapshot.successor_options.current_phase == "ecosystem"
+    assert controller.snapshot.successor_options.threat_profile == []
+    assert controller.snapshot.successor_options.civil_war_pressure == "low"
 
 
 def test_floor_summary_snapshot_uses_structured_entries() -> None:
