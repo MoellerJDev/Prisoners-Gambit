@@ -64,6 +64,9 @@ def test_invariant_successor_candidate_payload_shape_across_multiple_seeds() -> 
         "attractive_now",
         "danger_later",
         "lineage_future",
+        "succession_pitch",
+        "succession_risk",
+        "anti_score_note",
         "genome_summary",
         "powerups",
     }
@@ -103,7 +106,15 @@ def test_invariant_floor_summary_heir_pressure_shape_across_multiple_seeds() -> 
 def test_invariant_no_missing_required_fields_in_decision_payloads() -> None:
     required_by_state = {
         "FeaturedRoundDecisionState": {"prompt", "valid_actions", "stance_options"},
-        "SuccessorChoiceState": {"floor_number", "candidates", "valid_actions"},
+        "SuccessorChoiceState": {
+            "floor_number",
+            "candidates",
+            "current_phase",
+            "lineage_doctrine",
+            "threat_profile",
+            "civil_war_pressure",
+            "valid_actions",
+        },
         "PowerupChoiceState": {"floor_number", "offers", "valid_actions"},
     }
 

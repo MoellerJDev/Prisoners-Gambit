@@ -5,6 +5,7 @@ from typing import Callable, Sequence
 
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
+from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
@@ -341,7 +342,7 @@ class InteractionController:
                 to_successor_candidate_view(agent=candidate, identity=identity, assessment=assessment)
             )
 
-        civil_war_pressure = "high" if {"Aggressive", "Control", "Punishing", "Tempo"} & threat_tags else "rising"
+        civil_war_pressure = civil_war_pressure_for_threat_tags(threat_tags)
         state = SuccessorChoiceState(
             floor_number=floor_number,
             candidates=successor_views,

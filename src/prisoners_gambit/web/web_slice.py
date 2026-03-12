@@ -6,6 +6,7 @@ import random
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
 from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
+from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
@@ -335,7 +336,7 @@ class FeaturedMatchWebSession:
                     lineage_doctrine=lineage_doctrine,
                 )
                 candidates.append(to_successor_candidate_view(agent=agent, identity=identity, assessment=assessment))
-            civil_war_pressure = "high" if {"Aggressive", "Control", "Punishing", "Tempo"} & threat_tags else "rising"
+            civil_war_pressure = civil_war_pressure_for_threat_tags(threat_tags)
             state = SuccessorChoiceState(
                 floor_number=self.floor_number,
                 candidates=candidates,
