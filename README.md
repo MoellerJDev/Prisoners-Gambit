@@ -138,6 +138,35 @@ Then open:
 
 - `http://127.0.0.1:8765`
 
+The web server binds to `0.0.0.0` by default and reads the port from `PORT` (falling back to `8765`), so local development and cloud hosts can use the same entrypoint.
+
+### Why not GitHub Pages?
+
+GitHub Pages only serves static files. This prototype uses a live Python HTTP server with `/api/*` endpoints for run state and action submission, so it must run on a Python-capable host (for example, Render), not a static Pages site.
+
+### Deploy remotely (Render)
+
+Use a **Web Service** on Render connected to this repo.
+
+- **Build command**
+
+  ```bash
+  pip install -e .
+  ```
+
+- **Start command**
+
+  ```bash
+  PYTHONPATH=src python -m prisoners_gambit.web.server
+  ```
+
+- **Environment variables**
+  - `PYTHON_VERSION` (recommended): e.g. `3.11.11`
+  - `PG_WEB_SAVE_SECRET` (**strongly recommended**): long stable random string
+  - Optional game tuning flags like `PG_SEED`, `PG_FLOORS`, etc.
+
+`PG_WEB_SAVE_SECRET` signs exported save codes. If you keep this value stable across deploys/restarts, previously exported save codes remain importable on the remote service. If it changes, old signed save codes are rejected.
+
 ### Web UI walkthrough
 
 1. Click **Start Run**.
@@ -179,6 +208,10 @@ The web prototype is a full-run decision surface over typed state/actions, but i
 - `PG_LOG_TO_CONSOLE`
 - `PG_LOG_TO_FILE`
 - `PG_LOG_FILE`
+
+### Web prototype deployment
+- `PORT` (provided by most hosts, including Render; defaults to `8765` locally)
+- `PG_WEB_SAVE_SECRET` (set to a stable value to keep save-code imports portable across restarts/deploys)
 
 ---
 

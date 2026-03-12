@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: prisoners-gambit-web
+    env: python
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: PYTHONPATH=src python -m prisoners_gambit.web.server
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: PG_WEB_SAVE_SECRET
+        generateValue: true
