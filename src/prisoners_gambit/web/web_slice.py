@@ -33,6 +33,8 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundStanceView,
     FloorSummaryEntryView,
     FloorSummaryState,
+    DynastyBoardEntryView,
+    DynastyBoardState,
     FloorVoteDecisionState,
     FloorVotePrompt,
     FloorVoteResult,
@@ -244,6 +246,7 @@ class FeaturedMatchWebSession:
             floor_number=self.floor_number,
             summary=f"Run opened with seed {self.seed} in ecosystem phase.",
         )
+        self._rebuild_dynasty_board()
         self._begin_featured_round_decision()
 
     def submit_action(
@@ -491,6 +494,7 @@ class FeaturedMatchWebSession:
                     is_player=agent.is_player,
                     score=agent.score,
                     wins=agent.wins,
+                    lineage_depth=agent.lineage_depth,
                     tags=identity.tags,
                     descriptor=identity.descriptor,
                     genome_summary=agent.genome.summary(),
@@ -524,6 +528,7 @@ class FeaturedMatchWebSession:
             floor_number=self.floor_number,
             summary=f"Lineage doctrine signal: {doctrine_note}",
         )
+        self._rebuild_dynasty_board()
 
     def _begin_post_summary_flow(self) -> None:
         if self.floor_number == 1:
@@ -571,6 +576,7 @@ class FeaturedMatchWebSession:
                 ),
             )
             self.snapshot.successor_options = state
+            self._rebuild_dynasty_board()
             self._append_chronicle_entry(
                 event_id=f"successor_pressure:{self.floor_number}",
                 event_type="successor_pressure",
@@ -620,6 +626,7 @@ class FeaturedMatchWebSession:
             summary=f"Civil war ignited: {self.snapshot.civil_war_context.thesis}",
         )
         self.snapshot.session_status = "running"
+        self._rebuild_dynasty_board()
 
     def _resolve_powerup_choice(self, decision: PowerupChoiceState) -> None:
         action = self.session.resolve_current_decision(lambda _: ChoosePowerupAction(offer_index=0))
@@ -664,6 +671,97 @@ class FeaturedMatchWebSession:
         )
         self.session.complete(completion, self.snapshot)
         self.snapshot.session_status = "completed"
+        self._rebuild_dynasty_board()
+
+    def _rebuild_dynasty_board(self) -> None:
+        pressure_names: set[str] = set()
+        danger_names: set[str] = set()
+        floor_summary = self.snapshot.floor_summary
+        if floor_summary and floor_summary.heir_pressure:
+            pressure_names.update(entry.name for entry in floor_summary.heir_pressure.successor_candidates)
+            danger_names.update(entry.name for entry in floor_summary.heir_pressure.future_threats)
+        successor_options = self.snapshot.successor_options
+        if successor_options and successor_options.candidates:
+            top_score = max(candidate.score for candidate in successor_options.candidates)
+            pressure_names.update(candidate.name for candidate in successor_options.candidates if candidate.score == top_score)
+
+        entries: list[DynastyBoardEntryView] = []
+        if self.snapshot.successor_options and self._successor_candidates:
+            branch_pool = list(self._successor_candidates)
+            if all(agent.name != self.player.name for agent in branch_pool):
+                branch_pool.append(self.player)
+            for agent in branch_pool:
+                identity = analyze_agent_identity(agent)
+                doctrine_signal = ", ".join(identity.tags[:2]) if identity.tags else identity.descriptor
+                entries.append(
+                    DynastyBoardEntryView(
+                        name=agent.name,
+                        role=identity.descriptor,
+                        doctrine_signal=doctrine_signal,
+                        score=agent.score,
+                        wins=agent.wins,
+                        lineage_depth=agent.lineage_depth,
+                        is_current_host=agent.is_player or agent.name == self.player.name,
+                        has_successor_pressure=agent.name in pressure_names,
+                        has_civil_war_danger=agent.name in danger_names,
+                    )
+                )
+        elif floor_summary and floor_summary.entries:
+            for entry in floor_summary.entries:
+                doctrine_signal = ", ".join(entry.tags[:2]) if entry.tags else entry.descriptor
+                entries.append(
+                    DynastyBoardEntryView(
+                        name=entry.name,
+                        role=entry.descriptor,
+                        doctrine_signal=doctrine_signal,
+                        score=entry.score,
+                        wins=entry.wins,
+                        lineage_depth=entry.lineage_depth,
+                        is_current_host=entry.is_player,
+                        has_successor_pressure=entry.name in pressure_names,
+                        has_civil_war_danger=entry.name in danger_names,
+                    )
+                )
+        else:
+            for agent in (self.player, self.opponent):
+                identity = analyze_agent_identity(agent)
+                doctrine_signal = ", ".join(identity.tags[:2]) if identity.tags else identity.descriptor
+                entries.append(
+                    DynastyBoardEntryView(
+                        name=agent.name,
+                        role=identity.descriptor,
+                        doctrine_signal=doctrine_signal,
+                        score=agent.score,
+                        wins=agent.wins,
+                        lineage_depth=agent.lineage_depth,
+                        is_current_host=agent.is_player,
+                        has_successor_pressure=False,
+                        has_civil_war_danger=False,
+                    )
+                )
+
+        if self.snapshot.current_phase == "civil_war":
+            threat_tags = set((self.snapshot.successor_options and self.snapshot.successor_options.threat_profile) or [])
+            for idx, board_entry in enumerate(entries):
+                candidate = next((agent for agent in self._successor_candidates if agent.name == board_entry.name), None)
+                if candidate is None:
+                    continue
+                tags = set(analyze_agent_identity(candidate).tags)
+                if tags & threat_tags:
+                    entries[idx] = DynastyBoardEntryView(
+                        name=board_entry.name,
+                        role=board_entry.role,
+                        doctrine_signal=board_entry.doctrine_signal,
+                        score=board_entry.score,
+                        wins=board_entry.wins,
+                        lineage_depth=board_entry.lineage_depth,
+                        is_current_host=board_entry.is_current_host,
+                        has_successor_pressure=board_entry.has_successor_pressure,
+                        has_civil_war_danger=True,
+                    )
+
+        entries.sort(key=lambda entry: (-entry.score, entry.name, entry.lineage_depth))
+        self.snapshot.dynasty_board = DynastyBoardState(phase=self.snapshot.current_phase, entries=entries)
 
     def _resolve_stance_move(self, prompt: FeaturedMatchPrompt) -> int:
         if self._active_stance is None:

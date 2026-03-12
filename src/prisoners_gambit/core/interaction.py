@@ -150,6 +150,7 @@ class FloorSummaryEntryView:
     is_player: bool
     score: int
     wins: int
+    lineage_depth: int
     tags: list[str]
     descriptor: str
     genome_summary: str
@@ -391,6 +392,25 @@ class RunCompletion:
 
 
 @dataclass(slots=True)
+class DynastyBoardEntryView:
+    name: str
+    role: str
+    doctrine_signal: str
+    score: int
+    wins: int
+    lineage_depth: int
+    is_current_host: bool
+    has_successor_pressure: bool
+    has_civil_war_danger: bool
+
+
+@dataclass(slots=True)
+class DynastyBoardState:
+    phase: Literal["ecosystem", "civil_war"] | None
+    entries: list[DynastyBoardEntryView]
+
+
+@dataclass(slots=True)
 class LineageChronicleEntry:
     event_id: str
     event_type: str
@@ -408,6 +428,7 @@ class RunSnapshot:
     latest_featured_round: FeaturedRoundResult | None = None
     floor_summary: FloorSummaryState | None = None
     floor_vote_result: FloorVoteResult | None = None
+    dynasty_board: DynastyBoardState | None = None
     successor_options: SuccessorChoiceState | None = None
     civil_war_context: CivilWarContext | None = None
     active_featured_stance: FeaturedRoundStanceView | None = None

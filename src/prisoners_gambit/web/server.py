@@ -270,6 +270,11 @@ HTML = """<!doctype html>
     </div>
 
     <div class='panel panel-enter'>
+      <h3>Dynasty Board</h3>
+      <ul id='dynastyBoard' class='list muted'><li>No lineage board yet.</li></ul>
+    </div>
+
+    <div class='panel panel-enter'>
       <h3>Run Completion</h3>
       <div id='completion' class='muted'>Run in progress.</div>
     </div>
@@ -484,6 +489,18 @@ function renderSnapshot(snapshot){
   document.getElementById('successors').innerHTML = successors.length
     ? successorContext + successors.map(candidate => `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${genomeToken(candidate.genome_summary)} · score ${candidate.score} / wins ${candidate.wins}<br/><span class='muted'>${escapeHtml((candidate.shaping_causes || []).join('; '))}</span><br/><strong>Tradeoffs:</strong> ${escapeHtml((candidate.tradeoffs || []).join(' | '))}<br/><strong>Now/Later:</strong> ${escapeHtml(candidate.attractive_now)} · ${escapeHtml(candidate.danger_later)}<br/><strong>Plan/Risk:</strong> ${escapeHtml(candidate.succession_pitch)} · ${escapeHtml(candidate.succession_risk)}<br/><strong>Lineage future:</strong> ${escapeHtml(candidate.lineage_future)}<br/><strong>Featured inference:</strong> ${escapeHtml(candidate.featured_inference_context || 'No direct featured inference fit.') }<br/><span class='muted'>${escapeHtml(candidate.anti_score_note)}</span></li>`).join('')
     : '<li>No successor choice active.</li>';
+
+  const dynastyEntries = snapshot.dynasty_board?.entries || [];
+  document.getElementById('dynastyBoard').innerHTML = dynastyEntries.length
+    ? dynastyEntries.map(entry => {
+        const markers = [
+          entry.is_current_host ? effectToken('HOST') : '',
+          entry.has_successor_pressure ? effectToken('HEIR PRESSURE') : '',
+          entry.has_civil_war_danger ? effectToken('DANGER') : '',
+        ].filter(Boolean).join(' ');
+        return `<li>${branchToken(entry.name)} · ${escapeHtml(entry.role)} · ${escapeHtml(entry.doctrine_signal)} · score ${entry.score} / wins ${entry.wins} · depth ${entry.lineage_depth}<br/>${markers || '<span class="muted">No active lineage pressure markers.</span>'}</li>`;
+      }).join('')
+    : '<li>No lineage board yet.</li>';
 
   const completion = snapshot.completion;
   document.getElementById('completion').innerHTML = completion

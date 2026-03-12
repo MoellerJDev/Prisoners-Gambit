@@ -154,6 +154,7 @@ def build_floor_summary_state(*, floor_number: int = 1, ranked: list[Agent], pla
             is_player=agent.is_player,
             score=agent.score,
             wins=agent.wins,
+            lineage_depth=agent.lineage_depth,
             tags=[],
             descriptor=agent.public_profile,
             genome_summary=agent.genome.summary(),

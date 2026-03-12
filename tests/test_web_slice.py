@@ -166,6 +166,38 @@ def test_web_session_state_round_trip_preserves_lineage_chronicle() -> None:
 
     assert restored.view()["snapshot"]["lineage_chronicle"] == session.view()["snapshot"]["lineage_chronicle"]
 
+
+def test_web_session_dynasty_board_marks_host_and_successor_pressure_on_floor_summary() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
+    assert board_entries
+    assert any(entry["is_current_host"] for entry in board_entries)
+    assert any(entry["has_successor_pressure"] for entry in board_entries)
+
+
+def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
+    assert board_entries
+    assert any(entry["is_current_host"] for entry in board_entries)
+    assert any(entry["has_civil_war_danger"] for entry in board_entries)
+
 def test_web_session_state_serialization_round_trip_preserves_pending_decision_and_snapshot() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=3)
     session.start()
@@ -182,6 +214,18 @@ def test_web_session_state_serialization_round_trip_preserves_pending_decision_a
     restored = FeaturedMatchWebSession.from_serialized_state(saved)
 
     assert restored.view() == session.view()
+
+
+def test_web_session_state_round_trip_preserves_dynasty_board() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+    assert restored.view()["snapshot"]["dynasty_board"] == session.view()["snapshot"]["dynasty_board"]
 
 
 def test_web_session_state_restore_continues_deterministically() -> None:
