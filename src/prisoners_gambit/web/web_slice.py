@@ -73,12 +73,14 @@ class FeaturedMatchWebSession:
         self._powerup_offers = []
         self._genome_offers = []
         self._successor_candidates: list[Agent] = []
+        self._floor_clue_log: list[str] = []
 
     def start(self) -> None:
         self.session.start(self.snapshot)
         self.snapshot.header = self.snapshot.header or None
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
+        self._floor_clue_log = []
         self._begin_featured_round_decision()
 
     def submit_action(
@@ -158,11 +160,7 @@ class FeaturedMatchWebSession:
                     f"Known powerups: {', '.join(powerup.name for powerup in self.opponent.powerups) if self.opponent.powerups else 'none'}",
                     "Move-pattern signal: compare opening and retaliation cadence.",
                 ],
-                floor_clue_log=(
-                    list(self.snapshot.latest_featured_round.inference_update)
-                    if self.snapshot.latest_featured_round is not None
-                    else []
-                ),
+                floor_clue_log=list(self._floor_clue_log),
                 inference_focus=(
                     "Opening read: stress-test profile clues."
                     if self.round_index == 0
@@ -285,6 +283,7 @@ class FeaturedMatchWebSession:
                 final_opponent_points=o_points,
             ),
         )
+        self._floor_clue_log.extend(self.snapshot.latest_featured_round.inference_update)
         self.round_index += 1
 
         if self.round_index < self.rounds:

@@ -315,7 +315,8 @@ class TournamentEngine:
         masked_opponent_label: str,
         floor_clue_log: list[str] | None = None,
     ) -> tuple[int, int]:
-        floor_clue_log = floor_clue_log or []
+        if floor_clue_log is None:
+            floor_clue_log = []
         player_history: list[int] = []
         opponent_history: list[int] = []
         player_score = 0

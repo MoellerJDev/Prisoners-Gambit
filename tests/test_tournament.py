@@ -491,7 +491,7 @@ def test_civil_war_grants_rivalry_bonus_for_same_lane_winners() -> None:
     assert ranked[0].score >= 2
 
 
-def test_featured_prompt_clues_and_floor_log_accumulate() -> None:
+def test_featured_prompt_floor_log_accumulates_round_to_round_within_match() -> None:
     renderer = StubRenderer()
     you = static_agent("You", COOPERATE, is_player=True, lineage_id=1)
     opponent = static_agent("A", DEFECT)
@@ -512,3 +512,24 @@ def test_featured_prompt_clues_and_floor_log_accumulate() -> None:
     assert first.floor_clue_log == []
     assert second.floor_clue_log
     assert second.inference_focus is not None
+
+
+def test_featured_prompt_floor_log_carries_across_featured_matches_on_same_floor() -> None:
+    renderer = StubRenderer()
+    you = static_agent("You", COOPERATE, is_player=True, lineage_id=1)
+    opponent_a = static_agent("A", DEFECT)
+    opponent_b = static_agent("B", DEFECT)
+    opponent_c = static_agent("C", COOPERATE)
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(2), renderer=renderer)
+    floor_config = make_floor_config(rounds_per_match=1, featured_matches=2)
+
+    engine.run_floor([you, opponent_a, opponent_b, opponent_c], floor_number=1, floor_config=floor_config)
+
+    # Two featured matches, one round each -> two prompts.
+    assert len(renderer.prompts) == 2
+    first_match_prompt, second_match_prompt = renderer.prompts
+    assert first_match_prompt.round_index == 0
+    assert first_match_prompt.floor_clue_log == []
+    assert second_match_prompt.round_index == 0
+    assert second_match_prompt.floor_clue_log

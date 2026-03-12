@@ -40,7 +40,7 @@ def test_featured_match_web_session_round_trip_typed_action() -> None:
 
 
 def test_web_session_featured_prompt_and_round_payload_include_inference_fields() -> None:
-    session = FeaturedMatchWebSession(seed=13, rounds=2)
+    session = FeaturedMatchWebSession(seed=13, rounds=3)
     session.start()
 
     decision = session.view()["decision"]
@@ -50,6 +50,7 @@ def test_web_session_featured_prompt_and_round_payload_include_inference_fields(
     assert prompt["clue_channels"]
     assert "inference_focus" in prompt
     assert "floor_clue_log" in prompt
+    assert prompt["floor_clue_log"] == []
 
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
@@ -60,6 +61,12 @@ def test_web_session_featured_prompt_and_round_payload_include_inference_fields(
 
     second_prompt = session.view()["decision"]["prompt"]
     assert second_prompt["floor_clue_log"]
+    second_len = len(second_prompt["floor_clue_log"])
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    third_prompt = session.view()["decision"]["prompt"]
+    assert len(third_prompt["floor_clue_log"]) > second_len
 
 def test_featured_match_web_session_supports_stance_actions() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=3)
