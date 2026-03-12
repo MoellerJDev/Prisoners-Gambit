@@ -172,23 +172,11 @@ class TerminalRenderer(Renderer):
         print(format_floor_vote_result(result))
 
     def choose_powerup(self, offers: list[Powerup]) -> Powerup:
-        from prisoners_gambit.core.interaction import PowerupOfferView
-        from prisoners_gambit.core.offer_guidance import guidance_for_powerup
+        from prisoners_gambit.core.offer_views import to_powerup_offer_view
 
         state = PowerupChoiceState(
             floor_number=0,
-            offers=[
-                PowerupOfferView(
-                    name=offer.name,
-                    description=offer.description,
-                    doctrine_vector=guidance_for_powerup(offer).doctrine_vector,
-                    branch_identity=guidance_for_powerup(offer).branch_identity,
-                    tradeoff=guidance_for_powerup(offer).tradeoff,
-                    phase_support=guidance_for_powerup(offer).phase_support,
-                    successor_pressure=guidance_for_powerup(offer).successor_pressure,
-                )
-                for offer in offers
-            ],
+            offers=[to_powerup_offer_view(offer) for offer in offers],
         )
         action = self.resolve_powerup_choice(state)
         return offers[action.offer_index]
@@ -212,24 +200,12 @@ class TerminalRenderer(Renderer):
             print("Invalid selection.")
 
     def choose_genome_edit(self, offers: list[GenomeEdit], current_summary: str) -> GenomeEdit:
-        from prisoners_gambit.core.interaction import GenomeEditOfferView
-        from prisoners_gambit.core.offer_guidance import guidance_for_genome_edit
+        from prisoners_gambit.core.offer_views import to_genome_edit_offer_view
 
         state = GenomeEditChoiceState(
             floor_number=0,
             current_summary=current_summary,
-            offers=[
-                GenomeEditOfferView(
-                    name=offer.name,
-                    description=offer.description,
-                    doctrine_vector=guidance_for_genome_edit(offer).doctrine_vector,
-                    branch_identity=guidance_for_genome_edit(offer).branch_identity,
-                    tradeoff=guidance_for_genome_edit(offer).tradeoff,
-                    phase_support=guidance_for_genome_edit(offer).phase_support,
-                    successor_pressure=guidance_for_genome_edit(offer).successor_pressure,
-                )
-                for offer in offers
-            ],
+            offers=[to_genome_edit_offer_view(offer) for offer in offers],
         )
         action = self.resolve_genome_edit_choice(state)
         return offers[action.offer_index]

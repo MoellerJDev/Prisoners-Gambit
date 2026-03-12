@@ -186,6 +186,7 @@ def test_powerup_choice_state_uses_structured_offer_views() -> None:
     assert renderer.last_powerup_state.floor_number == 3
     assert renderer.last_powerup_state.offers[0].name == "Trust Dividend"
     assert renderer.last_powerup_state.offers[0].description == TrustDividend().description
+    assert renderer.last_powerup_state.offers[0].lineage_commitment
     assert renderer.last_powerup_state.offers[0].doctrine_vector == "trust / reciprocity"
     assert renderer.last_powerup_state.offers[0].tradeoff
     assert renderer.last_powerup_state.offers[0].successor_pressure
@@ -203,8 +204,10 @@ def test_genome_edit_choice_state_includes_semantic_fields() -> None:
     assert renderer.last_genome_state is not None
     assert renderer.last_genome_state.offers[0].current_summary == "Open D"
     assert renderer.last_genome_state.offers[0].description == OpenWithTrust().description
+    assert renderer.last_genome_state.offers[0].lineage_commitment
     assert renderer.last_genome_state.offers[0].branch_identity == "Reciprocal openers"
     assert renderer.last_genome_state.offers[0].phase_support == "ecosystem survival"
+    assert renderer.last_genome_state.offers[0].doctrine_drift
 
 
 def test_successor_state_and_run_snapshot_are_populated() -> None:

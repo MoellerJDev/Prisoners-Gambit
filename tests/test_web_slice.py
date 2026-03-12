@@ -122,13 +122,13 @@ def test_web_session_advances_through_full_run_loop() -> None:
     session.advance()
     assert session.view()["decision_type"] == "PowerupChoiceState"
     powerup_offer = session.view()["decision"]["offers"][0]
-    assert {"doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure"}.issubset(powerup_offer.keys())
+    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure"}.issubset(powerup_offer.keys())
 
     session.submit_action(ChoosePowerupAction(offer_index=0))
     session.advance()
     assert session.view()["decision_type"] == "GenomeEditChoiceState"
     genome_offer = session.view()["decision"]["offers"][0]
-    assert {"doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure"}.issubset(genome_offer.keys())
+    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "doctrine_drift"}.issubset(genome_offer.keys())
 
     session.submit_action(ChooseGenomeEditAction(offer_index=0))
     session.advance()
