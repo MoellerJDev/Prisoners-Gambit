@@ -22,7 +22,7 @@ def to_powerup_offer_view(powerup: Powerup) -> PowerupOfferView:
         tradeoff=guidance.tradeoff,
         phase_support=guidance.phase_support,
         successor_pressure=guidance.successor_pressure,
-        tags=None,
+        tags=list(powerup.keywords),
     )
 
 

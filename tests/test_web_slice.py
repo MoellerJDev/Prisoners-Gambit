@@ -714,7 +714,7 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert floor_identity["dominant_pressure"]
     assert floor_identity["lineage_direction"].startswith("Doctrine path: ")
     powerup_offer = session.view()["decision"]["offers"][0]
-    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure"}.issubset(powerup_offer.keys())
+    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "tags"}.issubset(powerup_offer.keys())
 
     session.submit_action(ChoosePowerupAction(offer_index=0))
     session.advance()

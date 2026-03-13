@@ -3,6 +3,7 @@ import random
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import (
+    ALL_POWERUP_TYPES,
     BlocPolitics,
     CoerciveControl,
     ComplianceDividend,
@@ -361,3 +362,68 @@ def test_identical_highest_priority_directives_preserve_shared_move() -> None:
 
     assert resolved == COOPERATE
     assert "A" in reason or "B" in reason
+
+def test_last_laugh_adds_final_round_bonus_when_opponent_cooperates() -> None:
+    owner = static_agent("Closer", DEFECT)
+    opponent = static_agent("Opponent", COOPERATE)
+    perk = LastLaugh(bonus=2)
+
+    context = RoundContext(
+        round_index=2,
+        total_rounds=3,
+        my_history=[COOPERATE, COOPERATE],
+        opp_history=[COOPERATE, COOPERATE],
+        planned_move=DEFECT,
+        opp_planned_move=COOPERATE,
+    )
+
+    my_points, opp_points = perk.on_score(
+        owner=owner,
+        opponent=opponent,
+        my_move=DEFECT,
+        opp_move=COOPERATE,
+        my_points=1,
+        opp_points=0,
+        context=context,
+    )
+
+    assert my_points == 3
+    assert opp_points == 0
+
+
+def test_compliance_dividend_rewards_recovered_control_after_betrayal() -> None:
+    owner = static_agent("Owner", DEFECT)
+    opponent = static_agent("Opponent", COOPERATE)
+    perk = ComplianceDividend(bonus=2)
+
+    context = RoundContext(
+        round_index=2,
+        total_rounds=3,
+        my_history=[COOPERATE, DEFECT],
+        opp_history=[COOPERATE, DEFECT],
+        planned_move=DEFECT,
+        opp_planned_move=COOPERATE,
+    )
+
+    my_points, _ = perk.on_score(
+        owner=owner,
+        opponent=opponent,
+        my_move=DEFECT,
+        opp_move=COOPERATE,
+        my_points=1,
+        opp_points=0,
+        context=context,
+    )
+
+    assert my_points == 4
+
+
+def test_powerups_expose_synergy_keywords_for_offer_reasoning() -> None:
+    for powerup_type in ALL_POWERUP_TYPES:
+        keywords = powerup_type().keywords
+        assert keywords
+        assert all(keyword == keyword.strip() and keyword == keyword.lower() for keyword in keywords)
+
+    assert "creates_force" in CoerciveControl().keywords
+    assert "rewards_force" in ComplianceDividend().keywords
+    assert "referendum_control" in UnityTicket().keywords
