@@ -173,6 +173,63 @@ def test_web_session_state_round_trip_preserves_lineage_chronicle() -> None:
     assert restored.view()["snapshot"]["lineage_chronicle"] == session.view()["snapshot"]["lineage_chronicle"]
 
 
+
+
+def test_web_session_floor_summary_exposes_lineage_relation_and_change_signals() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    entries = session.view()["snapshot"]["floor_summary"]["entries"]
+    assert any(entry["lineage_relation"] == "host" for entry in entries)
+    assert any(entry["lineage_relation"] == "kin" for entry in entries)
+    assert any(entry["lineage_relation"] == "outsider" for entry in entries)
+    assert all(entry["pressure_trend"] in {"rising", "falling", "steady"} for entry in entries)
+
+
+def test_web_session_continuity_signals_update_across_floor_transition() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    entries = session.view()["snapshot"]["floor_summary"]["entries"]
+    assert any(entry["survived_previous_floor"] for entry in entries)
+    assert any(entry["continuity_streak"] >= 2 for entry in entries)
+    assert any(entry["score_delta"] != 0 or entry["wins_delta"] != 0 for entry in entries)
+
+
+def test_web_session_dynasty_board_exposes_central_rival_and_relation_tokens() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
+    assert any(entry["is_central_rival"] for entry in board_entries)
+    assert all(entry["lineage_relation"] in {"host", "kin", "outsider"} for entry in board_entries)
 def test_web_session_dynasty_board_marks_host_and_successor_pressure_on_floor_summary() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
@@ -679,6 +736,8 @@ def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
     assert "effectToken('YOU')" in web_server.HTML
     assert "effectToken('HEIR')" in web_server.HTML
     assert "effectToken('RISK')" in web_server.HTML
+    assert "NEW RIVAL" in web_server.HTML
+    assert "relationToken" in web_server.HTML
 
 def test_web_api_drives_session_without_terminal_formatting() -> None:
     from http.server import ThreadingHTTPServer

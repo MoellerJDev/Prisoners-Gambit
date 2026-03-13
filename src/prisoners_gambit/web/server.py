@@ -373,7 +373,7 @@ let latest = null;
 let previousTotals = null;
 const SAVE_STORAGE_KEY = 'prisoners_gambit_web_save_v1';
 const PANEL_LIMITS = Object.freeze({
-  floorLeaders: 3,
+  floorLeaders: 4,
   floorHeirs: 1,
   floorThreats: 1,
   successorCards: 2,
@@ -388,6 +388,15 @@ function cleanCauseLine(text){
 }
 function moveLabel(v){ return v === 0 ? 'C' : 'D'; }
 function effectToken(label){ return `<span class='token effect'>✦ ${escapeHtml(label)}</span>`; }
+function relationToken(relation){
+  const labels = {host:'HOST', kin:'KIN', outsider:'OUT'};
+  return `<span class='token branch'>${escapeHtml(labels[relation] || 'OUT')}</span>`;
+}
+function movementGlyph(delta){
+  if (delta > 0) return `↑${delta}`;
+  if (delta < 0) return `↓${Math.abs(delta)}`;
+  return '→0';
+}
 function branchToken(label){ return `<span class='token branch'>⎇ ${escapeHtml(label)}</span>`; }
 function powerupToken(label){ return `<span class='token powerup'>⚡ ${escapeHtml(label)}</span>`; }
 function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtml(label)}</span>`; }
@@ -596,7 +605,11 @@ function renderSnapshot(snapshot){
       + `<li><strong>Main pressure</strong>: ${escapeHtml(capLines(civilWar.dangerous_branches || [], 1).join(' · ') || 'Unknown')}</li>`
     : '';
   document.getElementById('floorSummary').innerHTML = summary.length
-    ? summary.slice(0, PANEL_LIMITS.floorLeaders).map(entry => `<li>${branchToken(entry.name)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · <span class='good'>${entry.score}</span> pts</li>`).join('') + `<li><strong>Featured read</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
+    ? summary.slice(0, PANEL_LIMITS.floorLeaders).map(entry => {
+        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
+        const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
+        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · <span class='good'>${entry.score}</span> pts · ${movementGlyph(entry.score_delta || 0)}S ${movementGlyph(entry.wins_delta || 0)}W · ${continuity} · P${trend}</li>`;
+      }).join('') + `<li><strong>Featured read</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
     : '<li>No summary yet.</li>';
 
   const successors = snapshot.successor_options?.candidates || [];
@@ -620,6 +633,7 @@ function renderSnapshot(snapshot){
           entry.is_current_host ? effectToken('YOU') : '',
           entry.has_successor_pressure ? effectToken('HEIR') : '',
           entry.has_civil_war_danger ? effectToken('RISK') : '',
+          entry.is_central_rival ? effectToken(entry.is_new_central_rival ? 'NEW RIVAL' : 'RIVAL') : '',
         ].filter(Boolean);
         const markerCauses = [
           entry.has_successor_pressure && entry.successor_pressure_cause ? `Heir: ${escapeHtml(cleanCauseLine(entry.successor_pressure_cause))}` : '',
@@ -628,7 +642,9 @@ function renderSnapshot(snapshot){
         const markerBlock = markerTokens.length
           ? `${markerTokens.join(' ')}${markerCauses.length ? `<br/><span class="muted">${markerCauses.slice(0, 2).join(' · ')}</span>` : ''}`
           : '<span class="muted">No active lineage pressure markers.</span>';
-        return `<li>${branchToken(entry.name)} · ${escapeHtml(entry.role)} · score ${entry.score} · depth ${entry.lineage_depth}<br/>${markerBlock}</li>`;
+        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
+        const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
+        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} · ${escapeHtml(entry.role)} · score ${entry.score} (${movementGlyph(entry.score_delta || 0)}S, ${movementGlyph(entry.wins_delta || 0)}W) · ${continuity} · P${trend} · depth ${entry.lineage_depth}<br/>${markerBlock}</li>`;
       }).join('')
     : '<li>No lineage board yet.</li>';
 
