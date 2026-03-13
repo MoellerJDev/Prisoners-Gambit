@@ -70,6 +70,7 @@ def test_contract_completion_flow_semantics() -> None:
     session = FeaturedMatchWebSession(seed=21, rounds=2)
     session.start()
     reach_successor_choice(session)
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
 
     advance_through_transition_and_complete(session, candidate_index=0)
 

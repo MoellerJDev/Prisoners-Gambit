@@ -677,14 +677,7 @@ class FeaturedMatchWebSession:
         return len(floor_summary.heir_pressure.future_threats) == 0
 
     def _begin_civil_war_floor(self) -> None:
-        self.round_index = 0
-        self.player_history = []
-        self.opponent_history = []
-        self.player_score = 0
-        self.opponent_score = 0
-        self.snapshot.floor_vote_result = None
-        self.snapshot.floor_summary = None
-        self._floor_clue_log = []
+        self._reset_floor_state_for_new_match()
 
         rivals = [agent for agent in self._successor_candidates if agent.name != self.player.name]
         if rivals:
@@ -711,6 +704,37 @@ class FeaturedMatchWebSession:
             ),
         )
         self._begin_featured_round_decision()
+
+    def _begin_next_ecosystem_floor(self) -> None:
+        self.floor_number += 1
+        self.snapshot.current_floor = self.floor_number
+        self.snapshot.current_phase = "ecosystem"
+        self.snapshot.civil_war_context = None
+        self.snapshot.successor_options = None
+        self._pending_screen = None
+        self._pending_message = None
+
+        self._reset_floor_state_for_new_match()
+        self.opponent = Agent(name="Unknown Opponent", genome=self._opponent_genome())
+        self.opponent.is_player = False
+
+        self._append_chronicle_entry(
+            event_id=f"floor_start:{self.floor_number}",
+            event_type="floor_start",
+            floor_number=self.floor_number,
+            summary=f"Floor {self.floor_number} started in ecosystem play.",
+        )
+        self._begin_featured_round_decision()
+
+    def _reset_floor_state_for_new_match(self) -> None:
+        self.round_index = 0
+        self.player_history = []
+        self.opponent_history = []
+        self.player_score = 0
+        self.opponent_score = 0
+        self.snapshot.floor_vote_result = None
+        self.snapshot.floor_summary = None
+        self._floor_clue_log = []
 
     def _resolve_powerup_choice(self, decision: PowerupChoiceState) -> None:
         action = self.session.resolve_current_decision(lambda _: ChoosePowerupAction(offer_index=0))
@@ -740,21 +764,25 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid genome edit index")
         self.player.genome = self._genome_offers[action.offer_index].apply(self.player.genome)
 
-        completion = RunCompletion(
-            outcome="victory" if self.player_score >= self.opponent_score else "eliminated",
-            floor_number=self.floor_number,
-            player_name=self.player.name,
-            seed=self.seed,
-        )
-        self.snapshot.completion = completion
-        self._append_chronicle_entry(
-            event_id=f"run_outcome:{completion.outcome}",
-            event_type="run_outcome",
-            floor_number=self.floor_number,
-            summary=f"Run ended in {completion.outcome} on floor {self.floor_number} as {self.player.name}.",
-        )
-        self.session.complete(completion, self.snapshot)
-        self.snapshot.session_status = "completed"
+        if self.snapshot.current_phase == "civil_war":
+            completion = RunCompletion(
+                outcome="victory" if self.player_score >= self.opponent_score else "eliminated",
+                floor_number=self.floor_number,
+                player_name=self.player.name,
+                seed=self.seed,
+            )
+            self.snapshot.completion = completion
+            self._append_chronicle_entry(
+                event_id=f"run_outcome:{completion.outcome}",
+                event_type="run_outcome",
+                floor_number=self.floor_number,
+                summary=f"Run ended in {completion.outcome} on floor {self.floor_number} as {self.player.name}.",
+            )
+            self.session.complete(completion, self.snapshot)
+            self.snapshot.session_status = "completed"
+        else:
+            self._begin_next_ecosystem_floor()
+            self.snapshot.session_status = "awaiting_decision"
         self._rebuild_dynasty_board()
 
     def _rebuild_dynasty_board(self) -> None:
