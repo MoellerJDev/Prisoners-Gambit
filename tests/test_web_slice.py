@@ -725,7 +725,7 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert floor_identity["dominant_pressure"]
     assert floor_identity["lineage_direction"].startswith("Doctrine path: ")
     powerup_offer = session.view()["decision"]["offers"][0]
-    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "tags", "trigger", "effect", "role", "relevance_hint"}.issubset(powerup_offer.keys())
+    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "tags", "trigger", "effect", "role", "relevance_hint", "crown_hint"}.issubset(powerup_offer.keys())
 
     session.submit_action(ChoosePowerupAction(offer_index=0))
     session.advance()
@@ -1639,3 +1639,29 @@ def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None
     assert vote_result is not None
     assert vote_result["player_vote"] == COOPERATE
     assert vote_result["player_reward"] >= 6
+
+
+def test_web_session_initializes_house_doctrine_from_seed() -> None:
+    session_a = FeaturedMatchWebSession(seed=41, rounds=1)
+    session_b = FeaturedMatchWebSession(seed=41, rounds=1)
+    session_c = FeaturedMatchWebSession(seed=42, rounds=1)
+
+    session_a.start()
+    session_b.start()
+    session_c.start()
+
+    snapshot_a = session_a.view()["snapshot"]
+    snapshot_b = session_b.view()["snapshot"]
+    snapshot_c = session_c.view()["snapshot"]
+
+    assert snapshot_a["house_doctrine_family"] == snapshot_b["house_doctrine_family"]
+    assert snapshot_a["house_doctrine_family"] != snapshot_c["house_doctrine_family"]
+    assert snapshot_a["primary_doctrine_family"] is not None
+
+
+def test_web_snapshot_surfaces_doctrine_identity_chip() -> None:
+    session = FeaturedMatchWebSession(seed=21, rounds=1)
+    session.start()
+
+    chips = session.view()["snapshot"]["strategic_snapshot"]["chips"]
+    assert any(str(chip).startswith("Doctrine: ") for chip in chips)

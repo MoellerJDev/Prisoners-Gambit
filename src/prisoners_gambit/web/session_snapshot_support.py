@@ -79,6 +79,14 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
     if snapshot.civil_war_context is not None and snapshot.civil_war_context.doctrine_pressure:
         civil_war_signal = snapshot.civil_war_context.doctrine_pressure[0]
 
+    doctrine_chip = "Doctrine: unresolved"
+    if snapshot.primary_doctrine_family:
+        doctrine_chip = f"Doctrine: {snapshot.primary_doctrine_family}"
+    if snapshot.secondary_doctrine_family:
+        doctrine_chip = f"Doctrine: {snapshot.primary_doctrine_family} → {snapshot.secondary_doctrine_family}"
+    elif snapshot.house_doctrine_family and snapshot.primary_doctrine_family != snapshot.house_doctrine_family:
+        doctrine_chip = f"Doctrine: {snapshot.house_doctrine_family} house → {snapshot.primary_doctrine_family}"
+
     headline = f"Host {host_name} · F{floor_number}"
     if snapshot.current_phase == "civil_war":
         headline = f"Host {host_name} · Civil-war floor F{floor_number}"
@@ -92,6 +100,7 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
             f"Rival: {rival_name}",
             f"Pressure: {floor_pressure}",
             f"Lineage: {lineage_direction}",
+            doctrine_chip,
         ],
         details=[
             immediate_posture,

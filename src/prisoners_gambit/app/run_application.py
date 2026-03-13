@@ -10,7 +10,13 @@ from prisoners_gambit.core.featured_inference import normalize_featured_inferenc
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.systems.evolution import EvolutionEngine
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, offer_category_hint
+from prisoners_gambit.systems.offers import (
+    PowerupOfferContext,
+    derive_doctrine_state,
+    generate_powerup_offer_set,
+    offer_category_hint,
+    seed_house_doctrine,
+)
 from prisoners_gambit.systems.population import create_population
 from prisoners_gambit.systems.progression import ProgressionEngine
 from prisoners_gambit.systems.tournament import TournamentEngine
@@ -210,6 +216,13 @@ class RunApplication:
                     self.renderer.show_victory(floor_number, player, self.settings.seed)
                     return player
 
+            phase = ("ecosystem" if ecosystem_phase else "civil_war")
+            house_doctrine = seed_house_doctrine(seed=self.settings.seed, floor_number=floor_number, phase=phase)
+            doctrine_state = derive_doctrine_state(
+                owned_powerups=tuple(player.powerups),
+                genome=player.genome,
+                house_doctrine_family=house_doctrine,
+            )
             generated_powerup_offers = generate_powerup_offer_set(
                 self.settings.offers_per_floor,
                 self.progression.rng,
@@ -217,9 +230,10 @@ class RunApplication:
                     owned_powerups=tuple(player.powerups),
                     genome=player.genome,
                     floor_number=floor_number,
-                    phase=("ecosystem" if ecosystem_phase else "civil_war"),
-                    primary_doctrine_family=(player.powerups[0].doctrine_family if player.powerups else None),
-                    secondary_doctrine_family=(player.powerups[1].doctrine_family if len(player.powerups) > 1 else None),
+                    phase=phase,
+                    house_doctrine_family=house_doctrine,
+                    primary_doctrine_family=doctrine_state.primary_doctrine_family,
+                    secondary_doctrine_family=doctrine_state.secondary_doctrine_family,
                 ),
             )
             powerup_offers = [entry.powerup for entry in generated_powerup_offers]

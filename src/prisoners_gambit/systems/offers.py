@@ -11,7 +11,8 @@ from prisoners_gambit.core.powerups import Powerup
 from prisoners_gambit.core.strategy import StrategyGenome
 
 OfferCategory = Literal["familiar_line", "hybrid_line", "temptation"]
-_DOCTRINE_FAMILIES: tuple[str, ...] = ("trust", "control", "retaliation", "opportunist", "referendum", "chaos")
+DoctrineFamily = Literal["trust", "control", "retaliation", "opportunist", "referendum", "chaos"]
+_DOCTRINE_FAMILIES: tuple[DoctrineFamily, ...] = ("trust", "control", "retaliation", "opportunist", "referendum", "chaos")
 
 _HYBRID_PAIRS: dict[str, tuple[str, ...]] = {
     "trust": ("opportunist",),
@@ -24,11 +25,19 @@ _HYBRID_PAIRS: dict[str, tuple[str, ...]] = {
 
 
 @dataclass(frozen=True, slots=True)
+class DoctrineState:
+    house_doctrine_family: str
+    primary_doctrine_family: str
+    secondary_doctrine_family: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class PowerupOfferContext:
     owned_powerups: Sequence[Powerup] = ()
     genome: StrategyGenome | None = None
     floor_number: int = 1
     phase: str = "both"
+    house_doctrine_family: str | None = None
     primary_doctrine_family: str | None = None
     secondary_doctrine_family: str | None = None
 
@@ -41,6 +50,7 @@ class GeneratedPowerupOffer:
 
 @dataclass(frozen=True, slots=True)
 class _BuildSignal:
+    house_family: str
     primary_family: str
     secondary_family: str | None
     owned_families: frozenset[str]
@@ -61,21 +71,19 @@ def offer_category_hint(category: OfferCategory) -> str:
 
 
 def _normalize_family(family: str | None) -> str | None:
-    if family in _DOCTRINE_FAMILIES:
-        return family
-    return None
+    return family if family in _DOCTRINE_FAMILIES else None
 
 
-def _infer_primary_from_owned(owned_powerups: Sequence[Powerup]) -> str | None:
-    family_counter: Counter[str] = Counter(p.doctrine_family for p in owned_powerups)
-    if not family_counter:
-        return None
-    return family_counter.most_common(1)[0][0]
+def seed_house_doctrine(*, seed: int | None, floor_number: int, phase: str) -> str:
+    phase_idx = {"ecosystem": 0, "civil_war": 1, "both": 2}.get(phase, 2)
+    seed_value = (seed or 0) % len(_DOCTRINE_FAMILIES)
+    return _DOCTRINE_FAMILIES[(seed_value + max(1, floor_number) + phase_idx) % len(_DOCTRINE_FAMILIES)]
 
 
 def _infer_from_genome(genome: StrategyGenome | None) -> tuple[str | None, str | None]:
     if genome is None:
         return None, None
+
     defect_bias = int(genome.first_move == 1) + sum(1 for move in genome.response_table.values() if move == 1)
     coop_bias = 5 - defect_bias
     primary: str | None = None
@@ -92,48 +100,87 @@ def _infer_from_genome(genome: StrategyGenome | None) -> tuple[str | None, str |
     return primary, secondary
 
 
-def _deterministic_house_seed(*, floor_number: int, phase: str) -> str:
-    phase_idx = {"ecosystem": 0, "civil_war": 1, "both": 2}.get(phase, 2)
-    return _DOCTRINE_FAMILIES[(floor_number + phase_idx) % len(_DOCTRINE_FAMILIES)]
+def _ranked_family_counts(owned_powerups: Sequence[Powerup], *, preferred: str | None = None) -> list[tuple[str, int]]:
+    counter: Counter[str] = Counter(powerup.doctrine_family for powerup in owned_powerups)
+    if not counter:
+        return []
+    return sorted(counter.items(), key=lambda item: (-item[1], 0 if item[0] == preferred else 1, _DOCTRINE_FAMILIES.index(item[0])))
+
+
+def derive_doctrine_state(
+    *,
+    owned_powerups: Sequence[Powerup],
+    genome: StrategyGenome | None,
+    house_doctrine_family: str,
+) -> DoctrineState:
+    house = _normalize_family(house_doctrine_family) or "trust"
+    ranked = _ranked_family_counts(owned_powerups, preferred=house)
+    dominant = ranked[0][0] if ranked else house
+    dominant_count = ranked[0][1] if ranked else 0
+    house_count = next((count for family, count in ranked if family == house), 0)
+
+    genome_primary, genome_secondary = _infer_from_genome(genome)
+
+    primary = house
+    if dominant != house and dominant_count >= max(2, house_count + 1):
+        primary = dominant
+    elif dominant_count == 0 and genome_primary in _DOCTRINE_FAMILIES:
+        primary = genome_primary
+
+    preferred_hybrids = set(_HYBRID_PAIRS.get(primary, ()))
+    secondary_candidates = [
+        family
+        for family, count in ranked
+        if family != primary and count > 0
+    ]
+    secondary = next((family for family in secondary_candidates if family in preferred_hybrids), None)
+    if secondary is None and secondary_candidates:
+        secondary = secondary_candidates[0]
+    if secondary is None and genome_secondary in _DOCTRINE_FAMILIES and genome_secondary != primary:
+        secondary = genome_secondary
+
+    return DoctrineState(
+        house_doctrine_family=house,
+        primary_doctrine_family=primary,
+        secondary_doctrine_family=secondary,
+    )
 
 
 def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
     if context is None:
+        house = seed_house_doctrine(seed=None, floor_number=1, phase="both")
+        doctrine = DoctrineState(house, house, None)
         return _BuildSignal(
-            primary_family=_deterministic_house_seed(floor_number=1, phase="both"),
-            secondary_family=None,
+            house_family=doctrine.house_doctrine_family,
+            primary_family=doctrine.primary_doctrine_family,
+            secondary_family=doctrine.secondary_doctrine_family,
             owned_families=frozenset(),
             owned_tags=frozenset(),
             floor_number=1,
             phase="both",
         )
 
-    owned_families = frozenset(p.doctrine_family for p in context.owned_powerups)
-    owned_tags = frozenset(tag for powerup in context.owned_powerups for tag in powerup.keywords)
-
-    genome_primary, genome_secondary = _infer_from_genome(context.genome)
-    primary = (
-        _normalize_family(context.primary_doctrine_family)
-        or _infer_primary_from_owned(context.owned_powerups)
-        or genome_primary
-        or _deterministic_house_seed(floor_number=context.floor_number, phase=context.phase)
-    )
-    secondary = (
-        _normalize_family(context.secondary_doctrine_family)
-        or (genome_secondary if genome_secondary != primary else None)
+    house = _normalize_family(context.house_doctrine_family) or seed_house_doctrine(seed=None, floor_number=context.floor_number, phase=context.phase)
+    doctrine = derive_doctrine_state(
+        owned_powerups=context.owned_powerups,
+        genome=context.genome,
+        house_doctrine_family=house,
     )
 
-    if secondary is None:
-        possible = _HYBRID_PAIRS.get(primary, ())
-        secondary = possible[0] if possible else None
+    primary = _normalize_family(context.primary_doctrine_family) or doctrine.primary_doctrine_family
+    secondary = _normalize_family(context.secondary_doctrine_family) or doctrine.secondary_doctrine_family
     if secondary == primary:
         secondary = None
+    if secondary is None:
+        inferred = _HYBRID_PAIRS.get(primary, ())
+        secondary = inferred[0] if inferred else None
 
     return _BuildSignal(
+        house_family=house,
         primary_family=primary,
         secondary_family=secondary,
-        owned_families=owned_families,
-        owned_tags=owned_tags,
+        owned_families=frozenset(powerup.doctrine_family for powerup in context.owned_powerups),
+        owned_tags=frozenset(tag for powerup in context.owned_powerups for tag in powerup.keywords),
         floor_number=max(1, context.floor_number),
         phase=context.phase,
     )
@@ -184,6 +231,8 @@ def _category_weight(
         weight = 0.8
         if family == signal.primary_family:
             weight += 6.0
+        if family == signal.house_family:
+            weight += 1.2
         if signal.floor_number <= 3 and "anchor" in tags:
             weight += 0.8
         weight += shared_tags * 0.8

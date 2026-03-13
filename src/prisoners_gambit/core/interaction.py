@@ -191,6 +191,7 @@ class PowerupOfferView:
     successor_pressure: str | None = None
     tags: list[str] | None = None
     relevance_hint: str | None = None
+    crown_hint: str | None = None
 
 
 @dataclass(slots=True)
@@ -476,6 +477,7 @@ class RunSnapshot:
     civil_war_context: CivilWarContext | None = None
     active_featured_stance: FeaturedRoundStanceView | None = None
     lineage_chronicle: list[LineageChronicleEntry] = field(default_factory=list)
+    house_doctrine_family: str | None = None
     primary_doctrine_family: str | None = None
     secondary_doctrine_family: str | None = None
     session_status: SessionStatus = "running"

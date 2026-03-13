@@ -58,7 +58,13 @@ from prisoners_gambit.core.scoring import base_payoff
 from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.content.genome_edit_templates import build_genome_edit_pool
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, offer_category_hint
+from prisoners_gambit.systems.offers import (
+    PowerupOfferContext,
+    derive_doctrine_state,
+    generate_powerup_offer_set,
+    offer_category_hint,
+    seed_house_doctrine,
+)
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
     DynastyBoardBuildContext,
@@ -264,7 +270,14 @@ class FeaturedMatchWebSession:
         self.snapshot.header = self.snapshot.header or None
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
-        self.snapshot.primary_doctrine_family = self.snapshot.primary_doctrine_family or "trust"
+        self.snapshot.house_doctrine_family = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed, floor_number=self.floor_number, phase="ecosystem")
+        doctrine_state = derive_doctrine_state(
+            owned_powerups=tuple(self.player.powerups),
+            genome=self.player.genome,
+            house_doctrine_family=self.snapshot.house_doctrine_family,
+        )
+        self.snapshot.primary_doctrine_family = doctrine_state.primary_doctrine_family
+        self.snapshot.secondary_doctrine_family = doctrine_state.secondary_doctrine_family
         self._floor_clue_log = []
         self._append_chronicle_entry(
             event_id=f"run_start:seed:{self.seed}",
@@ -725,6 +738,7 @@ class FeaturedMatchWebSession:
                 genome=self.player.genome,
                 floor_number=self.floor_number,
                 phase=self.snapshot.current_phase,
+                house_doctrine_family=self.snapshot.house_doctrine_family,
                 primary_doctrine_family=self.snapshot.primary_doctrine_family,
                 secondary_doctrine_family=self.snapshot.secondary_doctrine_family,
             ),
@@ -915,10 +929,15 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid powerup index")
         chosen_powerup = self._powerup_offers[action.offer_index]
         self.player.powerups.append(chosen_powerup)
-        if self.snapshot.primary_doctrine_family is None:
-            self.snapshot.primary_doctrine_family = chosen_powerup.doctrine_family
-        elif self.snapshot.primary_doctrine_family != chosen_powerup.doctrine_family:
-            self.snapshot.secondary_doctrine_family = chosen_powerup.doctrine_family
+        house = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed, floor_number=self.floor_number, phase=(self.snapshot.current_phase or "ecosystem"))
+        self.snapshot.house_doctrine_family = house
+        doctrine_state = derive_doctrine_state(
+            owned_powerups=tuple(self.player.powerups),
+            genome=self.player.genome,
+            house_doctrine_family=house,
+        )
+        self.snapshot.primary_doctrine_family = doctrine_state.primary_doctrine_family
+        self.snapshot.secondary_doctrine_family = doctrine_state.secondary_doctrine_family
 
         self._genome_offers = generate_genome_edit_offers(3, self.rng)
         state = GenomeEditChoiceState(

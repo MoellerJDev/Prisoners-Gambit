@@ -8,7 +8,13 @@ from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.systems import genome_offers as genome_offers_module
 from prisoners_gambit.systems import offers as offers_module
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, generate_powerup_offers
+from prisoners_gambit.systems.offers import (
+    PowerupOfferContext,
+    derive_doctrine_state,
+    generate_powerup_offer_set,
+    generate_powerup_offers,
+    seed_house_doctrine,
+)
 
 
 class _FakePowerup:
@@ -279,3 +285,31 @@ def test_primary_and_secondary_doctrine_influence_offer_mix() -> None:
         control_trust_hits += sum(1 for offer in control_offers if offer.doctrine_family == "trust")
 
     assert trust_trust_hits > control_trust_hits
+
+
+def test_house_doctrine_seed_is_deterministic_and_intentional() -> None:
+    a = seed_house_doctrine(seed=17, floor_number=1, phase="ecosystem")
+    b = seed_house_doctrine(seed=17, floor_number=1, phase="ecosystem")
+    c = seed_house_doctrine(seed=18, floor_number=1, phase="ecosystem")
+
+    assert a == b
+    assert a in {"trust", "control", "retaliation", "opportunist", "referendum", "chaos"}
+    assert a != c
+
+
+def test_doctrine_state_tracking_is_not_pick_order_dependent() -> None:
+    house = "trust"
+    forward = derive_doctrine_state(
+        owned_powerups=(CoerciveControl(), TrustDividend(), CoerciveControl(), SpiteEngine()),
+        genome=None,
+        house_doctrine_family=house,
+    )
+    reverse = derive_doctrine_state(
+        owned_powerups=(SpiteEngine(), CoerciveControl(), TrustDividend(), CoerciveControl()),
+        genome=None,
+        house_doctrine_family=house,
+    )
+
+    assert forward == reverse
+    assert forward.primary_doctrine_family == "control"
+    assert forward.secondary_doctrine_family in {"retaliation", "trust"}
