@@ -27,6 +27,7 @@ from prisoners_gambit.core.powerups import (
     UnityTicket,
 )
 from prisoners_gambit.core.strategy import StrategyGenome
+from prisoners_gambit.systems.tournament import MatchResult
 from prisoners_gambit.web.server import Handler, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
@@ -1639,6 +1640,43 @@ def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None
     assert vote_result is not None
     assert vote_result["player_vote"] == COOPERATE
     assert vote_result["player_reward"] >= 6
+
+
+def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
+    session = FeaturedMatchWebSession(seed=29, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    assert session.view()["decision_type"] == "FloorVoteDecisionState"
+
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    vote_result = session.view()["snapshot"]["floor_vote_result"]
+    assert vote_result is not None
+    assert vote_result["cooperators"] + vote_result["defectors"] == len(session._branch_roster)
+
+
+def test_web_floor_progression_uses_tournament_match_engine_for_branch_scores() -> None:
+    session = FeaturedMatchWebSession(seed=31, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+
+    calls: list[tuple[str, str]] = []
+
+    def fake_play_match(*, left, right, rounds_per_match=None):
+        calls.append((left.name, right.name))
+        return MatchResult(left_score=2, right_score=1)
+
+    session._tournament.play_match = fake_play_match  # type: ignore[method-assign]
+
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    assert len(calls) == 9
+    assert session.view()["pending_screen"] == "floor_summary"
 
 
 def test_web_session_initializes_house_doctrine_from_seed() -> None:

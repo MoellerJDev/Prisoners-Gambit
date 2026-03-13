@@ -65,6 +65,8 @@ from prisoners_gambit.systems.offers import (
     offer_category_hint,
     seed_run_house_doctrine,
 )
+from prisoners_gambit.systems.progression import ProgressionEngine
+from prisoners_gambit.systems.tournament import TournamentEngine
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
     DynastyBoardBuildContext,
@@ -138,6 +140,8 @@ class FeaturedMatchWebSession:
         self._previous_central_rival: str | None = None
         self._current_floor_central_rival: str | None = None
         self._current_floor_new_central_rival: str | None = None
+        self._progression = ProgressionEngine(rng=self.rng, offers_per_floor=3, featured_matches_per_floor=1)
+        self._tournament = TournamentEngine(base_rounds_per_match=rounds, rng=self.rng)
 
     def serialize_state(self) -> dict:
         decision = self.session.current_decision
@@ -569,9 +573,10 @@ class FeaturedMatchWebSession:
         if base_vote not in (COOPERATE, DEFECT):
             raise ValueError("Invalid floor vote")
 
+        total_agents = len(self._branch_roster)
         referendum_context = ReferendumContext(
             floor_number=self.floor_number,
-            total_agents=8,
+            total_agents=total_agents,
             current_floor_score=self.player_score,
         )
         directives: list[MoveDirective] = []
@@ -579,9 +584,31 @@ class FeaturedMatchWebSession:
             directives.extend(powerup.self_referendum_directives(owner=self.player, context=referendum_context))
         final_vote, _ = resolve_move(base_vote, directives)
 
-        cooperation_prevailed = final_vote == COOPERATE
-        cooperators = 6 if cooperation_prevailed else 3
-        defectors = 2 if cooperation_prevailed else 5
+        self._advance_branch_roster_for_floor()
+
+        votes: dict[int, int] = {self.player.agent_id: final_vote}
+        base_votes: dict[int, int] = {self.player.agent_id: base_vote}
+        referendum_directives: dict[int, list[MoveDirective]] = {self.player.agent_id: directives}
+        for rival in self._branch_roster:
+            if rival is self.player:
+                continue
+            rival_base_vote = rival.genome.first_move
+            rival_context = ReferendumContext(
+                floor_number=self.floor_number,
+                total_agents=total_agents,
+                current_floor_score=rival.score,
+            )
+            rival_directives: list[MoveDirective] = []
+            for powerup in rival.powerups:
+                rival_directives.extend(powerup.self_referendum_directives(owner=rival, context=rival_context))
+            rival_final_vote, _ = resolve_move(rival_base_vote, rival_directives)
+            votes[rival.agent_id] = rival_final_vote
+            base_votes[rival.agent_id] = rival_base_vote
+            referendum_directives[rival.agent_id] = rival_directives
+
+        cooperators = sum(1 for vote in votes.values() if vote == COOPERATE)
+        defectors = sum(1 for vote in votes.values() if vote == DEFECT)
+        cooperation_prevailed = cooperators >= defectors
         combo_events = derive_referendum_combo_events(
             base_vote=base_vote,
             final_vote=final_vote,
@@ -589,7 +616,8 @@ class FeaturedMatchWebSession:
             cooperation_prevailed=cooperation_prevailed,
         )
 
-        player_reward = 2 if cooperation_prevailed else 1
+        floor_config = self._current_floor_config()
+        player_reward = floor_config.referendum_reward if cooperation_prevailed and final_vote == COOPERATE else 0
         reward_context = ReferendumContext(
             floor_number=self.floor_number,
             total_agents=cooperators + defectors,
@@ -615,8 +643,34 @@ class FeaturedMatchWebSession:
         )
         self.snapshot.floor_vote_result = result
         self.player_score += result.player_reward
+        self.player.score = self.player_score
 
-        self._advance_branch_roster_for_floor()
+        for rival in self._branch_roster:
+            if rival is self.player:
+                continue
+            if cooperation_prevailed and votes[rival.agent_id] == COOPERATE:
+                rival_reward = floor_config.referendum_reward
+                rival_reward_context = ReferendumContext(
+                    floor_number=self.floor_number,
+                    total_agents=total_agents,
+                    current_floor_score=rival.score,
+                    combo_events=derive_referendum_combo_events(
+                        base_vote=base_votes[rival.agent_id],
+                        final_vote=votes[rival.agent_id],
+                        directives=referendum_directives[rival.agent_id],
+                        cooperation_prevailed=cooperation_prevailed,
+                    ),
+                )
+                for powerup in rival.powerups:
+                    rival_reward = powerup.on_referendum_reward(
+                        owner=rival,
+                        my_vote=votes[rival.agent_id],
+                        cooperation_prevailed=True,
+                        current_reward=rival_reward,
+                        context=rival_reward_context,
+                    )
+                rival.score += rival_reward
+
         summary_agents = self._branch_floor_ranking()
 
         synthesis = synthesize_floor_summary(
@@ -957,6 +1011,8 @@ class FeaturedMatchWebSession:
         self.snapshot.floor_vote_result = None
         self.snapshot.floor_summary = None
         self._floor_clue_log = []
+        for agent in self._branch_roster:
+            agent.reset_for_floor()
 
     def _resolve_powerup_choice(self, decision: PowerupChoiceState) -> None:
         action = self.session.resolve_current_decision(lambda _: ChoosePowerupAction(offer_index=0))
@@ -1150,18 +1206,28 @@ class FeaturedMatchWebSession:
         ]
 
     def _advance_branch_roster_for_floor(self) -> None:
-        self.player.score = self.player_score
-        self.player.wins = max(0, min(self.rounds, (self.player_score + 1) // 2))
-        rivals = [agent for agent in self._branch_roster if agent is not self.player]
-        rivals.sort(key=lambda agent: agent.agent_id)
-        for idx, rival in enumerate(rivals, start=1):
-            swing = ((self.seed + self.floor_number + rival.agent_id) % 3) - 1
-            rival.score = max(0, self.player_score - idx + swing)
-            rival.wins = max(0, min(self.rounds, rival.score // 2))
+        featured_pair = frozenset((self.player.agent_id, self.opponent.agent_id))
+        floor_config = self._current_floor_config()
+        for left_index, left in enumerate(self._branch_roster):
+            for right in self._branch_roster[left_index + 1 :]:
+                if frozenset((left.agent_id, right.agent_id)) == featured_pair:
+                    continue
+                result = self._tournament.play_match(left=left, right=right, rounds_per_match=floor_config.rounds_per_match)
+                left.score += result.left_score
+                right.score += result.right_score
+                if result.left_score > result.right_score:
+                    left.wins += 1
+                elif result.right_score > result.left_score:
+                    right.wins += 1
 
     def _branch_floor_ranking(self) -> list[Agent]:
         ranked = sorted(self._branch_roster, key=lambda agent: (agent.score, agent.wins, -agent.agent_id), reverse=True)
         return ranked[:4]
+
+    def _current_floor_config(self):
+        config = self._progression.build_floor_config(self.floor_number)
+        config.rounds_per_match = self.rounds
+        return config
 
     def _select_floor_opponent(self) -> Agent:
         rivals = [agent for agent in self._branch_roster if agent is not self.player]
