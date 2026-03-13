@@ -448,6 +448,8 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert floor_identity is not None
     assert floor_identity["target_floor"] == 2
     assert floor_identity["host_name"] == session.view()["snapshot"]["dynasty_board"]["entries"][0]["name"]
+    assert floor_identity["headline"].startswith(floor_identity["pressure_label"])
+    assert floor_identity["dominant_pressure"]
     assert floor_identity["lineage_direction"].startswith("Doctrine path: ")
     powerup_offer = session.view()["decision"]["offers"][0]
     assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure"}.issubset(powerup_offer.keys())
@@ -493,6 +495,7 @@ def test_web_session_successor_choice_changes_next_floor_identity_framing() -> N
 
     assert identity_a is not None and identity_b is not None
     assert identity_a["host_name"] != identity_b["host_name"]
+    assert identity_a["headline"] != identity_b["headline"]
     assert (
         identity_a["strategic_focus"] != identity_b["strategic_focus"]
         or identity_a["pressure_reason"] != identity_b["pressure_reason"]
@@ -886,6 +889,14 @@ def test_web_html_prioritizes_mobile_panel_ordering() -> None:
     assert "grid > .result-panel { order:3; }" in web_server.HTML
     assert "grid > .floor-identity-panel { order:4; }" in web_server.HTML
     assert "panel panel-enter vote-panel panel-mobile-low" in web_server.HTML
+
+
+def test_web_html_shows_floor_identity_headline_and_compact_fields() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "id='floorIdentityHeadline'" in web_server.HTML
+    assert "<strong>Dominant pressure</strong>" in web_server.HTML
+    assert "<strong>Why it matters</strong>" in web_server.HTML
 
 
 def test_web_html_splits_decision_actions_from_details_panel() -> None:

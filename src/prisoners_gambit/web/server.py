@@ -207,6 +207,7 @@ HTML = """<!doctype html>
     .good{ color:var(--good); }
     .danger{ color:var(--danger); }
     .warn{ color:var(--warn); }
+    .floor-headline { font-size:14px; font-weight:700; margin:0 0 8px; color:var(--text); }
 
     .fx-item {
       border-left:3px solid var(--effect);
@@ -324,6 +325,7 @@ HTML = """<!doctype html>
 
     <div class='panel panel-enter floor-identity-panel'>
       <h3>Floor Identity</h3>
+      <div id='floorIdentityHeadline' class='floor-headline muted'>No floor identity committed yet.</div>
       <ul id='floorIdentity' class='list muted'><li>No floor identity committed yet.</li></ul>
     </div>
 
@@ -559,9 +561,12 @@ function renderSnapshot(snapshot){
 
   const capLines = (items, limit=2) => (items || []).slice(0, limit);
   const floorIdentity = snapshot.floor_identity;
+  document.getElementById('floorIdentityHeadline').textContent = floorIdentity
+    ? floorIdentity.headline
+    : 'No floor identity committed yet.';
   document.getElementById('floorIdentity').innerHTML = floorIdentity
     ? `
-      <li><strong>Pressure</strong>: ${escapeHtml(floorIdentity.pressure_label)}</li>
+      <li><strong>Dominant pressure</strong>: ${escapeHtml(floorIdentity.dominant_pressure)}</li>
       <li><strong>Why it matters</strong>: ${escapeHtml(floorIdentity.pressure_reason)}</li>
       <li><strong>Lineage direction</strong>: ${escapeHtml(floorIdentity.lineage_direction)}</li>
       <li><strong>Focus this floor</strong>: ${escapeHtml(floorIdentity.strategic_focus)}</li>

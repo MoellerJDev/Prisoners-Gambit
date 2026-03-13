@@ -682,16 +682,20 @@ class FeaturedMatchWebSession:
             "low": "Expansion floor",
         }.get(decision.civil_war_pressure or "", "Lineage floor")
         top_threat = threat_profile[0] if threat_profile else "no dominant threat tag"
-        lead_cause = (chosen.shaping_causes[0] if chosen.shaping_causes else chosen.succession_pitch) or chosen.branch_role
+        heir_tag = chosen.tags[0] if chosen.tags else "untyped"
+        dominant_pressure = top_threat if top_threat != "no dominant threat tag" else heir_tag
         clue_signal = (decision.featured_inference_summary[0] if decision.featured_inference_summary else None)
         doctrine = decision.lineage_doctrine or chosen.branch_doctrine
+        headline = f"{pressure_label}: {chosen.name} · {chosen.branch_role}"
         return FloorIdentityState(
             target_floor=self.floor_number + 1,
             host_name=chosen.name,
+            headline=headline,
             pressure_label=pressure_label,
-            pressure_reason=f"{chosen.name} inherits against {top_threat} pressure.",
+            dominant_pressure=dominant_pressure,
+            pressure_reason=f"{chosen.name} inherits into {dominant_pressure} pressure.",
             lineage_direction=f"Doctrine path: {doctrine}",
-            strategic_focus=f"Play toward {chosen.attractive_now.lower()} — {lead_cause}",
+            strategic_focus=f"Lean into {chosen.attractive_now.lower()} while respecting {chosen.danger_later.lower()}.",
             key_signal=clue_signal,
         )
 

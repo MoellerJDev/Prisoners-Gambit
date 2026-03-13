@@ -138,7 +138,9 @@ class FloorSummaryState:
 class FloorIdentityState:
     target_floor: int
     host_name: str
+    headline: str
     pressure_label: str
+    dominant_pressure: str
     pressure_reason: str
     lineage_direction: str
     strategic_focus: str
