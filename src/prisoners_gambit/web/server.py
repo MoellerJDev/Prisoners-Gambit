@@ -189,7 +189,7 @@ HTML = """<!doctype html>
     .decision-details-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 65%); }
     .primary-action { border-color:var(--accent); background:#223553; font-weight:600; }
     .actions {
-      margin-top:8px;
+      margin-top:6px;
       display:grid;
       grid-template-columns:repeat(2, minmax(0, 1fr));
       gap:8px;
@@ -209,6 +209,32 @@ HTML = """<!doctype html>
     .action-tile-title { font-size:14px; font-weight:600; color:var(--text); line-height:1.25; }
     .action-tile-meta { font-size:12px; color:var(--muted); line-height:1.25; }
     .action-tile-secondary { border-color:color-mix(in oklab, var(--border), #000 35%); background:#172236; }
+    .advanced-actions {
+      margin-top:8px;
+      border:1px solid color-mix(in oklab, var(--border), #000 15%);
+      border-radius:10px;
+      background:#101929;
+      padding:8px;
+    }
+    .advanced-actions summary {
+      cursor:pointer;
+      color:var(--muted);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      list-style:none;
+    }
+    .advanced-actions summary::-webkit-details-marker { display:none; }
+    .advanced-actions summary::after {
+      content:'▾';
+      float:right;
+      transition:transform .15s ease;
+    }
+    .advanced-actions[open] summary::after { transform:rotate(180deg); }
+    .actions-secondary {
+      margin-top:8px;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
     .panel-mobile-low { opacity:.98; }
     .raw-state-panel summary { cursor:pointer; color:var(--muted); margin-bottom:8px; }
     .btn:hover { transform:translateY(-1px); border-color:var(--accent); background:#24334d; }
@@ -275,9 +301,11 @@ HTML = """<!doctype html>
       .kv > div:nth-child(odd) { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
       .decision-actions-panel { position:sticky; top:8px; z-index:3; }
       .actions { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }
-      .actions .btn { min-height:62px; padding:8px 9px; }
+      .actions .btn { min-height:56px; padding:8px 9px; }
       .action-tile-title { font-size:13px; }
       .action-tile-meta { font-size:11px; }
+      .advanced-actions { padding:6px 7px; }
+      .advanced-actions summary { font-size:11px; }
       .grid > .decision-actions-panel { order:1; }
       .grid > .decision-details-panel { order:2; }
       .grid > .result-panel { order:3; }
@@ -330,6 +358,10 @@ HTML = """<!doctype html>
       <h3>Current Decision</h3>
       <div id='decisionType' class='muted'>No decision yet.</div>
       <div id='actions' class='row actions' style='margin-top:10px;'></div>
+      <details id='advancedActions' class='advanced-actions' style='display:none;'>
+        <summary id='advancedActionsLabel'>Advanced tactics</summary>
+        <div id='advancedActionsGrid' class='row actions actions-secondary'></div>
+      </details>
       <div id='pending' class='warn' style='margin-top:8px;'></div>
     </div>
 
@@ -442,7 +474,13 @@ function renderDecision(data){
   const decision = data.decision;
   const t = data.decision_type;
   const actions = document.getElementById('actions');
+  const advanced = document.getElementById('advancedActions');
+  const advancedLabel = document.getElementById('advancedActionsLabel');
+  const advancedGrid = document.getElementById('advancedActionsGrid');
   actions.innerHTML = '';
+  advancedGrid.innerHTML = '';
+  advanced.open = false;
+  advanced.style.display = 'none';
   document.getElementById('decisionType').textContent = t ? `Decision: ${shortDecisionLabel(t)}` : 'No active decision.';
   if (!decision) {
     document.getElementById('decisionView').innerHTML = 'No active decision.';
@@ -464,7 +502,10 @@ function renderDecision(data){
     actions.innerHTML = `
       <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">${actionTile('Cooperate', 'Manual move · primary')}</button>
       <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile('Defect', 'Manual move · primary')}</button>
-      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">${actionTile('Autopilot Round', `Recommended · ${moveLabel(p.suggested_move)}`)}</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">${actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)}</button>`;
+    advanced.style.display = 'block';
+    advancedLabel.textContent = 'Advanced tactics · stance setup';
+    advancedGrid.innerHTML = `
       <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">${actionTile('C until betrayed', 'Stance')}</button>
       <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">${actionTile('D until punished', 'Stance')}</button>
       <button class='btn action-tile-secondary' onclick="sendStanceN('follow_autopilot_for_n_rounds')">${actionTile('Autopilot N', 'Stance with duration')}</button>

@@ -1068,7 +1068,7 @@ def test_web_html_adds_mobile_viewport_and_touch_targets() -> None:
 
     assert "name='viewport'" in web_server.HTML
     assert ".actions { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }" in web_server.HTML
-    assert ".actions .btn { min-height:62px; padding:8px 9px; }" in web_server.HTML
+    assert ".actions .btn { min-height:56px; padding:8px 9px; }" in web_server.HTML
     assert ".controls .btn { flex:1 1 calc(50% - 10px); min-height:50px; }" in web_server.HTML
 
 
@@ -1116,6 +1116,8 @@ def test_web_html_splits_decision_actions_from_details_panel() -> None:
 
     assert "<div class='panel panel-enter decision-actions-panel'>" in web_server.HTML
     assert "<div id='actions' class='row actions'" in web_server.HTML
+    assert "<details id='advancedActions' class='advanced-actions'" in web_server.HTML
+    assert "<div id='advancedActionsGrid' class='row actions actions-secondary'>" in web_server.HTML
     assert "<div class='panel panel-enter decision-details-panel'>" in web_server.HTML
     assert "<h3>Decision Details</h3>" in web_server.HTML
     assert "<div id='decisionView' class='kv muted'>" in web_server.HTML
@@ -1128,6 +1130,17 @@ def test_web_html_decision_details_copy_is_short_and_scannable() -> None:
     assert "<div>Read on rival</div>" in web_server.HTML
     assert "<div>Recent floor notes</div>" in web_server.HTML
     assert "<ul class='list tight'>" in web_server.HTML
+
+
+def test_web_html_round_decision_separates_core_actions_from_advanced_tactics() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "actionTile('Cooperate', 'Manual move · primary')" in web_server.HTML
+    assert "actionTile('Defect', 'Manual move · primary')" in web_server.HTML
+    assert "actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)" in web_server.HTML
+    assert "advancedLabel.textContent = 'Advanced tactics · stance setup';" in web_server.HTML
+    assert "actionTile('C until betrayed', 'Stance')" in web_server.HTML
+    assert "actionTile('Autopilot N', 'Stance with duration')" in web_server.HTML
 
 
 def test_web_root_contains_full_run_panels() -> None:
