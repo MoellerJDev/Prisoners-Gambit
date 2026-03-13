@@ -766,6 +766,80 @@ def test_web_session_successor_choice_changes_next_floor_identity_framing() -> N
 
 
 
+
+
+def test_web_session_floor_identity_carries_lineage_pressure_between_floors() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    decision = session.view()["decision"]
+    assert decision is not None
+    first_candidate = decision["candidates"][0]
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    floor_identity = session.view()["snapshot"]["floor_identity"]
+    assert floor_identity is not None
+    assert "pressure via" in floor_identity["pressure_reason"]
+    assert first_candidate["name"] in floor_identity["headline"]
+    assert floor_identity["strategic_focus"].startswith("Push ")
+    assert "hedge " in floor_identity["strategic_focus"]
+    assert "Track clue:" in floor_identity["strategic_focus"]
+
+
+def test_web_session_floor_identity_is_concise_for_mobile_readability() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    floor_identity = session.view()["snapshot"]["floor_identity"]
+    assert floor_identity is not None
+    assert len(floor_identity["pressure_reason"]) <= 80
+    assert len(floor_identity["strategic_focus"]) <= 160
+    assert floor_identity["pressure_reason"].count(";") == 0
+
+
+def test_web_session_floor_identity_differs_by_successor_branch_pressure() -> None:
+    session_a = FeaturedMatchWebSession(seed=17, rounds=1)
+    session_a.start()
+    session_a.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session_a.advance()
+    session_a.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session_a.advance()
+    session_a.advance()
+    session_a.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session_a.advance()
+    identity_a = session_a.view()["snapshot"]["floor_identity"]
+
+    session_b = FeaturedMatchWebSession(seed=17, rounds=1)
+    session_b.start()
+    session_b.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session_b.advance()
+    session_b.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session_b.advance()
+    session_b.advance()
+    session_b.submit_action(ChooseSuccessorAction(candidate_index=1))
+    session_b.advance()
+    identity_b = session_b.view()["snapshot"]["floor_identity"]
+
+    assert identity_a is not None and identity_b is not None
+    assert "pressure via" in identity_a["pressure_reason"]
+    assert "pressure via" in identity_b["pressure_reason"]
+    assert identity_a["headline"] != identity_b["headline"]
+    assert identity_a["strategic_focus"] != identity_b["strategic_focus"]
+
 def test_web_session_successor_transition_does_not_require_civil_war_when_trigger_not_met() -> None:
     session = FeaturedMatchWebSession(seed=17, rounds=1)
     session.start()
