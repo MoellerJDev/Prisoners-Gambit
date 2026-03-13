@@ -259,13 +259,14 @@ HTML = """<!doctype html>
       .grid > .decision-actions-panel { order:1; }
       .grid > .decision-details-panel { order:2; }
       .grid > .result-panel { order:3; }
-      .grid > .summary-panel { order:4; }
-      .grid > .successor-panel { order:5; }
-      .grid > .vote-panel { order:6; }
-      .grid > .completion-panel { order:7; }
-      .grid > .dynasty-panel { order:8; }
-      .grid > .chronicle-panel { order:9; }
-      .grid > .panel-mobile-low { order:10; }
+      .grid > .floor-identity-panel { order:4; }
+      .grid > .summary-panel { order:5; }
+      .grid > .successor-panel { order:6; }
+      .grid > .vote-panel { order:7; }
+      .grid > .completion-panel { order:8; }
+      .grid > .dynasty-panel { order:9; }
+      .grid > .chronicle-panel { order:10; }
+      .grid > .panel-mobile-low { order:11; }
       .raw-state-panel details:not([open]) pre { display:none; }
       pre { max-height:180px; font-size:11px; }
     }
@@ -319,6 +320,11 @@ HTML = """<!doctype html>
       <h3>Latest Round Result</h3>
       <div id='roundResult' class='muted'>No rounds resolved yet.</div>
       <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
+    </div>
+
+    <div class='panel panel-enter floor-identity-panel'>
+      <h3>Floor Identity</h3>
+      <ul id='floorIdentity' class='list muted'><li>No floor identity committed yet.</li></ul>
     </div>
 
     <div class='panel panel-enter vote-panel panel-mobile-low'>
@@ -552,6 +558,17 @@ function renderSnapshot(snapshot){
     : 'No vote yet.';
 
   const capLines = (items, limit=2) => (items || []).slice(0, limit);
+  const floorIdentity = snapshot.floor_identity;
+  document.getElementById('floorIdentity').innerHTML = floorIdentity
+    ? `
+      <li><strong>Pressure</strong>: ${escapeHtml(floorIdentity.pressure_label)}</li>
+      <li><strong>Why it matters</strong>: ${escapeHtml(floorIdentity.pressure_reason)}</li>
+      <li><strong>Lineage direction</strong>: ${escapeHtml(floorIdentity.lineage_direction)}</li>
+      <li><strong>Focus this floor</strong>: ${escapeHtml(floorIdentity.strategic_focus)}</li>
+      <li><strong>Host</strong>: ${branchToken(floorIdentity.host_name)} · F${escapeHtml(floorIdentity.target_floor)}</li>
+      ${floorIdentity.key_signal ? `<li><strong>Signal carryover</strong>: ${escapeHtml(floorIdentity.key_signal)}</li>` : ''}`
+    : '<li>No floor identity committed yet.</li>';
+
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
   const featuredInference = snapshot.floor_summary?.featured_inference_summary || [];

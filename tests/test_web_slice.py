@@ -444,6 +444,11 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert session.view()["snapshot"]["current_phase"] == "ecosystem"
     assert session.view()["snapshot"]["civil_war_context"] is None
     assert session.view()["decision_type"] == "PowerupChoiceState"
+    floor_identity = session.view()["snapshot"]["floor_identity"]
+    assert floor_identity is not None
+    assert floor_identity["target_floor"] == 2
+    assert floor_identity["host_name"] == session.view()["snapshot"]["dynasty_board"]["entries"][0]["name"]
+    assert floor_identity["lineage_direction"].startswith("Doctrine path: ")
     powerup_offer = session.view()["decision"]["offers"][0]
     assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure"}.issubset(powerup_offer.keys())
 
@@ -459,7 +464,39 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert session.view()["snapshot"]["completion"] is None
     assert session.view()["snapshot"]["current_phase"] == "ecosystem"
     assert session.view()["snapshot"]["current_floor"] == 2
+    assert session.view()["snapshot"]["floor_identity"] is not None
     assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+
+
+def test_web_session_successor_choice_changes_next_floor_identity_framing() -> None:
+    session_a = FeaturedMatchWebSession(seed=17, rounds=1)
+    session_a.start()
+    session_a.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session_a.advance()
+    session_a.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session_a.advance()
+    session_a.advance()
+    session_a.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session_a.advance()
+    identity_a = session_a.view()["snapshot"]["floor_identity"]
+
+    session_b = FeaturedMatchWebSession(seed=17, rounds=1)
+    session_b.start()
+    session_b.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session_b.advance()
+    session_b.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session_b.advance()
+    session_b.advance()
+    session_b.submit_action(ChooseSuccessorAction(candidate_index=1))
+    session_b.advance()
+    identity_b = session_b.view()["snapshot"]["floor_identity"]
+
+    assert identity_a is not None and identity_b is not None
+    assert identity_a["host_name"] != identity_b["host_name"]
+    assert (
+        identity_a["strategic_focus"] != identity_b["strategic_focus"]
+        or identity_a["pressure_reason"] != identity_b["pressure_reason"]
+    )
 
 
 
@@ -510,6 +547,7 @@ def test_web_session_save_resume_persists_next_floor_transition_after_reward_res
     assert restored.view()["snapshot"]["completion"] is None
     assert restored.view()["snapshot"]["current_phase"] == "ecosystem"
     assert restored.view()["snapshot"]["current_floor"] == 2
+    assert restored.view()["snapshot"]["floor_identity"] is not None
     assert restored.view()["decision_type"] == "FeaturedRoundDecisionState"
 
 def test_web_session_pending_messages_describe_next_required_action() -> None:
@@ -846,6 +884,7 @@ def test_web_html_prioritizes_mobile_panel_ordering() -> None:
     assert "grid > .decision-actions-panel { order:1; }" in web_server.HTML
     assert "grid > .decision-details-panel { order:2; }" in web_server.HTML
     assert "grid > .result-panel { order:3; }" in web_server.HTML
+    assert "grid > .floor-identity-panel { order:4; }" in web_server.HTML
     assert "panel panel-enter vote-panel panel-mobile-low" in web_server.HTML
 
 
@@ -880,6 +919,7 @@ def test_web_root_contains_full_run_panels() -> None:
         with urlopen(f"http://127.0.0.1:{port}/") as resp:
             html = resp.read().decode("utf-8")
         assert "Current Decision" in html
+        assert "Floor Identity" in html
         assert "Floor Referendum" in html
         assert "Floor Summary" in html
         assert "Successor Options" in html
