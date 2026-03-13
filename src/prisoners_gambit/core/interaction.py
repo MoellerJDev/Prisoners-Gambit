@@ -168,6 +168,12 @@ class FloorSummaryEntryView:
     descriptor: str
     genome_summary: str
     powerups: list[str]
+    lineage_relation: str = "outsider"
+    survived_previous_floor: bool = False
+    continuity_streak: int = 1
+    score_delta: int = 0
+    wins_delta: int = 0
+    pressure_trend: str = "steady"
 
 
 @dataclass(slots=True)
@@ -417,6 +423,14 @@ class DynastyBoardEntryView:
     has_civil_war_danger: bool
     successor_pressure_cause: str | None = None
     civil_war_danger_cause: str | None = None
+    lineage_relation: str = "outsider"
+    survived_previous_floor: bool = False
+    continuity_streak: int = 1
+    score_delta: int = 0
+    wins_delta: int = 0
+    pressure_trend: str = "steady"
+    is_central_rival: bool = False
+    is_new_central_rival: bool = False
 
 
 @dataclass(slots=True)

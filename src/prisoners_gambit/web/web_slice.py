@@ -114,6 +114,13 @@ class FeaturedMatchWebSession:
         self._successor_candidates: list[Agent] = []
         self._floor_clue_log: list[str] = []
         self._chronicle_event_ids: set[str] = set()
+        self._branch_continuity_streaks: dict[str, int] = {}
+        self._previous_floor_names: set[str] = set()
+        self._previous_pressure_levels: dict[str, int] = {}
+        self._previous_branch_stats: dict[str, tuple[int, int]] = {}
+        self._previous_central_rival: str | None = None
+        self._current_floor_central_rival: str | None = None
+        self._current_floor_new_central_rival: str | None = None
 
     def serialize_state(self) -> dict:
         decision = self.session.current_decision
@@ -149,6 +156,13 @@ class FeaturedMatchWebSession:
             "branch_roster": [self._serialize_agent(agent) for agent in self._branch_roster],
             "floor_clue_log": list(self._floor_clue_log),
             "chronicle_event_ids": sorted(self._chronicle_event_ids),
+            "branch_continuity_streaks": dict(self._branch_continuity_streaks),
+            "previous_floor_names": sorted(self._previous_floor_names),
+            "previous_pressure_levels": dict(self._previous_pressure_levels),
+            "previous_branch_stats": {name: [stats[0], stats[1]] for name, stats in self._previous_branch_stats.items()},
+            "previous_central_rival": self._previous_central_rival,
+            "current_floor_central_rival": self._current_floor_central_rival,
+            "current_floor_new_central_rival": self._current_floor_new_central_rival,
         }
 
     def serialize_state_json(self) -> str:
@@ -209,6 +223,16 @@ class FeaturedMatchWebSession:
             )
             session._floor_clue_log = list(payload.get("floor_clue_log", []))
             session._chronicle_event_ids = set(payload.get("chronicle_event_ids", []))
+            session._branch_continuity_streaks = {str(name): int(streak) for name, streak in payload.get("branch_continuity_streaks", {}).items()}
+            session._previous_floor_names = set(payload.get("previous_floor_names", []))
+            session._previous_pressure_levels = {str(name): int(level) for name, level in payload.get("previous_pressure_levels", {}).items()}
+            session._previous_branch_stats = {str(name): (int(stats[0]), int(stats[1])) for name, stats in payload.get("previous_branch_stats", {}).items()}
+            previous_central_rival = payload.get("previous_central_rival")
+            session._previous_central_rival = str(previous_central_rival) if previous_central_rival else None
+            current_floor_central_rival = payload.get("current_floor_central_rival")
+            session._current_floor_central_rival = str(current_floor_central_rival) if current_floor_central_rival else None
+            current_floor_new_central_rival = payload.get("current_floor_new_central_rival")
+            session._current_floor_new_central_rival = str(current_floor_new_central_rival) if current_floor_new_central_rival else None
 
             session_payload = payload["session"]
             session.session.status = session_payload["status"]
@@ -525,9 +549,39 @@ class FeaturedMatchWebSession:
 
         self._advance_branch_roster_for_floor()
         summary_agents = self._branch_floor_ranking()
+        previous_pressure_levels = {
+            name: level for name, level in self._previous_pressure_levels.items()
+        }
+
+        pressure = analyze_floor_heir_pressure(summary_agents, self.player.lineage_id)
+        heir_pressure = to_floor_summary_heir_pressure_view(pressure)
+        successor_names = {entry.name for entry in heir_pressure.successor_candidates}
+        threat_names = {entry.name for entry in heir_pressure.future_threats}
+
         entries: list[FloorSummaryEntryView] = []
         for agent in summary_agents:
             identity = analyze_agent_identity(agent)
+            if agent.is_player:
+                lineage_relation = "host"
+            elif self.player.lineage_id is not None and agent.lineage_id == self.player.lineage_id:
+                lineage_relation = "kin"
+            else:
+                lineage_relation = "outsider"
+
+            survived_previous_floor = agent.name in self._previous_floor_names
+            continuity_streak = self._branch_continuity_streaks.get(agent.name, 0) + 1 if survived_previous_floor else 1
+            previous_score, previous_wins = self._previous_branch_stats.get(agent.name, (agent.score, agent.wins))
+            score_delta = agent.score - previous_score
+            wins_delta = agent.wins - previous_wins
+            pressure_level = int(agent.name in successor_names) + int(agent.name in threat_names)
+            previous_pressure_level = previous_pressure_levels.get(agent.name, pressure_level)
+            if pressure_level > previous_pressure_level:
+                pressure_trend = "rising"
+            elif pressure_level < previous_pressure_level:
+                pressure_trend = "falling"
+            else:
+                pressure_trend = "steady"
+
             entries.append(
                 FloorSummaryEntryView(
                     agent_id=agent.agent_id,
@@ -540,10 +594,23 @@ class FeaturedMatchWebSession:
                     descriptor=identity.descriptor,
                     genome_summary=agent.genome.summary(),
                     powerups=[p.name for p in agent.powerups],
+                    lineage_relation=lineage_relation,
+                    survived_previous_floor=survived_previous_floor,
+                    continuity_streak=continuity_streak,
+                    score_delta=score_delta,
+                    wins_delta=wins_delta,
+                    pressure_trend=pressure_trend,
                 )
             )
-        pressure = analyze_floor_heir_pressure(summary_agents, self.player.lineage_id)
-        heir_pressure = to_floor_summary_heir_pressure_view(pressure)
+        ordered_entries = sorted(entries, key=lambda entry: (-entry.score, entry.name, entry.lineage_depth))
+        central_rival_name = next((entry.name for entry in ordered_entries if not entry.is_player), None)
+        self._current_floor_central_rival = central_rival_name
+        self._current_floor_new_central_rival = (
+            central_rival_name
+            if central_rival_name is not None and central_rival_name != self._previous_central_rival
+            else None
+        )
+
         self.snapshot.floor_summary = FloorSummaryState(
             floor_number=self.floor_number,
             entries=entries,
@@ -552,6 +619,14 @@ class FeaturedMatchWebSession:
                 normalize_featured_inference_signals(self._floor_clue_log)
             ),
         )
+        self._previous_floor_names = {entry.name for entry in entries}
+        self._branch_continuity_streaks = {entry.name: entry.continuity_streak for entry in entries}
+        self._previous_branch_stats = {entry.name: (entry.score, entry.wins) for entry in entries}
+        self._previous_pressure_levels = {
+            entry.name: int(entry.name in successor_names) + int(entry.name in threat_names)
+            for entry in entries
+        }
+        self._previous_central_rival = central_rival_name
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
         next_step = "review successor options" if self.floor_number == 1 else "continue to reward selection"
@@ -870,6 +945,7 @@ class FeaturedMatchWebSession:
                         )
 
         entries: list[DynastyBoardEntryView] = []
+        floor_entry_by_name = {entry.name: entry for entry in floor_summary.entries} if floor_summary else {}
         if self.snapshot.successor_options and self._successor_candidates:
             branch_pool = list(self._successor_candidates)
             if all(agent.name != self.player.name for agent in branch_pool):
@@ -890,6 +966,18 @@ class FeaturedMatchWebSession:
                         has_civil_war_danger=agent.name in danger_names,
                         successor_pressure_cause=pressure_causes.get(agent.name),
                         civil_war_danger_cause=danger_causes.get(agent.name),
+                        lineage_relation=(
+                            floor_entry_by_name[agent.name].lineage_relation
+                            if agent.name in floor_entry_by_name
+                            else ("host" if (agent.is_player or agent.name == self.player.name) else ("kin" if self.player.lineage_id is not None and agent.lineage_id == self.player.lineage_id else "outsider"))
+                        ),
+                        survived_previous_floor=(floor_entry_by_name[agent.name].survived_previous_floor if agent.name in floor_entry_by_name else False),
+                        continuity_streak=(floor_entry_by_name[agent.name].continuity_streak if agent.name in floor_entry_by_name else 1),
+                        score_delta=(floor_entry_by_name[agent.name].score_delta if agent.name in floor_entry_by_name else 0),
+                        wins_delta=(floor_entry_by_name[agent.name].wins_delta if agent.name in floor_entry_by_name else 0),
+                        pressure_trend=(floor_entry_by_name[agent.name].pressure_trend if agent.name in floor_entry_by_name else "steady"),
+                        is_central_rival=agent.name == self._current_floor_central_rival,
+                        is_new_central_rival=agent.name == self._current_floor_new_central_rival,
                     )
                 )
         elif floor_summary and floor_summary.entries:
@@ -908,6 +996,14 @@ class FeaturedMatchWebSession:
                         has_civil_war_danger=entry.name in danger_names,
                         successor_pressure_cause=pressure_causes.get(entry.name),
                         civil_war_danger_cause=danger_causes.get(entry.name),
+                        lineage_relation=getattr(entry, "lineage_relation", "host" if entry.is_player else "outsider"),
+                        survived_previous_floor=getattr(entry, "survived_previous_floor", False),
+                        continuity_streak=getattr(entry, "continuity_streak", 1),
+                        score_delta=getattr(entry, "score_delta", 0),
+                        wins_delta=getattr(entry, "wins_delta", 0),
+                        pressure_trend=getattr(entry, "pressure_trend", "steady"),
+                        is_central_rival=entry.name == self._current_floor_central_rival,
+                        is_new_central_rival=entry.name == self._current_floor_new_central_rival,
                     )
                 )
         else:
@@ -927,6 +1023,14 @@ class FeaturedMatchWebSession:
                         has_civil_war_danger=False,
                         successor_pressure_cause=None,
                         civil_war_danger_cause=None,
+                        lineage_relation=("host" if agent.is_player else ("kin" if self.player.lineage_id is not None and agent.lineage_id == self.player.lineage_id else "outsider")),
+                        survived_previous_floor=False,
+                        continuity_streak=1,
+                        score_delta=0,
+                        wins_delta=0,
+                        pressure_trend="steady",
+                        is_central_rival=agent.name == self._current_floor_central_rival,
+                        is_new_central_rival=agent.name == self._current_floor_new_central_rival,
                     )
                 )
 
@@ -956,6 +1060,14 @@ class FeaturedMatchWebSession:
                         has_civil_war_danger=True,
                         successor_pressure_cause=board_entry.successor_pressure_cause,
                         civil_war_danger_cause=danger_cause,
+                        lineage_relation=board_entry.lineage_relation,
+                        survived_previous_floor=board_entry.survived_previous_floor,
+                        continuity_streak=board_entry.continuity_streak,
+                        score_delta=board_entry.score_delta,
+                        wins_delta=board_entry.wins_delta,
+                        pressure_trend=board_entry.pressure_trend,
+                        is_central_rival=board_entry.is_central_rival,
+                        is_new_central_rival=board_entry.is_new_central_rival,
                     )
 
         entries.sort(key=lambda entry: (-entry.score, entry.name, entry.lineage_depth))
