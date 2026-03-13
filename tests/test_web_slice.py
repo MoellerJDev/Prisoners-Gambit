@@ -785,9 +785,30 @@ def test_web_session_floor_identity_carries_lineage_pressure_between_floors() ->
 
     floor_identity = session.view()["snapshot"]["floor_identity"]
     assert floor_identity is not None
-    assert floor_identity["pressure_reason"].startswith(f"{first_candidate['name']} now carries")
-    assert "because" in floor_identity["strategic_focus"]
-    assert "track clue carryover:" in floor_identity["strategic_focus"]
+    assert "pressure via" in floor_identity["pressure_reason"]
+    assert first_candidate["name"] in floor_identity["headline"]
+    assert floor_identity["strategic_focus"].startswith("Push ")
+    assert "hedge " in floor_identity["strategic_focus"]
+    assert "Track clue:" in floor_identity["strategic_focus"]
+
+
+def test_web_session_floor_identity_is_concise_for_mobile_readability() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    floor_identity = session.view()["snapshot"]["floor_identity"]
+    assert floor_identity is not None
+    assert len(floor_identity["pressure_reason"]) <= 80
+    assert len(floor_identity["strategic_focus"]) <= 160
+    assert floor_identity["pressure_reason"].count(";") == 0
 
 
 def test_web_session_floor_identity_differs_by_successor_branch_pressure() -> None:
@@ -798,7 +819,6 @@ def test_web_session_floor_identity_differs_by_successor_branch_pressure() -> No
     session_a.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session_a.advance()
     session_a.advance()
-    candidates_a = session_a.view()["decision"]["candidates"]
     session_a.submit_action(ChooseSuccessorAction(candidate_index=0))
     session_a.advance()
     identity_a = session_a.view()["snapshot"]["floor_identity"]
@@ -810,14 +830,14 @@ def test_web_session_floor_identity_differs_by_successor_branch_pressure() -> No
     session_b.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session_b.advance()
     session_b.advance()
-    candidates_b = session_b.view()["decision"]["candidates"]
     session_b.submit_action(ChooseSuccessorAction(candidate_index=1))
     session_b.advance()
     identity_b = session_b.view()["snapshot"]["floor_identity"]
 
     assert identity_a is not None and identity_b is not None
-    assert candidates_a[0]["name"] in identity_a["pressure_reason"]
-    assert candidates_b[1]["name"] in identity_b["pressure_reason"]
+    assert "pressure via" in identity_a["pressure_reason"]
+    assert "pressure via" in identity_b["pressure_reason"]
+    assert identity_a["headline"] != identity_b["headline"]
     assert identity_a["strategic_focus"] != identity_b["strategic_focus"]
 
 def test_web_session_successor_transition_does_not_require_civil_war_when_trigger_not_met() -> None:

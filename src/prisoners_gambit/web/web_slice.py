@@ -714,32 +714,34 @@ class FeaturedMatchWebSession:
         dominant_pressure = top_threat if top_threat != "no dominant threat tag" else heir_tag
         clue_signal = (decision.featured_inference_summary[0] if decision.featured_inference_summary else None)
         doctrine = decision.lineage_doctrine or chosen.branch_doctrine
-        previous_identity = self.snapshot.floor_identity
-        inherited_pressure = (
-            previous_identity.dominant_pressure
-            if previous_identity is not None and previous_identity.target_floor == self.floor_number
-            else None
-        )
         floor_summary = self.snapshot.floor_summary
         branch_focus = None
         if floor_summary and floor_summary.heir_pressure and floor_summary.heir_pressure.future_threats:
             branch_focus = floor_summary.heir_pressure.future_threats[0]
 
         chosen_cause = (chosen.shaping_causes[0] if chosen.shaping_causes else chosen.succession_pitch).strip().rstrip(".")
-        pressure_parts = [f"{chosen.name} now carries {dominant_pressure} pressure"]
-        if branch_focus is not None:
-            pressure_parts.append(f"against {branch_focus.name}'s {branch_focus.branch_role.lower()}")
-        if inherited_pressure is not None and inherited_pressure != dominant_pressure:
-            pressure_parts.append(f"after {inherited_pressure} shaped the last floor")
-        pressure_reason = "; ".join(pressure_parts) + "."
+        focus_name = branch_focus.name if branch_focus is not None else chosen.name
+        focus_role = branch_focus.branch_role.lower() if branch_focus is not None else chosen.branch_role.lower()
+        pressure_reason = f"{dominant_pressure} pressure via {focus_name} ({focus_role})."
 
-        focus_segments = [
-            f"Execute {chosen.attractive_now.lower()}",
-            f"cover {chosen.danger_later.lower()}",
-            f"because {chosen_cause}",
-        ]
+        attractive_focus = chosen.attractive_now.lower()
+        if len(attractive_focus) > 44:
+            attractive_focus = attractive_focus[:41].rstrip() + "..."
+        danger_focus = chosen.danger_later.lower()
+        if len(danger_focus) > 44:
+            danger_focus = danger_focus[:41].rstrip() + "..."
+        strategic_focus = f"Push {attractive_focus}; hedge {danger_focus}."
         if clue_signal is not None:
-            focus_segments.append(f"track clue carryover: {clue_signal.lower()}")
+            clue_focus = clue_signal.split("|", 1)[0].strip().rstrip(".")
+            if len(clue_focus) > 44:
+                clue_focus = clue_focus[:41].rstrip() + "..."
+            strategic_focus = f"{strategic_focus[:-1]} Track clue: {clue_focus.lower()}."
+        elif chosen_cause:
+            cause_focus = chosen_cause
+            if len(cause_focus) > 44:
+                cause_focus = cause_focus[:41].rstrip() + "..."
+            strategic_focus = f"{strategic_focus[:-1]} Cause: {cause_focus.lower()}."
+
         headline = f"{pressure_label}: {chosen.name} · {chosen.branch_role}"
         return FloorIdentityState(
             target_floor=self.floor_number + 1,
@@ -749,7 +751,7 @@ class FeaturedMatchWebSession:
             dominant_pressure=dominant_pressure,
             pressure_reason=pressure_reason,
             lineage_direction=f"Doctrine path: {doctrine}",
-            strategic_focus="; ".join(focus_segments) + ".",
+            strategic_focus=strategic_focus,
             key_signal=clue_signal,
         )
 
