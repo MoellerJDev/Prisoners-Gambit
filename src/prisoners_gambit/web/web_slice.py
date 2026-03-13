@@ -48,7 +48,10 @@ from prisoners_gambit.core.powerups import (
     ComplianceDividend,
     CounterIntel,
     MoveDirective,
+    ReferendumContext,
     RoundContext,
+    derive_referendum_combo_events,
+    derive_round_combo_events,
     resolve_move,
 )
 from prisoners_gambit.core.scoring import base_payoff
@@ -449,11 +452,42 @@ class FeaturedMatchWebSession:
         player_move, player_res = self._resolve_move(self.player, self.opponent, player_context, opponent_context, player_plan)
         opponent_move, opp_res = self._resolve_move(self.opponent, self.player, opponent_context, player_context, opponent_plan)
 
+        player_score_context = RoundContext(
+            round_index=self.round_index,
+            total_rounds=self.rounds,
+            my_history=list(self.player_history),
+            opp_history=list(self.opponent_history),
+            planned_move=player_plan,
+            opp_planned_move=opponent_plan,
+            combo_events=derive_round_combo_events(
+                context=player_context,
+                my_move=player_move,
+                opp_move=opponent_move,
+                my_directives=player_res.directives,
+                opp_directives=opp_res.directives,
+            ),
+        )
+        opponent_score_context = RoundContext(
+            round_index=self.round_index,
+            total_rounds=self.rounds,
+            my_history=list(self.opponent_history),
+            opp_history=list(self.player_history),
+            planned_move=opponent_plan,
+            opp_planned_move=player_plan,
+            combo_events=derive_round_combo_events(
+                context=opponent_context,
+                my_move=opponent_move,
+                opp_move=player_move,
+                my_directives=opp_res.directives,
+                opp_directives=player_res.directives,
+            ),
+        )
+
         base_p, base_o = base_payoff(player_move, opponent_move)
         p_points, o_points = base_p, base_o
         adjustments: list[ScoreAdjustment] = []
-        p_points, o_points = self._apply_score(self.player, self.opponent, player_move, opponent_move, p_points, o_points, player_context, "player", adjustments)
-        o_points, p_points = self._apply_score(self.opponent, self.player, opponent_move, player_move, o_points, p_points, opponent_context, "opponent", adjustments)
+        p_points, o_points = self._apply_score(self.player, self.opponent, player_move, opponent_move, p_points, o_points, player_score_context, "player", adjustments)
+        o_points, p_points = self._apply_score(self.opponent, self.player, opponent_move, player_move, o_points, p_points, opponent_score_context, "opponent", adjustments)
 
         self.player_score += p_points
         self.opponent_score += o_points
@@ -517,17 +551,53 @@ class FeaturedMatchWebSession:
 
     def _resolve_floor_vote(self, decision: FloorVoteDecisionState) -> None:
         action = self.session.resolve_current_decision(lambda _: ChooseFloorVoteAction(mode="autopilot_vote"))
-        vote = decision.prompt.suggested_vote if action.mode == "autopilot_vote" else action.vote
-        if vote not in (COOPERATE, DEFECT):
+        base_vote = decision.prompt.suggested_vote if action.mode == "autopilot_vote" else action.vote
+        if base_vote not in (COOPERATE, DEFECT):
             raise ValueError("Invalid floor vote")
+
+        referendum_context = ReferendumContext(
+            floor_number=self.floor_number,
+            total_agents=8,
+            current_floor_score=self.player_score,
+        )
+        directives: list[MoveDirective] = []
+        for powerup in self.player.powerups:
+            directives.extend(powerup.self_referendum_directives(owner=self.player, context=referendum_context))
+        final_vote, _ = resolve_move(base_vote, directives)
+
+        cooperation_prevailed = final_vote == COOPERATE
+        cooperators = 6 if cooperation_prevailed else 3
+        defectors = 2 if cooperation_prevailed else 5
+        combo_events = derive_referendum_combo_events(
+            base_vote=base_vote,
+            final_vote=final_vote,
+            directives=directives,
+            cooperation_prevailed=cooperation_prevailed,
+        )
+
+        player_reward = 2 if cooperation_prevailed else 1
+        reward_context = ReferendumContext(
+            floor_number=self.floor_number,
+            total_agents=cooperators + defectors,
+            current_floor_score=self.player_score,
+            combo_events=combo_events,
+        )
+        for powerup in self.player.powerups:
+            player_reward = powerup.on_referendum_reward(
+                owner=self.player,
+                my_vote=final_vote,
+                cooperation_prevailed=cooperation_prevailed,
+                current_reward=player_reward,
+                context=reward_context,
+            )
 
         result = FloorVoteResult(
             floor_number=self.floor_number,
-            cooperation_prevailed=vote == COOPERATE,
-            cooperators=6 if vote == COOPERATE else 3,
-            defectors=2 if vote == COOPERATE else 5,
-            player_vote=vote,
-            player_reward=2 if vote == COOPERATE else 1,
+            cooperation_prevailed=cooperation_prevailed,
+            cooperators=cooperators,
+            defectors=defectors,
+            player_vote=final_vote,
+            player_reward=player_reward,
         )
         self.snapshot.floor_vote_result = result
         self.player_score += result.player_reward

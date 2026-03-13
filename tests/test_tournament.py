@@ -5,12 +5,16 @@ from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.powerups import (
     OpeningGambit,
     CounterIntel,
+    CoerciveControl,
+    ComplianceDividend,
     DirectivePriority,
     GoldenHandshake,
     MoveDirective,
     Powerup,
+    LastLaugh,
     TrustDividend,
     UnityTicket,
+    BlocPolitics,
 )
 from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.systems.progression import FloorConfig
@@ -111,6 +115,32 @@ def static_agent(name: str, move: int, *, is_player: bool = False, lineage_id: i
             (COOPERATE, DEFECT): move,
             (DEFECT, COOPERATE): move,
             (DEFECT, DEFECT): move,
+        },
+        noise=0.0,
+    )
+    return Agent(name=name, genome=genome, is_player=is_player, lineage_id=lineage_id)
+
+
+
+
+def patterned_agent(
+    name: str,
+    *,
+    first_move: int,
+    cc: int,
+    cd: int,
+    dc: int,
+    dd: int,
+    is_player: bool = False,
+    lineage_id: int | None = None,
+) -> Agent:
+    genome = StrategyGenome(
+        first_move=first_move,
+        response_table={
+            (COOPERATE, COOPERATE): cc,
+            (COOPERATE, DEFECT): cd,
+            (DEFECT, COOPERATE): dc,
+            (DEFECT, DEFECT): dd,
         },
         noise=0.0,
     )
@@ -538,3 +568,78 @@ def test_featured_prompt_floor_log_carries_across_featured_matches_on_same_floor
     assert floor_clues
     assert any("Floor learning" in line for line in floor_clues)
 
+
+
+def test_live_match_flow_generates_forced_cooperation_event_for_control_payoffs() -> None:
+    controller = patterned_agent(
+        "Controller",
+        first_move=DEFECT,
+        cc=DEFECT,
+        cd=DEFECT,
+        dc=DEFECT,
+        dd=DEFECT,
+    )
+    rival = patterned_agent(
+        "Rival",
+        first_move=COOPERATE,
+        cc=DEFECT,
+        cd=DEFECT,
+        dc=DEFECT,
+        dd=DEFECT,
+    )
+    controller.powerups.extend([CoerciveControl(), ComplianceDividend(bonus=1)])
+
+    engine = TournamentEngine(base_rounds_per_match=2, rng=random.Random(7))
+    result = engine.play_match(controller, rival, rounds_per_match=2)
+
+    assert result.left_score == 7
+    assert result.right_score == 0
+
+
+def test_live_match_flow_generates_locked_mutual_coop_event_for_trust_payoff() -> None:
+    anchor = static_agent("Anchor", DEFECT)
+    rival = static_agent("Rival", DEFECT)
+    anchor.powerups.extend([GoldenHandshake(), TrustDividend()])
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(3))
+    result = engine.play_match(anchor, rival, rounds_per_match=1)
+
+    assert result.left_score == 3
+    assert result.right_score == 1
+
+
+def test_featured_live_flow_triggers_final_round_betrayal_cashout() -> None:
+    renderer = StubRenderer()
+    closer = static_agent("Closer", COOPERATE, is_player=True, lineage_id=1)
+    target = static_agent("Target", COOPERATE)
+    closer.powerups.append(LastLaugh(bonus=2))
+
+    engine = TournamentEngine(base_rounds_per_match=2, rng=random.Random(11), renderer=renderer)
+    player_score, opponent_score = engine.play_featured_player_match(
+        player=closer,
+        opponent=target,
+        rounds_per_match=2,
+        floor_number=1,
+        roster_entries=[],
+        masked_opponent_label="Unknown",
+        floor_clue_log=[],
+    )
+
+    assert player_score == 4
+    assert opponent_score == 1
+
+
+def test_live_referendum_flow_generates_controlled_vote_bloc_combo() -> None:
+    renderer = StubRenderer()
+    player = static_agent("You", DEFECT, is_player=True, lineage_id=1)
+    ally = static_agent("Ally", COOPERATE)
+    player.powerups.extend([UnityTicket(), BlocPolitics(bonus=2)])
+
+    engine = TournamentEngine(base_rounds_per_match=1, rng=random.Random(5), renderer=renderer)
+    floor_config = make_floor_config(rounds_per_match=1, featured_matches=0, referendum_reward=3)
+
+    engine.run_floor([player, ally], floor_number=1, floor_config=floor_config)
+
+    assert renderer.last_referendum is not None
+    assert renderer.last_referendum.player_vote == COOPERATE
+    assert renderer.last_referendum.player_reward == 7

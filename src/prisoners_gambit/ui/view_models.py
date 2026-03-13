@@ -70,6 +70,15 @@ def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list
         lines.append(f"Phase support: {offer.phase_support}")
     if offer.successor_pressure:
         lines.append(f"Successor pressure: {offer.successor_pressure}")
+    if isinstance(offer, PowerupOfferView):
+        if offer.trigger:
+            lines.append(offer.trigger)
+        if offer.effect:
+            lines.append(offer.effect)
+        if offer.role:
+            lines.append(offer.role)
+        if offer.tags:
+            lines.append(f"Synergy tags: {', '.join(offer.tags)}")
     if isinstance(offer, GenomeEditOfferView) and offer.doctrine_drift:
         lines.append(f"Doctrine drift: {offer.doctrine_drift}")
     return lines

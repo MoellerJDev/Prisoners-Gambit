@@ -26,6 +26,8 @@ from prisoners_gambit.core.powerups import (
     MoveDirective,
     ReferendumContext,
     RoundContext,
+    derive_referendum_combo_events,
+    derive_round_combo_events,
     resolve_move,
 )
 from prisoners_gambit.core.scoring import base_payoff
@@ -268,19 +270,50 @@ class TournamentEngine:
                 opp_planned_move=left_plan,
             )
 
-            left_move, _ = self._resolve_agent_move(
+            left_move, left_resolution = self._resolve_agent_move(
                 owner=left,
                 opponent=right,
                 owner_context=left_context,
                 opponent_context=right_context,
                 base_move=left_plan,
             )
-            right_move, _ = self._resolve_agent_move(
+            right_move, right_resolution = self._resolve_agent_move(
                 owner=right,
                 opponent=left,
                 owner_context=right_context,
                 opponent_context=left_context,
                 base_move=right_plan,
+            )
+
+            left_score_context = RoundContext(
+                round_index=round_index,
+                total_rounds=rounds,
+                my_history=list(left_history),
+                opp_history=list(right_history),
+                planned_move=left_plan,
+                opp_planned_move=right_plan,
+                combo_events=derive_round_combo_events(
+                    context=left_context,
+                    my_move=left_move,
+                    opp_move=right_move,
+                    my_directives=left_resolution.directives,
+                    opp_directives=right_resolution.directives,
+                ),
+            )
+            right_score_context = RoundContext(
+                round_index=round_index,
+                total_rounds=rounds,
+                my_history=list(right_history),
+                opp_history=list(left_history),
+                planned_move=right_plan,
+                opp_planned_move=left_plan,
+                combo_events=derive_round_combo_events(
+                    context=right_context,
+                    my_move=right_move,
+                    opp_move=left_move,
+                    my_directives=right_resolution.directives,
+                    opp_directives=left_resolution.directives,
+                ),
             )
 
             round_left_points, round_right_points = base_payoff(left_move, right_move)
@@ -292,7 +325,7 @@ class TournamentEngine:
                 opp_move=right_move,
                 my_points=round_left_points,
                 opp_points=round_right_points,
-                context=left_context,
+                context=left_score_context,
             )
 
             round_right_points, round_left_points = self._apply_score_powerups(
@@ -302,7 +335,7 @@ class TournamentEngine:
                 opp_move=left_move,
                 my_points=round_right_points,
                 opp_points=round_left_points,
-                context=right_context,
+                context=right_score_context,
             )
 
             left_score += round_left_points
@@ -391,6 +424,37 @@ class TournamentEngine:
                 base_move=opponent_plan,
             )
 
+            player_score_context = RoundContext(
+                round_index=round_index,
+                total_rounds=rounds_per_match,
+                my_history=list(player_history),
+                opp_history=list(opponent_history),
+                planned_move=player_plan,
+                opp_planned_move=opponent_plan,
+                combo_events=derive_round_combo_events(
+                    context=player_context,
+                    my_move=player_move,
+                    opp_move=opponent_move,
+                    my_directives=player_directive_resolution.directives,
+                    opp_directives=opponent_directive_resolution.directives,
+                ),
+            )
+            opponent_score_context = RoundContext(
+                round_index=round_index,
+                total_rounds=rounds_per_match,
+                my_history=list(opponent_history),
+                opp_history=list(player_history),
+                planned_move=opponent_plan,
+                opp_planned_move=player_plan,
+                combo_events=derive_round_combo_events(
+                    context=opponent_context,
+                    my_move=opponent_move,
+                    opp_move=player_move,
+                    my_directives=opponent_directive_resolution.directives,
+                    opp_directives=player_directive_resolution.directives,
+                ),
+            )
+
             base_player_points, base_opponent_points = base_payoff(player_move, opponent_move)
             round_player_points, round_opponent_points = base_player_points, base_opponent_points
 
@@ -403,7 +467,7 @@ class TournamentEngine:
                 opp_move=opponent_move,
                 my_points=round_player_points,
                 opp_points=round_opponent_points,
-                context=player_context,
+                context=player_score_context,
                 perspective="player",
                 score_adjustments=score_adjustments,
             )
@@ -415,7 +479,7 @@ class TournamentEngine:
                 opp_move=player_move,
                 my_points=round_opponent_points,
                 opp_points=round_player_points,
-                context=opponent_context,
+                context=opponent_score_context,
                 perspective="opponent",
                 score_adjustments=score_adjustments,
             )
@@ -512,6 +576,8 @@ class TournamentEngine:
         floor_config: FloorConfig,
     ) -> None:
         votes: dict[int, int] = {}
+        base_votes: dict[int, int] = {}
+        referendum_directives: dict[int, list[MoveDirective]] = {}
         player = next((agent for agent in population if agent.is_player), None)
 
         for agent in population:
@@ -542,6 +608,8 @@ class TournamentEngine:
                 directives.extend(powerup.self_referendum_directives(owner=agent, context=context))
 
             final_vote, _ = resolve_move(base_vote, directives)
+            base_votes[agent.agent_id] = base_vote
+            referendum_directives[agent.agent_id] = directives
             votes[agent.agent_id] = final_vote
 
         cooperators = sum(1 for vote in votes.values() if vote == COOPERATE)
@@ -556,6 +624,12 @@ class TournamentEngine:
                         floor_number=floor_number,
                         total_agents=len(population),
                         current_floor_score=agent.score,
+                        combo_events=derive_referendum_combo_events(
+                            base_vote=base_votes[agent.agent_id],
+                            final_vote=votes[agent.agent_id],
+                            directives=referendum_directives[agent.agent_id],
+                            cooperation_prevailed=cooperation_prevailed,
+                        ),
                     )
                     for powerup in agent.powerups:
                         reward = powerup.on_referendum_reward(
@@ -578,6 +652,12 @@ class TournamentEngine:
                     floor_number=floor_number,
                     total_agents=len(population),
                     current_floor_score=player.score,
+                    combo_events=derive_referendum_combo_events(
+                        base_vote=base_votes[player.agent_id],
+                        final_vote=votes[player.agent_id],
+                        directives=referendum_directives[player.agent_id],
+                        cooperation_prevailed=cooperation_prevailed,
+                    ),
                 )
                 for powerup in player.powerups:
                     player_reward = powerup.on_referendum_reward(

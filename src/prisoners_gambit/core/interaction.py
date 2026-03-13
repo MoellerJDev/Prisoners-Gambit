@@ -180,6 +180,9 @@ class FloorSummaryEntryView:
 class PowerupOfferView:
     name: str
     description: str
+    trigger: str | None = None
+    effect: str | None = None
+    role: str | None = None
     lineage_commitment: str | None = None
     doctrine_vector: str | None = None
     branch_identity: str | None = None
