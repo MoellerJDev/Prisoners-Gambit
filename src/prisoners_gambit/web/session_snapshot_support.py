@@ -67,6 +67,18 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
     else:
         immediate_posture = "Stability posture: controlled"
 
+    pressure_cause = None
+    if floor_identity is not None:
+        pressure_cause = floor_identity.pressure_reason
+    elif central_rival and central_rival.has_civil_war_danger:
+        pressure_cause = central_rival.civil_war_danger_cause
+    elif central_rival and central_rival.has_successor_pressure:
+        pressure_cause = central_rival.successor_pressure_cause
+
+    civil_war_signal = None
+    if snapshot.civil_war_context is not None and snapshot.civil_war_context.doctrine_pressure:
+        civil_war_signal = snapshot.civil_war_context.doctrine_pressure[0]
+
     headline = f"Host {host_name} · F{floor_number}"
     if snapshot.current_phase == "civil_war":
         headline = f"Host {host_name} · Civil-war floor F{floor_number}"
@@ -84,6 +96,8 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
         details=[
             immediate_posture,
             f"Central rival signal: {rival_signal}",
+            *([f"Why dangerous now: {pressure_cause}"] if pressure_cause else []),
+            *([f"Civil-war buildup: {civil_war_signal}"] if civil_war_signal else []),
         ],
     )
 

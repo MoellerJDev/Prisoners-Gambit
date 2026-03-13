@@ -1,5 +1,5 @@
 from prisoners_gambit.core.constants import COOPERATE
-from prisoners_gambit.core.interaction import ChooseFloorVoteAction, ChooseRoundMoveAction, DynastyBoardState
+from prisoners_gambit.core.interaction import CivilWarContext, ChooseFloorVoteAction, ChooseRoundMoveAction, ChooseSuccessorAction, DynastyBoardState
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
     DynastyBoardBuildContext,
@@ -76,3 +76,45 @@ def test_dynasty_board_rebuild_accepts_context_object() -> None:
     )
 
     assert isinstance(board, DynastyBoardState)
+
+
+def test_refresh_strategic_snapshot_surfaces_floor_identity_consequence_cause() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    strategic = refresh_strategic_snapshot(session.snapshot, player_name=session.player.name, floor_number=session.floor_number)
+    assert any(line.startswith("Why dangerous now: ") for line in strategic.details)
+
+
+def test_refresh_strategic_snapshot_surfaces_civil_war_buildup_signal_deterministically() -> None:
+    session_a = FeaturedMatchWebSession(seed=7, rounds=1)
+    session_a.start()
+    session_a.snapshot.civil_war_context = CivilWarContext(
+        thesis="Judgment arrives",
+        scoring_rules=["Rule"],
+        dangerous_branches=["Directive bloc"],
+        doctrine_pressure=["retaliation risk is compounding"],
+    )
+
+    session_b = FeaturedMatchWebSession(seed=7, rounds=1)
+    session_b.start()
+    session_b.snapshot.civil_war_context = CivilWarContext(
+        thesis="Judgment arrives",
+        scoring_rules=["Rule"],
+        dangerous_branches=["Directive bloc"],
+        doctrine_pressure=["retaliation risk is compounding"],
+    )
+
+    strategic_a = refresh_strategic_snapshot(session_a.snapshot, player_name=session_a.player.name, floor_number=session_a.floor_number)
+    strategic_b = refresh_strategic_snapshot(session_b.snapshot, player_name=session_b.player.name, floor_number=session_b.floor_number)
+
+    buildup_a = [line for line in strategic_a.details if line.startswith("Civil-war buildup: ")]
+    buildup_b = [line for line in strategic_b.details if line.startswith("Civil-war buildup: ")]
+    assert buildup_a == buildup_b == ["Civil-war buildup: retaliation risk is compounding"]
