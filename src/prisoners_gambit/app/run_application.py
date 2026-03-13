@@ -10,7 +10,7 @@ from prisoners_gambit.core.featured_inference import normalize_featured_inferenc
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.systems.evolution import EvolutionEngine
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import generate_powerup_offers
+from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, offer_category_hint
 from prisoners_gambit.systems.population import create_population
 from prisoners_gambit.systems.progression import ProgressionEngine
 from prisoners_gambit.systems.tournament import TournamentEngine
@@ -210,7 +210,17 @@ class RunApplication:
                     self.renderer.show_victory(floor_number, player, self.settings.seed)
                     return player
 
-            powerup_offers = generate_powerup_offers(self.settings.offers_per_floor, self.progression.rng)
+            generated_powerup_offers = generate_powerup_offer_set(
+                self.settings.offers_per_floor,
+                self.progression.rng,
+                context=PowerupOfferContext(
+                    owned_powerups=tuple(player.powerups),
+                    genome=player.genome,
+                    floor_number=floor_number,
+                    phase=("ecosystem" if ecosystem_phase else "civil_war"),
+                ),
+            )
+            powerup_offers = [entry.powerup for entry in generated_powerup_offers]
             self.event_bus.publish(
                 Event(
                     "powerups_offered",
@@ -218,7 +228,11 @@ class RunApplication:
                 )
             )
 
-            selected_powerup = self.interaction_controller.choose_powerup(floor_number, powerup_offers)
+            selected_powerup = self.interaction_controller.choose_powerup(
+                floor_number,
+                powerup_offers,
+                offer_hints={entry.powerup.name: offer_category_hint(entry.category) for entry in generated_powerup_offers},
+            )
             player.powerups.append(selected_powerup)
             logger.info("Player selected powerup '%s' on floor %s", selected_powerup.name, floor_number)
             self.event_bus.publish(

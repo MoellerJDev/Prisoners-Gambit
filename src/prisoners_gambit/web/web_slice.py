@@ -58,7 +58,7 @@ from prisoners_gambit.core.scoring import base_payoff
 from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.content.genome_edit_templates import build_genome_edit_pool
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import generate_powerup_offers
+from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, offer_category_hint
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
     DynastyBoardBuildContext,
@@ -716,8 +716,18 @@ class FeaturedMatchWebSession:
         self._begin_powerup_choice()
 
     def _begin_powerup_choice(self) -> None:
-        self._powerup_offers = generate_powerup_offers(3, self.rng)
-        offers = [to_powerup_offer_view(offer) for offer in self._powerup_offers]
+        generated = generate_powerup_offer_set(
+            3,
+            self.rng,
+            context=PowerupOfferContext(
+                owned_powerups=tuple(self.player.powerups),
+                genome=self.player.genome,
+                floor_number=self.floor_number,
+                phase=self.snapshot.current_phase,
+            ),
+        )
+        self._powerup_offers = [entry.powerup for entry in generated]
+        offers = [to_powerup_offer_view(entry.powerup, relevance_hint=offer_category_hint(entry.category)) for entry in generated]
         state = PowerupChoiceState(floor_number=self.floor_number, offers=offers)
         self.session.begin_decision(state, (ChoosePowerupAction,), self.snapshot)
         self.snapshot.session_status = "awaiting_decision"
