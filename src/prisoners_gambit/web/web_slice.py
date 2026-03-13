@@ -1,22 +1,15 @@
 from __future__ import annotations
 
-import base64
 from dataclasses import asdict
-import hashlib
-import hmac
-import json
 import random
-import zlib
-from typing import get_type_hints
 
-from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
+from prisoners_gambit.app.heir_view_mapping import to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
-from prisoners_gambit.core.analysis import analyze_agent_identity, analyze_floor_heir_pressure, assess_successor_candidate
+from prisoners_gambit.core.analysis import analyze_agent_identity, assess_successor_candidate
 from prisoners_gambit.core.civil_war import build_civil_war_context
 from prisoners_gambit.core.featured_inference import (
     normalize_featured_inference_signals,
     successor_featured_inference_context,
-    summarize_featured_inference_signals,
 )
 from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
@@ -32,19 +25,12 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundDecisionState,
     FeaturedRoundResult,
     FeaturedRoundStanceView,
-    FloorSummaryEntryView,
-    FloorSummaryState,
     FloorIdentityState,
-    DynastyBoardEntryView,
-    DynastyBoardState,
-    StrategicSnapshotState,
     FloorVoteDecisionState,
     FloorVotePrompt,
     FloorVoteResult,
     GenomeEditChoiceState,
-    GenomeEditOfferView,
     PowerupChoiceState,
-    PowerupOfferView,
     RoundDirectiveResolution,
     RoundResolutionBreakdown,
     LineageChronicleEntry,
@@ -62,16 +48,37 @@ from prisoners_gambit.core.powerups import (
     ComplianceDividend,
     CounterIntel,
     MoveDirective,
-    Powerup,
     RoundContext,
     resolve_move,
 )
 from prisoners_gambit.core.scoring import base_payoff
 from prisoners_gambit.core.strategy import StrategyGenome
-from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.content.genome_edit_templates import build_genome_edit_pool
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
 from prisoners_gambit.systems.offers import generate_powerup_offers
+from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
+from prisoners_gambit.web.session_snapshot_support import (
+    DynastyBoardBuildContext,
+    lineage_cause_phrase,
+    rebuild_dynasty_board,
+    refresh_strategic_snapshot,
+)
+from prisoners_gambit.web.session_state_codec import (
+    deserialize_agent,
+    deserialize_decision,
+    deserialize_genome_edit,
+    deserialize_powerup,
+    deserialize_rng_state,
+    deserialize_run_snapshot,
+    export_save_code,
+    import_save_code,
+    resolve_expected_action_types,
+    serialize_agent,
+    serialize_genome_edit,
+    serialize_powerup,
+    serialize_rng_state,
+    serialize_state_json,
+)
 
 
 SAVE_STATE_VERSION = 1
@@ -130,7 +137,7 @@ class FeaturedMatchWebSession:
             "version": SAVE_STATE_VERSION,
             "seed": self.seed,
             "rounds": self.rounds,
-            "rng_state": self._serialize_rng_state(self.rng.getstate()),
+            "rng_state": serialize_rng_state(self.rng.getstate()),
             "session": {
                 "status": self.session.status,
                 "decision_type": type(decision).__name__ if decision else None,
@@ -138,8 +145,8 @@ class FeaturedMatchWebSession:
                 "expected_action_types": expected_action_types,
             },
             "snapshot": asdict(self.snapshot),
-            "player": self._serialize_agent(self.player),
-            "opponent": self._serialize_agent(self.opponent),
+            "player": serialize_agent(self.player),
+            "opponent": serialize_agent(self.opponent),
             "player_history": list(self.player_history),
             "opponent_history": list(self.opponent_history),
             "player_score": self.player_score,
@@ -151,10 +158,10 @@ class FeaturedMatchWebSession:
             "match_autopilot_active": self._match_autopilot_active,
             "pending_screen": self._pending_screen,
             "pending_message": self._pending_message,
-            "powerup_offers": [self._serialize_powerup(powerup) for powerup in self._powerup_offers],
-            "genome_offers": [self._serialize_genome_edit(edit) for edit in self._genome_offers],
-            "successor_candidates": [self._serialize_agent(agent) for agent in self._successor_candidates],
-            "branch_roster": [self._serialize_agent(agent) for agent in self._branch_roster],
+            "powerup_offers": [serialize_powerup(powerup) for powerup in self._powerup_offers],
+            "genome_offers": [serialize_genome_edit(edit) for edit in self._genome_offers],
+            "successor_candidates": [serialize_agent(agent) for agent in self._successor_candidates],
+            "branch_roster": [serialize_agent(agent) for agent in self._branch_roster],
             "floor_clue_log": list(self._floor_clue_log),
             "chronicle_event_ids": sorted(self._chronicle_event_ids),
             "branch_continuity_streaks": dict(self._branch_continuity_streaks),
@@ -167,21 +174,13 @@ class FeaturedMatchWebSession:
         }
 
     def serialize_state_json(self) -> str:
-        return json.dumps(self.serialize_state(), sort_keys=True, separators=(",", ":"))
+        return serialize_state_json(self.serialize_state())
 
     def export_save_code(self, secret: bytes) -> str:
         payload_json = self.serialize_state_json()
-        signature = hmac.new(secret, payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
         # Security model: this is integrity protection against client-side payload editing.
         # It does not protect against users who can modify/replace the server code or secret.
-        envelope = {
-            "version": SAVE_STATE_VERSION,
-            "compressed": True,
-            "payload": base64.urlsafe_b64encode(zlib.compress(payload_json.encode("utf-8"))).decode("ascii"),
-            "signature": signature,
-        }
-        encoded = json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        return base64.urlsafe_b64encode(encoded).decode("ascii")
+        return export_save_code(payload_json, secret, version=SAVE_STATE_VERSION)
 
     @classmethod
     def from_serialized_state(cls, payload: dict) -> "FeaturedMatchWebSession":
@@ -190,12 +189,12 @@ class FeaturedMatchWebSession:
                 raise ValueError("Unsupported save state version")
 
             session = cls(seed=int(payload["seed"]), rounds=int(payload["rounds"]))
-            rng_state = cls._deserialize_rng_state(payload["rng_state"])
+            rng_state = deserialize_rng_state(payload["rng_state"])
             session.rng.setstate(rng_state)
 
-            session.snapshot = cls._deserialize_run_snapshot(payload["snapshot"])
-            session.player = cls._deserialize_agent(payload["player"])
-            session.opponent = cls._deserialize_agent(payload["opponent"])
+            session.snapshot = deserialize_run_snapshot(payload["snapshot"])
+            session.player = deserialize_agent(payload["player"], powerup_types=_POWERUP_TYPES)
+            session.opponent = deserialize_agent(payload["opponent"], powerup_types=_POWERUP_TYPES)
             session.player_history = list(payload["player_history"])
             session.opponent_history = list(payload["opponent_history"])
             session.player_score = int(payload["player_score"])
@@ -208,10 +207,10 @@ class FeaturedMatchWebSession:
             session._match_autopilot_active = bool(payload["match_autopilot_active"])
             session._pending_screen = payload.get("pending_screen")
             session._pending_message = payload.get("pending_message")
-            session._powerup_offers = [cls._deserialize_powerup(entry) for entry in payload.get("powerup_offers", [])]
-            session._genome_offers = [cls._deserialize_genome_edit(entry) for entry in payload.get("genome_offers", [])]
-            session._successor_candidates = [cls._deserialize_agent(entry) for entry in payload.get("successor_candidates", [])]
-            session._branch_roster = [cls._deserialize_agent(entry) for entry in payload.get("branch_roster", [])]
+            session._powerup_offers = [deserialize_powerup(entry, _POWERUP_TYPES) for entry in payload.get("powerup_offers", [])]
+            session._genome_offers = [deserialize_genome_edit(entry, _GENOME_EDIT_TYPES) for entry in payload.get("genome_offers", [])]
+            session._successor_candidates = [deserialize_agent(entry, powerup_types=_POWERUP_TYPES) for entry in payload.get("successor_candidates", [])]
+            session._branch_roster = [deserialize_agent(entry, powerup_types=_POWERUP_TYPES) for entry in payload.get("branch_roster", [])]
             if not session._branch_roster:
                 session._branch_roster = session._build_initial_branch_roster()
             matched_player = next((agent for agent in session._branch_roster if agent.name == session.player.name), None)
@@ -239,8 +238,8 @@ class FeaturedMatchWebSession:
             session.session.status = session_payload["status"]
             decision_type_name = session_payload.get("decision_type")
             decision_payload = session_payload.get("decision")
-            session.session.current_decision = cls._deserialize_decision(decision_type_name, decision_payload)
-            session.session._expected_action_types = cls._resolve_expected_action_types(
+            session.session.current_decision = deserialize_decision(decision_type_name, decision_payload, _DECISION_TYPES)
+            session.session._expected_action_types = resolve_expected_action_types(
                 session_payload.get("expected_action_types", []),
                 session.session.current_decision,
             )
@@ -253,33 +252,9 @@ class FeaturedMatchWebSession:
 
     @classmethod
     def import_save_code(cls, save_code: str, secret: bytes) -> "FeaturedMatchWebSession":
-        try:
-            raw = base64.urlsafe_b64decode(save_code.encode("ascii")).decode("utf-8")
-            envelope = json.loads(raw)
-        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ValueError("Invalid save code") from exc
-        if not isinstance(envelope, dict):
-            raise ValueError("Invalid save code")
-        if not isinstance(envelope.get("payload"), str) or not isinstance(envelope.get("signature"), str):
-            raise ValueError("Invalid save code")
-
-        payload_json = envelope["payload"]
-        if envelope.get("compressed"):
-            try:
-                payload_json = zlib.decompress(base64.urlsafe_b64decode(payload_json.encode("ascii"))).decode("utf-8")
-            except (ValueError, UnicodeDecodeError, zlib.error) as exc:
-                raise ValueError("Invalid save code") from exc
-        provided_signature = envelope["signature"]
-        expected_signature = hmac.new(secret, payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(provided_signature, expected_signature):
-            raise ValueError("Invalid save code")
-        try:
-            payload = json.loads(payload_json)
-        except json.JSONDecodeError as exc:
-            raise ValueError("Invalid save code") from exc
-        if not isinstance(payload, dict):
-            raise ValueError("Invalid save code")
+        payload = import_save_code(save_code, secret, version=SAVE_STATE_VERSION)
         return cls.from_serialized_state(payload)
+
 
     def start(self) -> None:
         self.session.start(self.snapshot)
@@ -359,93 +334,12 @@ class FeaturedMatchWebSession:
         }
 
     def _refresh_strategic_snapshot(self) -> None:
-        def _pick(source, attr: str, default=None):
-            if source is None:
-                return default
-            if hasattr(source, attr):
-                return getattr(source, attr)
-            if isinstance(source, dict):
-                return source.get(attr, default)
-            return default
-
-        host_name = self.player.name
-        floor_identity = self.snapshot.floor_identity
-        identity_target_floor = _pick(floor_identity, "target_floor")
-        identity_host_name = _pick(floor_identity, "host_name")
-        if identity_target_floor == self.floor_number and identity_host_name:
-            host_name = identity_host_name
-
-        dynasty_board = self.snapshot.dynasty_board
-        board_entries = list(_pick(dynasty_board, "entries", []))
-        central_rival = next(
-            (
-                entry
-                for entry in board_entries
-                if (entry.is_central_rival if hasattr(entry, "is_central_rival") else entry.get("is_central_rival", False))
-            ),
-            None,
+        self.snapshot.strategic_snapshot = refresh_strategic_snapshot(
+            self.snapshot,
+            player_name=self.player.name,
+            floor_number=self.floor_number,
         )
 
-        floor_pressure = "Floor pressure unresolved"
-        if floor_identity is not None:
-            floor_pressure = _pick(floor_identity, "dominant_pressure", floor_pressure)
-        elif self.snapshot.civil_war_context is not None:
-            dangerous_branches = list(_pick(self.snapshot.civil_war_context, "dangerous_branches", []))
-            floor_pressure = dangerous_branches[0] if dangerous_branches else _pick(self.snapshot.civil_war_context, "thesis", floor_pressure)
-        elif self.snapshot.successor_options and _pick(self.snapshot.successor_options, "threat_profile"):
-            floor_pressure = _pick(self.snapshot.successor_options, "threat_profile", [floor_pressure])[0]
-        elif self.snapshot.floor_summary and _pick(self.snapshot.floor_summary, "heir_pressure"):
-            heir_pressure = _pick(self.snapshot.floor_summary, "heir_pressure")
-            future_threats = list(_pick(heir_pressure, "future_threats", []))
-            floor_pressure = (
-                _pick(future_threats[0], "name")
-                if future_threats
-                else _pick(heir_pressure, "branch_doctrine", floor_pressure)
-            )
-
-        lineage_direction = "Lineage direction forming"
-        if floor_identity is not None:
-            lineage_direction = _pick(floor_identity, "lineage_direction", lineage_direction)
-        elif self.snapshot.successor_options and _pick(self.snapshot.successor_options, "lineage_doctrine"):
-            lineage_direction = _pick(self.snapshot.successor_options, "lineage_doctrine", lineage_direction)
-        elif self.snapshot.floor_summary and _pick(self.snapshot.floor_summary, "heir_pressure"):
-            lineage_direction = _pick(_pick(self.snapshot.floor_summary, "heir_pressure"), "branch_doctrine", lineage_direction)
-
-        if self.snapshot.current_phase == "civil_war":
-            immediate_posture = "Risk posture: coercive pressure"
-        elif self.snapshot.successor_options and _pick(self.snapshot.successor_options, "civil_war_pressure"):
-            immediate_posture = f"Risk posture: {_pick(self.snapshot.successor_options, 'civil_war_pressure')}"
-        elif central_rival and (central_rival.has_civil_war_danger if hasattr(central_rival, "has_civil_war_danger") else central_rival.get("has_civil_war_danger", False)):
-            immediate_posture = "Risk posture: instability rising"
-        elif central_rival and (central_rival.has_successor_pressure if hasattr(central_rival, "has_successor_pressure") else central_rival.get("has_successor_pressure", False)):
-            immediate_posture = "Stability posture: contested succession"
-        else:
-            immediate_posture = "Stability posture: controlled"
-
-        headline = f"Host {host_name} · F{self.floor_number}"
-        if self.snapshot.current_phase == "civil_war":
-            headline = f"Host {host_name} · Civil-war floor F{self.floor_number}"
-
-        rival_name = "none"
-        rival_signal = "waiting for floor ranking"
-        if central_rival is not None:
-            rival_name = central_rival.name if hasattr(central_rival, "name") else str(central_rival.get("name", "none"))
-            rival_signal = central_rival.doctrine_signal if hasattr(central_rival, "doctrine_signal") else str(central_rival.get("doctrine_signal", "waiting for floor ranking"))
-
-        chips = [
-            f"Rival: {rival_name}",
-            f"Pressure: {floor_pressure}",
-            f"Lineage: {lineage_direction}",
-        ]
-        details = [
-            immediate_posture,
-            f"Central rival signal: {rival_signal}",
-        ]
-        self.snapshot.strategic_snapshot = StrategicSnapshotState(
-            headline=headline,
-            chips=chips,
-            details=details,
-        )
 
     def _transition_action_label(self) -> str | None:
         if self.session.current_decision is not None:
@@ -640,84 +534,30 @@ class FeaturedMatchWebSession:
 
         self._advance_branch_roster_for_floor()
         summary_agents = self._branch_floor_ranking()
-        previous_pressure_levels = {
-            name: level for name, level in self._previous_pressure_levels.items()
-        }
 
-        pressure = analyze_floor_heir_pressure(summary_agents, self.player.lineage_id)
-        heir_pressure = to_floor_summary_heir_pressure_view(pressure)
-        successor_names = {entry.name for entry in heir_pressure.successor_candidates}
-        threat_names = {entry.name for entry in heir_pressure.future_threats}
-
-        entries: list[FloorSummaryEntryView] = []
-        for agent in summary_agents:
-            identity = analyze_agent_identity(agent)
-            if agent.is_player:
-                lineage_relation = "host"
-            elif self.player.lineage_id is not None and agent.lineage_id == self.player.lineage_id:
-                lineage_relation = "kin"
-            else:
-                lineage_relation = "outsider"
-
-            survived_previous_floor = agent.name in self._previous_floor_names
-            continuity_streak = self._branch_continuity_streaks.get(agent.name, 0) + 1 if survived_previous_floor else 1
-            previous_score, previous_wins = self._previous_branch_stats.get(agent.name, (agent.score, agent.wins))
-            score_delta = agent.score - previous_score
-            wins_delta = agent.wins - previous_wins
-            pressure_level = int(agent.name in successor_names) + int(agent.name in threat_names)
-            previous_pressure_level = previous_pressure_levels.get(agent.name, pressure_level)
-            if pressure_level > previous_pressure_level:
-                pressure_trend = "rising"
-            elif pressure_level < previous_pressure_level:
-                pressure_trend = "falling"
-            else:
-                pressure_trend = "steady"
-
-            entries.append(
-                FloorSummaryEntryView(
-                    agent_id=agent.agent_id,
-                    name=agent.name,
-                    is_player=agent.is_player,
-                    score=agent.score,
-                    wins=agent.wins,
-                    lineage_depth=agent.lineage_depth,
-                    tags=identity.tags,
-                    descriptor=identity.descriptor,
-                    genome_summary=agent.genome.summary(),
-                    powerups=[p.name for p in agent.powerups],
-                    lineage_relation=lineage_relation,
-                    survived_previous_floor=survived_previous_floor,
-                    continuity_streak=continuity_streak,
-                    score_delta=score_delta,
-                    wins_delta=wins_delta,
-                    pressure_trend=pressure_trend,
-                )
-            )
-        ordered_entries = sorted(entries, key=lambda entry: (-entry.score, entry.name, entry.lineage_depth))
-        central_rival_name = next((entry.name for entry in ordered_entries if not entry.is_player), None)
-        self._current_floor_central_rival = central_rival_name
-        self._current_floor_new_central_rival = (
-            central_rival_name
-            if central_rival_name is not None and central_rival_name != self._previous_central_rival
-            else None
-        )
-
-        self.snapshot.floor_summary = FloorSummaryState(
+        synthesis = synthesize_floor_summary(
             floor_number=self.floor_number,
-            entries=entries,
-            heir_pressure=heir_pressure,
-            featured_inference_summary=summarize_featured_inference_signals(
-                normalize_featured_inference_signals(self._floor_clue_log)
+            summary_agents=summary_agents,
+            player=self.player,
+            floor_clue_log=self._floor_clue_log,
+            continuity=FloorContinuityContext(
+                previous_floor_names=self._previous_floor_names,
+                branch_continuity_streaks=self._branch_continuity_streaks,
+                previous_branch_stats=self._previous_branch_stats,
+                previous_pressure_levels=self._previous_pressure_levels,
+                previous_central_rival=self._previous_central_rival,
             ),
         )
-        self._previous_floor_names = {entry.name for entry in entries}
-        self._branch_continuity_streaks = {entry.name: entry.continuity_streak for entry in entries}
-        self._previous_branch_stats = {entry.name: (entry.score, entry.wins) for entry in entries}
-        self._previous_pressure_levels = {
-            entry.name: int(entry.name in successor_names) + int(entry.name in threat_names)
-            for entry in entries
-        }
-        self._previous_central_rival = central_rival_name
+        self.snapshot.floor_summary = synthesis.summary
+        self._previous_floor_names = synthesis.continuity.previous_floor_names
+        self._branch_continuity_streaks = synthesis.continuity.branch_continuity_streaks
+        self._previous_branch_stats = synthesis.continuity.previous_branch_stats
+        self._previous_pressure_levels = synthesis.continuity.previous_pressure_levels
+        self._current_floor_central_rival = synthesis.central_rival_name
+        self._current_floor_new_central_rival = synthesis.current_floor_new_central_rival
+        self._previous_central_rival = synthesis.continuity.previous_central_rival
+        heir_pressure = synthesis.summary.heir_pressure
+
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
         next_step = "review successor options" if self.floor_number == 1 else "continue to reward selection"
@@ -1008,166 +848,20 @@ class FeaturedMatchWebSession:
         self._rebuild_dynasty_board()
 
     def _rebuild_dynasty_board(self) -> None:
-        pressure_names: set[str] = set()
-        danger_names: set[str] = set()
-        pressure_causes: dict[str, str] = {}
-        danger_causes: dict[str, str] = {}
-        floor_summary = self.snapshot.floor_summary
-        if floor_summary and floor_summary.heir_pressure:
-            pressure_names.update(entry.name for entry in floor_summary.heir_pressure.successor_candidates)
-            danger_names.update(entry.name for entry in floor_summary.heir_pressure.future_threats)
-            for entry in floor_summary.heir_pressure.successor_candidates:
-                pressure_causes[entry.name] = self._lineage_cause_phrase(entry.shaping_causes, entry.rationale)
-            for entry in floor_summary.heir_pressure.future_threats:
-                danger_causes[entry.name] = self._lineage_cause_phrase(entry.shaping_causes, entry.rationale)
-        successor_options = self.snapshot.successor_options
-        successor_candidate_views = {
-            candidate.name: candidate for candidate in successor_options.candidates
-        } if successor_options else {}
-        if successor_options and successor_options.candidates:
-            top_score = max(candidate.score for candidate in successor_options.candidates)
-            for candidate in successor_options.candidates:
-                if candidate.score == top_score:
-                    pressure_names.add(candidate.name)
-                    if candidate.name not in pressure_causes:
-                        pressure_causes[candidate.name] = self._lineage_cause_phrase(
-                            candidate.shaping_causes,
-                            candidate.succession_pitch,
-                        )
-
-        entries: list[DynastyBoardEntryView] = []
-        floor_entry_by_name = {entry.name: entry for entry in floor_summary.entries} if floor_summary else {}
-        if self.snapshot.successor_options and self._successor_candidates:
-            branch_pool = list(self._successor_candidates)
-            if all(agent.name != self.player.name for agent in branch_pool):
-                branch_pool.append(self.player)
-            for agent in branch_pool:
-                identity = analyze_agent_identity(agent)
-                doctrine_signal = ", ".join(identity.tags[:2]) if identity.tags else identity.descriptor
-                entries.append(
-                    DynastyBoardEntryView(
-                        name=agent.name,
-                        role=identity.descriptor,
-                        doctrine_signal=doctrine_signal,
-                        score=agent.score,
-                        wins=agent.wins,
-                        lineage_depth=agent.lineage_depth,
-                        is_current_host=agent.is_player or agent.name == self.player.name,
-                        has_successor_pressure=agent.name in pressure_names,
-                        has_civil_war_danger=agent.name in danger_names,
-                        successor_pressure_cause=pressure_causes.get(agent.name),
-                        civil_war_danger_cause=danger_causes.get(agent.name),
-                        lineage_relation=(
-                            floor_entry_by_name[agent.name].lineage_relation
-                            if agent.name in floor_entry_by_name
-                            else ("host" if (agent.is_player or agent.name == self.player.name) else ("kin" if self.player.lineage_id is not None and agent.lineage_id == self.player.lineage_id else "outsider"))
-                        ),
-                        survived_previous_floor=(floor_entry_by_name[agent.name].survived_previous_floor if agent.name in floor_entry_by_name else False),
-                        continuity_streak=(floor_entry_by_name[agent.name].continuity_streak if agent.name in floor_entry_by_name else 1),
-                        score_delta=(floor_entry_by_name[agent.name].score_delta if agent.name in floor_entry_by_name else 0),
-                        wins_delta=(floor_entry_by_name[agent.name].wins_delta if agent.name in floor_entry_by_name else 0),
-                        pressure_trend=(floor_entry_by_name[agent.name].pressure_trend if agent.name in floor_entry_by_name else "steady"),
-                        is_central_rival=agent.name == self._current_floor_central_rival,
-                        is_new_central_rival=agent.name == self._current_floor_new_central_rival,
-                    )
-                )
-        elif floor_summary and floor_summary.entries:
-            for entry in floor_summary.entries:
-                doctrine_signal = ", ".join(entry.tags[:2]) if entry.tags else entry.descriptor
-                entries.append(
-                    DynastyBoardEntryView(
-                        name=entry.name,
-                        role=entry.descriptor,
-                        doctrine_signal=doctrine_signal,
-                        score=entry.score,
-                        wins=entry.wins,
-                        lineage_depth=entry.lineage_depth,
-                        is_current_host=entry.is_player,
-                        has_successor_pressure=entry.name in pressure_names,
-                        has_civil_war_danger=entry.name in danger_names,
-                        successor_pressure_cause=pressure_causes.get(entry.name),
-                        civil_war_danger_cause=danger_causes.get(entry.name),
-                        lineage_relation=getattr(entry, "lineage_relation", "host" if entry.is_player else "outsider"),
-                        survived_previous_floor=getattr(entry, "survived_previous_floor", False),
-                        continuity_streak=getattr(entry, "continuity_streak", 1),
-                        score_delta=getattr(entry, "score_delta", 0),
-                        wins_delta=getattr(entry, "wins_delta", 0),
-                        pressure_trend=getattr(entry, "pressure_trend", "steady"),
-                        is_central_rival=entry.name == self._current_floor_central_rival,
-                        is_new_central_rival=entry.name == self._current_floor_new_central_rival,
-                    )
-                )
-        else:
-            for agent in (self.player, self.opponent):
-                identity = analyze_agent_identity(agent)
-                doctrine_signal = ", ".join(identity.tags[:2]) if identity.tags else identity.descriptor
-                entries.append(
-                    DynastyBoardEntryView(
-                        name=agent.name,
-                        role=identity.descriptor,
-                        doctrine_signal=doctrine_signal,
-                        score=agent.score,
-                        wins=agent.wins,
-                        lineage_depth=agent.lineage_depth,
-                        is_current_host=agent.is_player,
-                        has_successor_pressure=False,
-                        has_civil_war_danger=False,
-                        successor_pressure_cause=None,
-                        civil_war_danger_cause=None,
-                        lineage_relation=("host" if agent.is_player else ("kin" if self.player.lineage_id is not None and agent.lineage_id == self.player.lineage_id else "outsider")),
-                        survived_previous_floor=False,
-                        continuity_streak=1,
-                        score_delta=0,
-                        wins_delta=0,
-                        pressure_trend="steady",
-                        is_central_rival=agent.name == self._current_floor_central_rival,
-                        is_new_central_rival=agent.name == self._current_floor_new_central_rival,
-                    )
-                )
-
-        if self.snapshot.current_phase == "civil_war":
-            threat_tags = set((self.snapshot.successor_options and self.snapshot.successor_options.threat_profile) or [])
-            for idx, board_entry in enumerate(entries):
-                candidate = next((agent for agent in self._successor_candidates if agent.name == board_entry.name), None)
-                if candidate is None:
-                    continue
-                tags = set(analyze_agent_identity(candidate).tags)
-                if tags & threat_tags:
-                    existing_cause = entries[idx].civil_war_danger_cause
-                    candidate_view = successor_candidate_views.get(candidate.name)
-                    danger_cause = existing_cause or self._lineage_cause_phrase(
-                        candidate_view.shaping_causes if candidate_view else [],
-                        candidate_view.danger_later if candidate_view else "civil-war threat tags are active",
-                    )
-                    entries[idx] = DynastyBoardEntryView(
-                        name=board_entry.name,
-                        role=board_entry.role,
-                        doctrine_signal=board_entry.doctrine_signal,
-                        score=board_entry.score,
-                        wins=board_entry.wins,
-                        lineage_depth=board_entry.lineage_depth,
-                        is_current_host=board_entry.is_current_host,
-                        has_successor_pressure=board_entry.has_successor_pressure,
-                        has_civil_war_danger=True,
-                        successor_pressure_cause=board_entry.successor_pressure_cause,
-                        civil_war_danger_cause=danger_cause,
-                        lineage_relation=board_entry.lineage_relation,
-                        survived_previous_floor=board_entry.survived_previous_floor,
-                        continuity_streak=board_entry.continuity_streak,
-                        score_delta=board_entry.score_delta,
-                        wins_delta=board_entry.wins_delta,
-                        pressure_trend=board_entry.pressure_trend,
-                        is_central_rival=board_entry.is_central_rival,
-                        is_new_central_rival=board_entry.is_new_central_rival,
-                    )
-
-        entries.sort(key=lambda entry: (-entry.score, entry.name, entry.lineage_depth))
-        self.snapshot.dynasty_board = DynastyBoardState(phase=self.snapshot.current_phase, entries=entries)
+        self.snapshot.dynasty_board = rebuild_dynasty_board(
+            DynastyBoardBuildContext(
+                snapshot=self.snapshot,
+                player=self.player,
+                opponent=self.opponent,
+                successor_candidates=self._successor_candidates,
+                current_floor_central_rival=self._current_floor_central_rival,
+                current_floor_new_central_rival=self._current_floor_new_central_rival,
+            )
+        )
 
     def _lineage_cause_phrase(self, shaping_causes: list[str], fallback: str) -> str:
-        lead = shaping_causes[0] if shaping_causes else fallback
-        compact = lead.strip().rstrip(".")
-        return f"because {compact}"
+        return lineage_cause_phrase(shaping_causes, fallback)
+
 
     def _resolve_stance_move(self, prompt: FeaturedMatchPrompt) -> int:
         if self._active_stance is None:
@@ -1346,197 +1040,3 @@ class FeaturedMatchWebSession:
             },
             noise=0.0,
         )
-
-    @staticmethod
-    def _serialize_powerup(powerup: Powerup) -> dict:
-        payload = asdict(powerup)
-        payload["type"] = type(powerup).__name__
-        return payload
-
-    @staticmethod
-    def _deserialize_powerup(payload: dict) -> Powerup:
-        powerup_type_name = payload.get("type")
-        if powerup_type_name not in _POWERUP_TYPES:
-            raise ValueError("Unsupported powerup type in save state")
-        powerup_type = _POWERUP_TYPES[powerup_type_name]
-        kwargs = {key: value for key, value in payload.items() if key != "type"}
-        return powerup_type(**kwargs)
-
-    @staticmethod
-    def _serialize_genome_edit(edit: GenomeEdit) -> dict:
-        return {"type": type(edit).__name__}
-
-    @staticmethod
-    def _deserialize_genome_edit(payload: dict) -> GenomeEdit:
-        genome_edit_type_name = payload.get("type")
-        if genome_edit_type_name not in _GENOME_EDIT_TYPES:
-            raise ValueError("Unsupported genome edit type in save state")
-        return _GENOME_EDIT_TYPES[genome_edit_type_name]()
-
-    @classmethod
-    def _serialize_agent(cls, agent: Agent) -> dict:
-        return {
-            "name": agent.name,
-            "public_profile": agent.public_profile,
-            "powerups": [cls._serialize_powerup(powerup) for powerup in agent.powerups],
-            "score": agent.score,
-            "wins": agent.wins,
-            "is_player": agent.is_player,
-            "lineage_id": agent.lineage_id,
-            "lineage_depth": agent.lineage_depth,
-            "agent_id": agent.agent_id,
-            "genome": cls._serialize_genome(agent.genome),
-        }
-
-    @classmethod
-    def _deserialize_agent(cls, payload: dict) -> Agent:
-        return Agent(
-            name=payload["name"],
-            genome=cls._deserialize_genome(payload["genome"]),
-            public_profile=payload["public_profile"],
-            powerups=[cls._deserialize_powerup(entry) for entry in payload.get("powerups", [])],
-            score=payload["score"],
-            wins=payload["wins"],
-            is_player=payload["is_player"],
-            lineage_id=payload["lineage_id"],
-            lineage_depth=payload["lineage_depth"],
-            agent_id=payload["agent_id"],
-        )
-
-    @staticmethod
-    def _serialize_genome(genome: StrategyGenome) -> dict:
-        return {
-            "first_move": genome.first_move,
-            "noise": genome.noise,
-            "response_table": {
-                "cc": genome.response_table[(COOPERATE, COOPERATE)],
-                "cd": genome.response_table[(COOPERATE, DEFECT)],
-                "dc": genome.response_table[(DEFECT, COOPERATE)],
-                "dd": genome.response_table[(DEFECT, DEFECT)],
-            },
-        }
-
-    @staticmethod
-    def _deserialize_genome(payload: dict) -> StrategyGenome:
-        table = payload["response_table"]
-        return StrategyGenome(
-            first_move=payload["first_move"],
-            noise=payload["noise"],
-            response_table={
-                (COOPERATE, COOPERATE): table["cc"],
-                (COOPERATE, DEFECT): table["cd"],
-                (DEFECT, COOPERATE): table["dc"],
-                (DEFECT, DEFECT): table["dd"],
-            },
-        )
-
-    @classmethod
-    def _deserialize_decision(cls, decision_type_name: str | None, payload: dict | None):
-        if decision_type_name is None or payload is None:
-            return None
-        decision_type = _DECISION_TYPES.get(decision_type_name)
-        if decision_type is None:
-            raise ValueError("Unsupported decision type in save state")
-        return cls._build_dataclass(decision_type, payload)
-
-    @classmethod
-    def _resolve_expected_action_types(cls, expected_type_names: list[str], decision) -> tuple[type, ...]:
-        if expected_type_names:
-            type_map = {
-                "ChooseRoundMoveAction": ChooseRoundMoveAction,
-                "ChooseRoundAutopilotAction": ChooseRoundAutopilotAction,
-                "ChooseRoundStanceAction": ChooseRoundStanceAction,
-                "ChooseFloorVoteAction": ChooseFloorVoteAction,
-                "ChoosePowerupAction": ChoosePowerupAction,
-                "ChooseGenomeEditAction": ChooseGenomeEditAction,
-                "ChooseSuccessorAction": ChooseSuccessorAction,
-            }
-            resolved_types: list[type] = []
-            for expected_name in expected_type_names:
-                if expected_name not in type_map:
-                    raise ValueError("Unsupported expected action type in save state")
-                resolved_types.append(type_map[expected_name])
-            return tuple(resolved_types)
-        if isinstance(decision, FeaturedRoundDecisionState):
-            return (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction)
-        if isinstance(decision, FloorVoteDecisionState):
-            return (ChooseFloorVoteAction,)
-        if isinstance(decision, PowerupChoiceState):
-            return (ChoosePowerupAction,)
-        if isinstance(decision, GenomeEditChoiceState):
-            return (ChooseGenomeEditAction,)
-        if isinstance(decision, SuccessorChoiceState):
-            return (ChooseSuccessorAction,)
-        return ()
-
-    @classmethod
-    def _deserialize_run_snapshot(cls, payload: dict) -> RunSnapshot:
-        return cls._build_dataclass(RunSnapshot, payload)
-
-    @classmethod
-    def _build_dataclass(cls, dataclass_type: type, payload: dict):
-        field_values = {}
-        hints = get_type_hints(dataclass_type)
-        for field in dataclass_type.__dataclass_fields__.values():  # type: ignore[attr-defined]
-            if field.name not in payload:
-                continue
-            annotation = hints.get(field.name, field.type)
-            field_values[field.name] = cls._decode_value(annotation, payload[field.name])
-        return dataclass_type(**field_values)
-
-    @classmethod
-    def _decode_value(cls, annotation, value):
-        if value is None:
-            return None
-        origin = getattr(annotation, "__origin__", None)
-        args = getattr(annotation, "__args__", ())
-        if origin is list and args:
-            return [cls._decode_value(args[0], item) for item in value]
-        if origin is tuple and args:
-            return tuple(cls._decode_value(args[0], item) for item in value)
-        if origin is None and hasattr(annotation, "__dataclass_fields__") and isinstance(value, dict):
-            return cls._build_dataclass(annotation, value)
-        if str(origin) in {"typing.Union", "types.UnionType"}:
-            for candidate in args:
-                if candidate is type(None):
-                    continue
-                try:
-                    return cls._decode_value(candidate, value)
-                except Exception:  # noqa: BLE001
-                    continue
-        return value
-
-    @classmethod
-    def _serialize_rng_state(cls, state: tuple) -> dict:
-        version, internal_state, gauss_next = state
-        return {
-            "version": int(version),
-            "internal_state": cls._encode_tuple(internal_state),
-            "gauss_next": gauss_next,
-        }
-
-    @classmethod
-    def _deserialize_rng_state(cls, payload: dict) -> tuple:
-        if not isinstance(payload, dict):
-            raise ValueError("Invalid rng_state payload")
-        if "version" not in payload or "internal_state" not in payload:
-            raise ValueError("Invalid rng_state payload")
-        internal_state = cls._decode_tuple(payload["internal_state"])
-        gauss_next = payload.get("gauss_next")
-        if gauss_next is not None and not isinstance(gauss_next, (int, float)):
-            raise ValueError("Invalid rng_state payload")
-        return (int(payload["version"]), internal_state, gauss_next)
-
-    @classmethod
-    def _encode_tuple(cls, value):
-        if isinstance(value, tuple):
-            return [cls._encode_tuple(item) for item in value]
-        if isinstance(value, list):
-            return [cls._encode_tuple(item) for item in value]
-        return value
-
-    @classmethod
-    def _decode_tuple(cls, value):
-        if isinstance(value, list):
-            return tuple(cls._decode_tuple(item) for item in value)
-        return value
