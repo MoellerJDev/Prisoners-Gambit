@@ -79,6 +79,8 @@ def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list
             lines.append(offer.role)
         if offer.tags:
             lines.append(f"Synergy tags: {', '.join(offer.tags)}")
+        if offer.relevance_hint:
+            lines.append(f"Offer rationale: {offer.relevance_hint}")
     if isinstance(offer, GenomeEditOfferView) and offer.doctrine_drift:
         lines.append(f"Doctrine drift: {offer.doctrine_drift}")
     return lines

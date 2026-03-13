@@ -307,10 +307,10 @@ class InteractionController:
             raise ValueError("Manual floor vote must be cooperate or defect.")
         return action.vote
 
-    def choose_powerup(self, floor_number: int, offers: list[Powerup]) -> Powerup:
+    def choose_powerup(self, floor_number: int, offers: list[Powerup], offer_hints: dict[str, str] | None = None) -> Powerup:
         state = PowerupChoiceState(
             floor_number=floor_number,
-            offers=[to_powerup_offer_view(offer) for offer in offers],
+            offers=[to_powerup_offer_view(offer, relevance_hint=(offer_hints or {}).get(offer.name)) for offer in offers],
         )
         self._begin_decision(state, (ChoosePowerupAction,))
         action = self.session.resolve_current_decision(lambda decision: self._resolve_powerup_choice(decision, offers))

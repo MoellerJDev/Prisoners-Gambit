@@ -190,6 +190,7 @@ class PowerupOfferView:
     phase_support: str | None = None
     successor_pressure: str | None = None
     tags: list[str] | None = None
+    relevance_hint: str | None = None
 
 
 @dataclass(slots=True)

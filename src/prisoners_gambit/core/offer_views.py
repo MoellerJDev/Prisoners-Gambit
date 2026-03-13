@@ -21,7 +21,7 @@ def _role_hint(powerup: Powerup) -> str | None:
     return None
 
 
-def to_powerup_offer_view(powerup: Powerup) -> PowerupOfferView:
+def to_powerup_offer_view(powerup: Powerup, relevance_hint: str | None = None) -> PowerupOfferView:
     guidance = guidance_for_powerup(powerup)
     role_hint = _role_hint(powerup)
     branch_identity = guidance.branch_identity if role_hint is None else f"{guidance.branch_identity} ({role_hint})"
@@ -39,6 +39,7 @@ def to_powerup_offer_view(powerup: Powerup) -> PowerupOfferView:
         phase_support=guidance.phase_support,
         successor_pressure=guidance.successor_pressure,
         tags=list(powerup.keywords),
+        relevance_hint=relevance_hint,
     )
 
 

@@ -1,20 +1,28 @@
 import random
 
+from prisoners_gambit.content.powerup_templates import build_powerup_pool
+from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.offer_guidance import OfferDoctrineGuidance, guidance_for_genome_edit, guidance_for_powerup
+from prisoners_gambit.core.powerups import CoerciveControl, ComplianceDividend, SpiteEngine, TrustDividend
+from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.systems import genome_offers as genome_offers_module
 from prisoners_gambit.systems import offers as offers_module
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import generate_powerup_offers
+from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, generate_powerup_offers
 
 
 class _FirstChoiceRng:
     def choice(self, seq):
         return seq[0]
 
+    def choices(self, seq, weights, k):
+        return [seq[0]]
+
 
 class _FakePowerup:
     name = "Fake"
     description = "Fake"
+    keywords = ()
 
     def clone(self):
         return type(self)()
@@ -134,3 +142,44 @@ def test_genome_offer_generation_is_deterministic_for_seed() -> None:
     names2 = [offer.name for offer in generate_genome_edit_offers(3, random.Random(77))]
 
     assert names1 == names2
+
+
+def test_offer_set_intentionally_includes_reinforcement_bridge_and_wildcard() -> None:
+    context = PowerupOfferContext(owned_powerups=(CoerciveControl(), ComplianceDividend(bonus=2)), floor_number=6, phase="civil_war")
+
+    categories = [entry.category for entry in generate_powerup_offer_set(3, random.Random(42), context=context)]
+
+    assert categories == ["reinforcement", "bridge", "wildcard"]
+
+
+def test_control_lineage_gets_more_relevant_control_synergy_than_flat_random() -> None:
+    context = PowerupOfferContext(
+        owned_powerups=(CoerciveControl(), ComplianceDividend(bonus=2), SpiteEngine(bonus=2)),
+        genome=StrategyGenome(first_move=DEFECT, response_table={(COOPERATE, COOPERATE): COOPERATE, (COOPERATE, DEFECT): DEFECT, (DEFECT, COOPERATE): DEFECT, (DEFECT, DEFECT): DEFECT}, noise=0.03),
+        floor_number=8,
+        phase="civil_war",
+    )
+    control_tags = {"creates_force", "rewards_force", "retaliation_payoff"}
+
+    weighted_hits = 0
+    flat_hits = 0
+    for seed in range(150):
+        weighted_offers = generate_powerup_offers(3, random.Random(seed), context=context)
+        flat_rng = random.Random(seed)
+        flat_pool = build_powerup_pool()
+        flat_offers = [flat_rng.choice(flat_pool).clone() for _ in range(3)]
+        weighted_hits += sum(bool(set(offer.keywords) & control_tags) for offer in weighted_offers)
+        flat_hits += sum(bool(set(offer.keywords) & control_tags) for offer in flat_offers)
+
+    assert weighted_hits > flat_hits
+
+
+def test_offer_identity_is_still_randomized_across_seeds_for_same_build() -> None:
+    context = PowerupOfferContext(owned_powerups=(TrustDividend(bonus=2),), floor_number=3, phase="ecosystem")
+
+    names_per_seed = {
+        tuple(offer.name for offer in generate_powerup_offers(3, random.Random(seed), context=context))
+        for seed in range(6)
+    }
+
+    assert len(names_per_seed) > 1

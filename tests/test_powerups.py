@@ -579,13 +579,14 @@ def test_opening_betrayal_bridges_into_last_laugh_cashout() -> None:
 
 
 def test_offer_view_exposes_powerup_role_in_branch_identity_and_tags() -> None:
-    offer = to_powerup_offer_view(CoerciveControl())
+    offer = to_powerup_offer_view(CoerciveControl(), relevance_hint="Build Fit")
 
     assert offer.branch_identity is not None and "(anchor)" in offer.branch_identity
     assert offer.tags is not None and "anchor" in offer.tags and "creates_force" in offer.tags
     assert offer.trigger is not None and offer.trigger.startswith("Trigger:")
     assert offer.effect is not None and offer.effect.startswith("Effect:")
     assert offer.role == "Role: anchor."
+    assert offer.relevance_hint == "Build Fit"
 
 
 def test_round_combo_events_detect_forced_and_final_betrayal() -> None:
