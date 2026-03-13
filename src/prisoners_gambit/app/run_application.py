@@ -218,6 +218,8 @@ class RunApplication:
                     genome=player.genome,
                     floor_number=floor_number,
                     phase=("ecosystem" if ecosystem_phase else "civil_war"),
+                    primary_doctrine_family=(player.powerups[0].doctrine_family if player.powerups else None),
+                    secondary_doctrine_family=(player.powerups[1].doctrine_family if len(player.powerups) > 1 else None),
                 ),
             )
             powerup_offers = [entry.powerup for entry in generated_powerup_offers]

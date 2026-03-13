@@ -476,5 +476,7 @@ class RunSnapshot:
     civil_war_context: CivilWarContext | None = None
     active_featured_stance: FeaturedRoundStanceView | None = None
     lineage_chronicle: list[LineageChronicleEntry] = field(default_factory=list)
+    primary_doctrine_family: str | None = None
+    secondary_doctrine_family: str | None = None
     session_status: SessionStatus = "running"
     completion: RunCompletion | None = None

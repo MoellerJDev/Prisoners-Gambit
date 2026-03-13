@@ -264,6 +264,7 @@ class FeaturedMatchWebSession:
         self.snapshot.header = self.snapshot.header or None
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
+        self.snapshot.primary_doctrine_family = self.snapshot.primary_doctrine_family or "trust"
         self._floor_clue_log = []
         self._append_chronicle_entry(
             event_id=f"run_start:seed:{self.seed}",
@@ -724,6 +725,8 @@ class FeaturedMatchWebSession:
                 genome=self.player.genome,
                 floor_number=self.floor_number,
                 phase=self.snapshot.current_phase,
+                primary_doctrine_family=self.snapshot.primary_doctrine_family,
+                secondary_doctrine_family=self.snapshot.secondary_doctrine_family,
             ),
         )
         self._powerup_offers = [entry.powerup for entry in generated]
@@ -910,7 +913,12 @@ class FeaturedMatchWebSession:
         action = self.session.resolve_current_decision(lambda _: ChoosePowerupAction(offer_index=0))
         if action.offer_index < 0 or action.offer_index >= len(self._powerup_offers):
             raise ValueError("Invalid powerup index")
-        self.player.powerups.append(self._powerup_offers[action.offer_index])
+        chosen_powerup = self._powerup_offers[action.offer_index]
+        self.player.powerups.append(chosen_powerup)
+        if self.snapshot.primary_doctrine_family is None:
+            self.snapshot.primary_doctrine_family = chosen_powerup.doctrine_family
+        elif self.snapshot.primary_doctrine_family != chosen_powerup.doctrine_family:
+            self.snapshot.secondary_doctrine_family = chosen_powerup.doctrine_family
 
         self._genome_offers = generate_genome_edit_offers(3, self.rng)
         state = GenomeEditChoiceState(

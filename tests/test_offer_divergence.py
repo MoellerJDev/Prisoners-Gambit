@@ -94,7 +94,7 @@ def test_weighted_pick_uses_probabilistic_weights_not_argmax(monkeypatch) -> Non
     monkeypatch.setattr(
         offers_module,
         "_category_weight",
-        lambda powerup, category, signal, chosen_vectors, chosen_phases: weights[powerup.name],
+        lambda powerup, category, signal, chosen_families: weights[powerup.name],
     )
 
     picks = []
@@ -102,10 +102,9 @@ def test_weighted_pick_uses_probabilistic_weights_not_argmax(monkeypatch) -> Non
         picked = offers_module._weighted_pick(  # pylint: disable=protected-access
             random.Random(seed),
             [_P1(), _P2(), _P3()],
-            "reinforcement",
+            "familiar_line",
             offers_module._signal_from_context(None),  # pylint: disable=protected-access
-            chosen_vectors=set(),
-            chosen_phases=set(),
+            chosen_families=set(),
         )
         picks.append(picked.name)
 
@@ -119,17 +118,16 @@ def test_weighted_pick_falls_back_when_all_weights_invalid(monkeypatch) -> None:
     monkeypatch.setattr(
         offers_module,
         "_category_weight",
-        lambda powerup, category, signal, chosen_vectors, chosen_phases: float("nan"),
+        lambda powerup, category, signal, chosen_families: float("nan"),
     )
 
     picks = [
         offers_module._weighted_pick(  # pylint: disable=protected-access
             random.Random(seed),
             [_P1(), _P2(), _P3()],
-            "reinforcement",
+            "familiar_line",
             offers_module._signal_from_context(None),  # pylint: disable=protected-access
-            chosen_vectors=set(),
-            chosen_phases=set(),
+            chosen_families=set(),
         ).name
         for seed in range(12)
     ]
@@ -213,3 +211,71 @@ def test_offer_identity_is_still_randomized_across_seeds_for_same_build() -> Non
     }
 
     assert len(names_per_seed) > 1
+
+
+def test_powerup_pool_has_doctrine_family_for_all_powerups() -> None:
+    pool = build_powerup_pool()
+
+    assert pool
+    assert all(getattr(powerup, "doctrine_family", None) in {"trust", "control", "retaliation", "opportunist", "referendum", "chaos"} for powerup in pool)
+
+
+def test_hybrid_pair_support_trust_to_opportunist() -> None:
+    context = PowerupOfferContext(
+        owned_powerups=(TrustDividend(bonus=2),),
+        floor_number=5,
+        phase="ecosystem",
+        primary_doctrine_family="trust",
+        secondary_doctrine_family="opportunist",
+    )
+
+    hybrid_hits = 0
+    for seed in range(120):
+        offers = generate_powerup_offer_set(3, random.Random(seed), context=context)
+        hybrid_hits += sum(1 for entry in offers if entry.category == "hybrid_line" and entry.powerup.doctrine_family == "opportunist")
+
+    assert hybrid_hits > 0
+
+
+def test_hybrid_pair_support_control_to_retaliation() -> None:
+    context = PowerupOfferContext(
+        owned_powerups=(CoerciveControl(),),
+        floor_number=6,
+        phase="civil_war",
+        primary_doctrine_family="control",
+        secondary_doctrine_family="retaliation",
+    )
+
+    hybrid_hits = 0
+    for seed in range(120):
+        offers = generate_powerup_offer_set(3, random.Random(seed), context=context)
+        hybrid_hits += sum(1 for entry in offers if entry.category == "hybrid_line" and entry.powerup.doctrine_family == "retaliation")
+
+    assert hybrid_hits > 0
+
+
+def test_crown_piece_is_seeded_rare_and_non_guaranteed() -> None:
+    context = PowerupOfferContext(owned_powerups=(TrustDividend(bonus=1),), floor_number=5, phase="ecosystem")
+    runs_with_crown = 0
+    for seed in range(200):
+        offers = generate_powerup_offers(3, random.Random(seed), context=context)
+        if any(powerup.crown_piece for powerup in offers):
+            runs_with_crown += 1
+
+    assert runs_with_crown > 0
+    assert runs_with_crown < 200
+
+
+def test_primary_and_secondary_doctrine_influence_offer_mix() -> None:
+    trust_context = PowerupOfferContext(floor_number=4, primary_doctrine_family="trust", secondary_doctrine_family="opportunist")
+    control_context = PowerupOfferContext(floor_number=4, primary_doctrine_family="control", secondary_doctrine_family="retaliation")
+
+    trust_trust_hits = 0
+    control_trust_hits = 0
+    for seed in range(100):
+        trust_offers = generate_powerup_offers(3, random.Random(seed), context=trust_context)
+        control_offers = generate_powerup_offers(3, random.Random(seed), context=control_context)
+        trust_trust_hits += sum(1 for offer in trust_offers if offer.doctrine_family == "trust")
+        control_trust_hits += sum(1 for offer in control_offers if offer.doctrine_family == "trust")
+
+    assert trust_trust_hits > control_trust_hits
