@@ -188,8 +188,27 @@ HTML = """<!doctype html>
     .decision-actions-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 40%); }
     .decision-details-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 65%); }
     .primary-action { border-color:var(--accent); background:#223553; font-weight:600; }
-    .actions { gap:10px; }
-    .actions .btn { flex:1 1 170px; justify-content:center; display:inline-flex; align-items:center; min-height:46px; }
+    .actions {
+      margin-top:8px;
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+    }
+    .actions .btn {
+      width:100%;
+      min-height:74px;
+      padding:8px 10px;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      justify-content:center;
+      gap:3px;
+      text-align:left;
+      border-radius:10px;
+    }
+    .action-tile-title { font-size:14px; font-weight:600; color:var(--text); line-height:1.25; }
+    .action-tile-meta { font-size:12px; color:var(--muted); line-height:1.25; }
+    .action-tile-secondary { border-color:color-mix(in oklab, var(--border), #000 35%); background:#172236; }
     .panel-mobile-low { opacity:.98; }
     .raw-state-panel summary { cursor:pointer; color:var(--muted); margin-bottom:8px; }
     .btn:hover { transform:translateY(-1px); border-color:var(--accent); background:#24334d; }
@@ -255,8 +274,10 @@ HTML = """<!doctype html>
       .kv { grid-template-columns:1fr; row-gap:4px; }
       .kv > div:nth-child(odd) { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
       .decision-actions-panel { position:sticky; top:8px; z-index:3; }
-      .actions { margin-top:8px; gap:8px; }
-      .actions .btn { flex:1 1 100%; min-height:54px; }
+      .actions { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }
+      .actions .btn { min-height:62px; padding:8px 9px; }
+      .action-tile-title { font-size:13px; }
+      .action-tile-meta { font-size:11px; }
       .grid > .decision-actions-panel { order:1; }
       .grid > .decision-details-panel { order:2; }
       .grid > .result-panel { order:3; }
@@ -400,6 +421,12 @@ function movementGlyph(delta){
 function branchToken(label){ return `<span class='token branch'>⎇ ${escapeHtml(label)}</span>`; }
 function powerupToken(label){ return `<span class='token powerup'>⚡ ${escapeHtml(label)}</span>`; }
 function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtml(label)}</span>`; }
+
+function actionTile(label, meta){
+  const metaText = meta ? `<span class='action-tile-meta'>${escapeHtml(meta)}</span>` : '';
+  return `<span class='action-tile-title'>${escapeHtml(label)}</span>${metaText}`;
+}
+
 function shortDecisionLabel(type){
   const labels = {
     FeaturedRoundDecisionState: 'Round move',
@@ -435,13 +462,13 @@ function renderDecision(data){
       <div>Live clues</div><div><ul class='list tight'>${clues}</ul></div>
       <div>Recent floor notes</div><div><ul class='list tight'>${floorLog}</ul></div>`;
     actions.innerHTML = `
-      <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">Cooperate</button>
-      <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">Defect</button>
-      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">Autopilot Round</button>
-      <button class='btn' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">C until betrayed</button>
-      <button class='btn' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">D until punished</button>
-      <button class='btn' onclick="sendStanceN('follow_autopilot_for_n_rounds')">Autopilot N</button>
-      <button class='btn' onclick="sendStanceN('lock_last_manual_move_for_n_rounds')">Lock last N</button>`;
+      <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">${actionTile('Cooperate', 'Manual move · primary')}</button>
+      <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile('Defect', 'Manual move · primary')}</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">${actionTile('Autopilot Round', `Recommended · ${moveLabel(p.suggested_move)}`)}</button>
+      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">${actionTile('C until betrayed', 'Stance')}</button>
+      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">${actionTile('D until punished', 'Stance')}</button>
+      <button class='btn action-tile-secondary' onclick="sendStanceN('follow_autopilot_for_n_rounds')">${actionTile('Autopilot N', 'Stance with duration')}</button>
+      <button class='btn action-tile-secondary' onclick="sendStanceN('lock_last_manual_move_for_n_rounds')">${actionTile('Lock last N', 'Stance with duration')}</button>`;
     return;
   }
 
@@ -453,9 +480,9 @@ function renderDecision(data){
       <div>Floor Score</div><div>${p.current_floor_score}</div>
       <div>Powerups</div><div>${(p.powerups || []).map(powerupToken).join(' ') || 'none'}</div>`;
     actions.innerHTML = `
-      <button class='btn ${p.suggested_vote === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'C'})">Vote Cooperate</button>
-      <button class='btn ${p.suggested_vote === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'D'})">Vote Defect</button>
-      <button class='btn primary-action' onclick="sendAction({type:'autopilot_vote'})">Autopilot Vote</button>`;
+      <button class='btn ${p.suggested_vote === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'C'})">${actionTile('Vote Cooperate', 'Manual vote · primary')}</button>
+      <button class='btn ${p.suggested_vote === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'D'})">${actionTile('Vote Defect', 'Manual vote · primary')}</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_vote'})">${actionTile('Autopilot Vote', `Recommended · ${moveLabel(p.suggested_vote)}`)}</button>`;
     return;
   }
 
@@ -466,13 +493,13 @@ function renderDecision(data){
       <div>Cards</div><div>${decision.offers.length}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
-      btn.className = idx === 0 ? 'btn primary-action' : 'btn';
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
       const label = `${idx + 1}. ${offer.name}`;
       const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
       const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
-      btn.innerHTML = `${powerupToken(label)}<br/><span class='muted'>${escapeHtml(commitment || doctrine)}</span>`;
+      btn.innerHTML = `${actionTile(label, commitment || doctrine || 'Powerup option')}<span class='muted'>${powerupToken(offer.name)}</span>`;
       btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
       actions.appendChild(btn);
@@ -487,14 +514,14 @@ function renderDecision(data){
       <div>Current build</div><div>${genomeToken(decision.current_summary)}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
-      btn.className = idx === 0 ? 'btn primary-action' : 'btn';
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
       const label = `${idx + 1}. ${offer.name}`;
       const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
       const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
       const drift = offer.doctrine_drift ? `Doctrine drift: ${offer.doctrine_drift}` : '';
-      btn.innerHTML = `${genomeToken(label)}<br/><span class='muted'>${escapeHtml(commitment || doctrine)}</span>`;
+      btn.innerHTML = `${actionTile(label, commitment || doctrine || 'Genome option')}<span class='muted'>${genomeToken(offer.name)}</span>`;
       btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure, drift].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_genome_edit', offer_index: idx});
       actions.appendChild(btn);
@@ -509,8 +536,8 @@ function renderDecision(data){
       <div>Candidates</div><div>${decision.candidates.length}</div>`;
     decision.candidates.forEach((candidate, idx) => {
       const btn = document.createElement('button');
-      btn.className = idx === 0 ? 'btn primary-action' : 'btn';
-      btn.innerHTML = `${idx + 1}. ${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} (${candidate.score}/${candidate.wins})`;
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
+      btn.innerHTML = `${actionTile(`${idx + 1}. ${candidate.name}`, `${candidate.branch_role} · ${candidate.score}/${candidate.wins}`)}<span class='muted'>${branchToken(candidate.name)}</span>`;
       btn.title = (candidate.shaping_causes || []).join('; ');
       btn.onclick = () => sendAction({type:'choose_successor', candidate_index: idx});
       actions.appendChild(btn);
