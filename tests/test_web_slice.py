@@ -1658,25 +1658,64 @@ def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
     assert vote_result["cooperators"] + vote_result["defectors"] == len(session._branch_roster)
 
 
-def test_web_floor_progression_uses_tournament_match_engine_for_branch_scores() -> None:
+def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_once() -> None:
     session = FeaturedMatchWebSession(seed=31, rounds=1)
     session.start()
+
+    session.player.powerups = []
+    for agent in session._branch_roster:
+        agent.powerups = []
+        agent.genome = _always_defect_genome()
+
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
 
-    calls: list[tuple[str, str]] = []
+    call_pairs: list[frozenset[int]] = []
+    expected_scores = {agent.agent_id: 0 for agent in session._branch_roster}
+    expected_wins = {agent.agent_id: 0 for agent in session._branch_roster}
+
+    # Featured pairing already resolved in the interactive rounds.
+    expected_scores[session.player.agent_id] += session.player_score
+    expected_scores[session.opponent.agent_id] += session.opponent_score
+    if session.player_score > session.opponent_score:
+        expected_wins[session.player.agent_id] += 1
+    elif session.opponent_score > session.player_score:
+        expected_wins[session.opponent.agent_id] += 1
 
     def fake_play_match(*, left, right, rounds_per_match=None):
-        calls.append((left.name, right.name))
-        return MatchResult(left_score=2, right_score=1)
+        call_pairs.append(frozenset((left.agent_id, right.agent_id)))
+        left_score = left.agent_id % 3 + 1
+        right_score = right.agent_id % 2
+        expected_scores[left.agent_id] += left_score
+        expected_scores[right.agent_id] += right_score
+        if left_score > right_score:
+            expected_wins[left.agent_id] += 1
+        elif right_score > left_score:
+            expected_wins[right.agent_id] += 1
+        return MatchResult(left_score=left_score, right_score=right_score)
 
     session._tournament.play_match = fake_play_match  # type: ignore[method-assign]
 
-    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=DEFECT))
     session.advance()
 
-    assert len(calls) == 9
-    assert session.view()["pending_screen"] == "floor_summary"
+    featured_pair = frozenset((session.player.agent_id, session.opponent.agent_id))
+    all_pairs = {
+        frozenset((left.agent_id, right.agent_id))
+        for idx, left in enumerate(session._branch_roster)
+        for right in session._branch_roster[idx + 1 :]
+    }
+    expected_non_featured_pairs = all_pairs - {featured_pair}
+
+    assert set(call_pairs) == expected_non_featured_pairs
+    assert len(call_pairs) == len(expected_non_featured_pairs)
+
+    for agent in session._branch_roster:
+        assert agent.score == expected_scores[agent.agent_id]
+        assert agent.wins == expected_wins[agent.agent_id]
+
+    assert session.opponent.score >= session.opponent_score
+    assert session.opponent.wins >= 1
 
 
 def test_web_session_initializes_house_doctrine_from_seed() -> None:

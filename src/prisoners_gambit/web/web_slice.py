@@ -643,7 +643,7 @@ class FeaturedMatchWebSession:
         )
         self.snapshot.floor_vote_result = result
         self.player_score += result.player_reward
-        self.player.score = self.player_score
+        self.player.score += result.player_reward
 
         for rival in self._branch_roster:
             if rival is self.player:
@@ -1207,6 +1207,18 @@ class FeaturedMatchWebSession:
 
     def _advance_branch_roster_for_floor(self) -> None:
         featured_pair = frozenset((self.player.agent_id, self.opponent.agent_id))
+
+        # The featured pairing is already played interactively in web flow.
+        # Write those authoritative featured results into the roster exactly once.
+        self.player.score = self.player_score
+        self.opponent.score = self.opponent_score
+        self.player.wins = 0
+        self.opponent.wins = 0
+        if self.player_score > self.opponent_score:
+            self.player.wins = 1
+        elif self.opponent_score > self.player_score:
+            self.opponent.wins = 1
+
         floor_config = self._current_floor_config()
         for left_index, left in enumerate(self._branch_roster):
             for right in self._branch_roster[left_index + 1 :]:
