@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from prisoners_gambit.content.powerup_metadata import presentation_for_powerup
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import GenomeEditOfferView, PowerupOfferView
 from prisoners_gambit.core.offer_guidance import (
@@ -8,30 +9,19 @@ from prisoners_gambit.core.offer_guidance import (
     guidance_for_powerup,
     lineage_commitment_text,
 )
-from prisoners_gambit.core.powerups import Powerup, powerup_presentation
-
-_ROLE_ORDER = ("anchor", "enabler", "payoff", "amplifier", "bridge")
-
-
-def _role_hint(powerup: Powerup) -> str | None:
-    tags = set(powerup.keywords)
-    for role in _ROLE_ORDER:
-        if role in tags:
-            return role
-    return None
+from prisoners_gambit.core.powerups import Powerup
 
 
 def to_powerup_offer_view(powerup: Powerup, relevance_hint: str | None = None) -> PowerupOfferView:
     guidance = guidance_for_powerup(powerup)
-    role_hint = _role_hint(powerup)
-    branch_identity = guidance.branch_identity if role_hint is None else f"{guidance.branch_identity} ({role_hint})"
-    trigger, effect, role_text = powerup_presentation(powerup)
+    presentation = presentation_for_powerup(powerup)
+    branch_identity = f"{guidance.branch_identity} ({presentation.role_hint})"
     return PowerupOfferView(
         name=powerup.name,
         description=powerup.description,
-        trigger=trigger,
-        effect=effect,
-        role=role_text,
+        trigger=presentation.trigger,
+        effect=presentation.effect,
+        role=presentation.role_text,
         lineage_commitment=lineage_commitment_text(guidance),
         doctrine_vector=guidance.doctrine_vector,
         branch_identity=branch_identity,
@@ -40,7 +30,7 @@ def to_powerup_offer_view(powerup: Powerup, relevance_hint: str | None = None) -
         successor_pressure=guidance.successor_pressure,
         tags=list(powerup.keywords),
         relevance_hint=relevance_hint,
-        crown_hint=("Crown piece · dynasty-defining" if powerup.crown_piece else None),
+        crown_hint=presentation.crown_hint,
     )
 
 
