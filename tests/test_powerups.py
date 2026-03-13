@@ -1,5 +1,11 @@
 import random
 
+from prisoners_gambit.content.powerup_metadata import (
+    POWERUP_PRESENTATION_METADATA,
+    CROWN_HINT,
+    all_powerups_have_presentation_metadata,
+    presentation_for_powerup,
+)
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.offer_views import to_powerup_offer_view
@@ -628,3 +634,45 @@ def test_crown_powerup_offer_view_exposes_crown_hint() -> None:
     offer = to_powerup_offer_view(ConcordatProtocol(), relevance_hint="Power risk")
 
     assert offer.crown_hint == "Crown piece · dynasty-defining"
+
+
+def test_all_powerups_have_declared_presentation_metadata() -> None:
+    assert all_powerups_have_presentation_metadata()
+
+
+def test_presentation_metadata_entries_are_complete_and_non_empty() -> None:
+    for powerup_type, metadata in POWERUP_PRESENTATION_METADATA.items():
+        assert powerup_type in ALL_POWERUP_TYPES
+        assert metadata.trigger.startswith("Trigger:")
+        assert metadata.effect.startswith("Effect:")
+        assert metadata.role_hint
+        assert metadata.role_text == f"Role: {metadata.role_hint}."
+
+
+def test_presentation_role_hint_matches_powerup_keywords() -> None:
+    for powerup_type in ALL_POWERUP_TYPES:
+        powerup = powerup_type()
+        metadata = presentation_for_powerup(powerup)
+        assert metadata.role_hint in powerup.keywords
+
+
+def test_crown_piece_metadata_stays_coherent_with_powerup_flags() -> None:
+    for powerup_type in ALL_POWERUP_TYPES:
+        powerup = powerup_type()
+        metadata = presentation_for_powerup(powerup)
+        if powerup.crown_piece:
+            assert metadata.crown_hint == CROWN_HINT
+        else:
+            assert metadata.crown_hint is None
+
+
+def test_offer_view_generation_works_for_all_powerups() -> None:
+    for powerup_type in ALL_POWERUP_TYPES:
+        offer = to_powerup_offer_view(powerup_type())
+        metadata = presentation_for_powerup(powerup_type())
+
+        assert offer.trigger == metadata.trigger
+        assert offer.effect == metadata.effect
+        assert offer.role == metadata.role_text
+        assert offer.crown_hint == metadata.crown_hint
+        assert offer.branch_identity is not None and f"({metadata.role_hint})" in offer.branch_identity
