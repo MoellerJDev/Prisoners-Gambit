@@ -2,19 +2,25 @@ from __future__ import annotations
 
 from prisoners_gambit.core.powerups import (
     BlocPolitics,
+    ConcordatProtocol,
     CoerciveControl,
     ComplianceDividend,
     CounterIntel,
     GoldenHandshake,
+    IronDecree,
     LastLaugh,
+    MandateForge,
     MercyShield,
     OpeningGambit,
     PanicButton,
     Powerup,
     SaboteurBloc,
+    SchismRitual,
+    ShadowSuccession,
     SpiteEngine,
     TrustDividend,
     UnityTicket,
+    VendettaStatute,
 )
 
 
@@ -38,4 +44,10 @@ def build_powerup_pool() -> list[Powerup]:
         SaboteurBloc(),
         BlocPolitics(bonus=2),
         BlocPolitics(bonus=3),
+        ConcordatProtocol(),
+        IronDecree(),
+        VendettaStatute(),
+        ShadowSuccession(),
+        MandateForge(),
+        SchismRitual(),
     ]

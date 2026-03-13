@@ -40,6 +40,7 @@ def to_powerup_offer_view(powerup: Powerup, relevance_hint: str | None = None) -
         successor_pressure=guidance.successor_pressure,
         tags=list(powerup.keywords),
         relevance_hint=relevance_hint,
+        crown_hint=("Crown piece · dynasty-defining" if powerup.crown_piece else None),
     )
 
 

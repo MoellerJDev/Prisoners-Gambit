@@ -8,6 +8,7 @@ from prisoners_gambit.core.powerups import (
     BlocPolitics,
     CoerciveControl,
     ComplianceDividend,
+    ConcordatProtocol,
     CounterIntel,
     derive_referendum_combo_events,
     derive_round_combo_events,
@@ -621,3 +622,9 @@ def test_referendum_combo_events_detect_controlled_bloc_win() -> None:
 
     assert REFERENDUM_EVENT_CONTROLLED_VOTE in events
     assert REFERENDUM_EVENT_COOP_BLOC_WIN in events
+
+
+def test_crown_powerup_offer_view_exposes_crown_hint() -> None:
+    offer = to_powerup_offer_view(ConcordatProtocol(), relevance_hint="Power risk")
+
+    assert offer.crown_hint == "Crown piece · dynasty-defining"

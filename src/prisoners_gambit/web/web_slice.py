@@ -58,7 +58,13 @@ from prisoners_gambit.core.scoring import base_payoff
 from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.content.genome_edit_templates import build_genome_edit_pool
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, offer_category_hint
+from prisoners_gambit.systems.offers import (
+    PowerupOfferContext,
+    derive_doctrine_state,
+    generate_powerup_offer_set,
+    offer_category_hint,
+    seed_run_house_doctrine,
+)
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
     DynastyBoardBuildContext,
@@ -264,6 +270,14 @@ class FeaturedMatchWebSession:
         self.snapshot.header = self.snapshot.header or None
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
+        self.snapshot.house_doctrine_family = self.snapshot.house_doctrine_family or seed_run_house_doctrine(seed=self.seed)
+        doctrine_state = derive_doctrine_state(
+            owned_powerups=tuple(self.player.powerups),
+            genome=self.player.genome,
+            house_doctrine_family=self.snapshot.house_doctrine_family,
+        )
+        self.snapshot.primary_doctrine_family = doctrine_state.primary_doctrine_family
+        self.snapshot.secondary_doctrine_family = doctrine_state.secondary_doctrine_family
         self._floor_clue_log = []
         self._append_chronicle_entry(
             event_id=f"run_start:seed:{self.seed}",
@@ -634,6 +648,7 @@ class FeaturedMatchWebSession:
         self._pending_message = f"Floor {self.floor_number} complete — {next_step}."
         featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No solid clue read survived this floor."
         doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Playstyle trend is unclear."
+        doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
         self._append_chronicle_entry(
             event_id=f"floor_complete:{self.floor_number}",
             event_type="floor_complete",
@@ -644,7 +659,7 @@ class FeaturedMatchWebSession:
             event_id=f"doctrine_pivot:{self.floor_number}",
             event_type="doctrine_pivot",
             floor_number=self.floor_number,
-            summary=f"Lineage trend: {doctrine_note}",
+            summary=f"Lineage trend: {doctrine_note}. {doctrine_chip}",
             cause=self._lineage_cause_phrase(
                 self.snapshot.floor_summary.featured_inference_summary,
                 doctrine_note,
@@ -663,6 +678,7 @@ class FeaturedMatchWebSession:
                 lineage_doctrine = self.snapshot.floor_summary.heir_pressure.branch_doctrine
                 for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
                     threat_tags.update(threat.tags)
+            doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
                 assessment = assess_successor_candidate(
@@ -670,7 +686,7 @@ class FeaturedMatchWebSession:
                     top_score=top_score,
                     phase=self.snapshot.current_phase,
                     threat_tags=threat_tags,
-                    lineage_doctrine=lineage_doctrine,
+                    lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
                 )
                 candidates.append(
                     to_successor_candidate_view(
@@ -688,7 +704,7 @@ class FeaturedMatchWebSession:
                 floor_number=self.floor_number,
                 candidates=candidates,
                 current_phase=self.snapshot.current_phase,
-                lineage_doctrine=lineage_doctrine,
+                lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
                 threat_profile=sorted(threat_tags),
                 civil_war_pressure=civil_war_pressure,
                 featured_inference_summary=(
@@ -724,6 +740,9 @@ class FeaturedMatchWebSession:
                 genome=self.player.genome,
                 floor_number=self.floor_number,
                 phase=self.snapshot.current_phase,
+                house_doctrine_family=self.snapshot.house_doctrine_family,
+                primary_doctrine_family=self.snapshot.primary_doctrine_family,
+                secondary_doctrine_family=self.snapshot.secondary_doctrine_family,
             ),
         )
         self._powerup_offers = [entry.powerup for entry in generated]
@@ -758,6 +777,8 @@ class FeaturedMatchWebSession:
                 current_host=chosen,
                 featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
             )
+            doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
+            self.snapshot.civil_war_context.doctrine_pressure = [doctrine_pressure_note, *self.snapshot.civil_war_context.doctrine_pressure][:4]
             self.floor_number = 2
             self.snapshot.current_floor = self.floor_number
             self._pending_screen = "civil_war_transition"
@@ -781,6 +802,37 @@ class FeaturedMatchWebSession:
             self._pending_message = None
             self._begin_powerup_choice()
         self._rebuild_dynasty_board()
+
+
+    def _doctrine_state_framing(self) -> tuple[str, str]:
+        house = self.snapshot.house_doctrine_family
+        primary = self.snapshot.primary_doctrine_family
+        secondary = self.snapshot.secondary_doctrine_family
+
+        if not primary:
+            return (
+                "Doctrine status: unresolved",
+                "The lineage has not stabilized around a doctrine yet.",
+            )
+        if house is None or house == primary:
+            if secondary:
+                return (
+                    f"Doctrine status: {primary} house with {secondary} hybrid wing",
+                    f"The lineage is deepening house doctrine while mutating toward {secondary}.",
+                )
+            return (
+                f"Doctrine status: {primary} house holding",
+                "The lineage is reinforcing inherited doctrine with low internal fracture.",
+            )
+        if secondary:
+            return (
+                f"Doctrine status: mutated from {house} to {primary} (hybrid {secondary})",
+                f"Doctrine fracture risk is rising: {house} inheritance is colliding with {primary}/{secondary} ambitions.",
+            )
+        return (
+            f"Doctrine status: mutated from {house} to {primary}",
+            f"The lineage has pivoted away from its house doctrine ({house}) toward {primary}.",
+        )
 
     def _build_next_floor_identity(self, decision: SuccessorChoiceState, chosen: SuccessorCandidateView) -> FloorIdentityState:
         threat_profile = list(decision.threat_profile or [])
@@ -910,7 +962,17 @@ class FeaturedMatchWebSession:
         action = self.session.resolve_current_decision(lambda _: ChoosePowerupAction(offer_index=0))
         if action.offer_index < 0 or action.offer_index >= len(self._powerup_offers):
             raise ValueError("Invalid powerup index")
-        self.player.powerups.append(self._powerup_offers[action.offer_index])
+        chosen_powerup = self._powerup_offers[action.offer_index]
+        self.player.powerups.append(chosen_powerup)
+        house = self.snapshot.house_doctrine_family or seed_run_house_doctrine(seed=self.seed)
+        self.snapshot.house_doctrine_family = house
+        doctrine_state = derive_doctrine_state(
+            owned_powerups=tuple(self.player.powerups),
+            genome=self.player.genome,
+            house_doctrine_family=house,
+        )
+        self.snapshot.primary_doctrine_family = doctrine_state.primary_doctrine_family
+        self.snapshot.secondary_doctrine_family = doctrine_state.secondary_doctrine_family
 
         self._genome_offers = generate_genome_edit_offers(3, self.rng)
         state = GenomeEditChoiceState(

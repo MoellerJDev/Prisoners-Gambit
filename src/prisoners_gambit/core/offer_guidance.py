@@ -107,6 +107,48 @@ _POWERUP_GUIDANCE_BY_NAME: dict[str, OfferDoctrineGuidance] = {
         phase_support="civil-war readiness",
         successor_pressure="Pulls doctrine toward unstable successor pools.",
     ),
+    "Concordat Protocol": OfferDoctrineGuidance(
+        doctrine_vector="trust / reciprocity",
+        branch_identity="Concordat monarchs",
+        tradeoff="Creates peace lock-in engines, weaker when trust chain is broken.",
+        phase_support="ecosystem survival",
+        successor_pressure="Hard-commits heirs to high-trust doctrine loops.",
+    ),
+    "Iron Decree": OfferDoctrineGuidance(
+        doctrine_vector="coercion / control",
+        branch_identity="Decree enforcers",
+        tradeoff="Reliable scripted compliance, expensive when forced tempo whiffs.",
+        phase_support="both",
+        successor_pressure="Pushes successors toward command-and-control lineages.",
+    ),
+    "Vendetta Statute": OfferDoctrineGuidance(
+        doctrine_vector="coercion / control",
+        branch_identity="Vendetta jurists",
+        tradeoff="Turns grievances into guaranteed retaliation lanes.",
+        phase_support="civil-war readiness",
+        successor_pressure="Escalates branch-mirror feud doctrine in heirs.",
+    ),
+    "Shadow Succession": OfferDoctrineGuidance(
+        doctrine_vector="opportunism / betrayal",
+        branch_identity="Succession conspirators",
+        tradeoff="Explosive betrayal timing, severe trust erosion at the table.",
+        phase_support="civil-war readiness",
+        successor_pressure="Selects heirs built for high-lethality betrayal pivots.",
+    ),
+    "Mandate Forge": OfferDoctrineGuidance(
+        doctrine_vector="referendum leverage",
+        branch_identity="Mandate smiths",
+        tradeoff="High referendum swing power, predictable parity cadence.",
+        phase_support="ecosystem survival",
+        successor_pressure="Strengthens floor-vote specialist successor doctrine.",
+    ),
+    "Schism Ritual": OfferDoctrineGuidance(
+        doctrine_vector="volatility / chaos",
+        branch_identity="Schism celebrants",
+        tradeoff="Huge volatility spikes, can fracture consistency under pressure.",
+        phase_support="both",
+        successor_pressure="Mutates succession pools toward unstable doctrine branches.",
+    ),
 }
 
 _GENOME_GUIDANCE_BY_NAME: dict[str, OfferDoctrineGuidance] = {

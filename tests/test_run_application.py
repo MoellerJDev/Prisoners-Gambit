@@ -398,3 +398,83 @@ def test_run_application_passes_phase_to_tournament_across_transition(monkeypatc
     app.run()
 
     assert tournament.phases == ["ecosystem", "civil_war"]
+
+
+def test_run_application_uses_stable_house_doctrine_across_phases(monkeypatch) -> None:
+    import prisoners_gambit.app.run_application as run_application_module
+
+    player = _make_agent("You", score=10, wins=2, is_player=True, lineage_id=1, lineage_depth=0)
+    child = _make_agent("You*", score=9, wins=1, is_player=False, lineage_id=1, lineage_depth=1)
+    outsider = _make_agent("Bot", score=1, wins=0, is_player=False, lineage_id=None, lineage_depth=0)
+
+    ranked_floor_1 = [player, child, outsider]
+    ranked_floor_2 = [child, player]
+
+    captured_house: list[str | None] = []
+
+    real_generate = run_application_module.generate_powerup_offer_set
+
+    def capture_generate(count, rng, context=None):
+        captured_house.append(None if context is None else context.house_doctrine_family)
+        return real_generate(count, rng, context=context)
+
+    monkeypatch.setattr(run_application_module, "generate_powerup_offer_set", capture_generate)
+
+    app, _renderer, tournament = _build_transfer_test_app(
+        monkeypatch=monkeypatch,
+        ranked_sequences=[ranked_floor_1, ranked_floor_2],
+        initial_population=[player, child, outsider],
+        survivor_count=2,
+    )
+
+    app.run()
+
+    assert tournament.phases == ["ecosystem", "civil_war"]
+    assert len(captured_house) >= 2
+    assert len(set(captured_house)) == 1
+
+
+def test_run_and_web_use_same_house_doctrine_seed_rule() -> None:
+    from prisoners_gambit.systems.offers import seed_run_house_doctrine
+    from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
+
+    seed = 33
+    expected = seed_run_house_doctrine(seed=seed)
+
+    session = FeaturedMatchWebSession(seed=seed, rounds=1)
+    session.start()
+
+    assert session.view()["snapshot"]["house_doctrine_family"] == expected
+
+
+def test_run_application_emits_doctrine_framing_in_offer_and_civil_war_events(monkeypatch) -> None:
+    from prisoners_gambit.core.events import EventBus
+
+    player = _make_agent("You", score=10, wins=2, is_player=True, lineage_id=1, lineage_depth=0)
+    child = _make_agent("You*", score=9, wins=1, is_player=False, lineage_id=1, lineage_depth=1)
+    outsider = _make_agent("Bot", score=1, wins=0, is_player=False, lineage_id=None, lineage_depth=0)
+
+    ranked_floor_1 = [player, child, outsider]
+    ranked_floor_2 = [child, player]
+
+    app, _renderer, _tournament = _build_transfer_test_app(
+        monkeypatch=monkeypatch,
+        ranked_sequences=[ranked_floor_1, ranked_floor_2],
+        initial_population=[player, child, outsider],
+        survivor_count=2,
+    )
+
+    captured = []
+    app.event_bus.subscribe("*", lambda event: captured.append(event))
+
+    app.run()
+
+    powerup_events = [e.payload for e in captured if e.name == "powerups_offered"]
+    assert powerup_events
+    assert all("doctrine" in payload for payload in powerup_events)
+
+    civil_war_events = [e.payload for e in captured if e.name == "civil_war_started"]
+    assert civil_war_events
+    pressure = civil_war_events[0]["civil_war_context"]["doctrine_pressure"]
+    assert pressure
+    assert any("doctrine" in line.lower() for line in pressure)

@@ -143,6 +143,12 @@ def powerup_presentation(powerup: "Powerup") -> tuple[str, str, str]:
         "Unity Ticket": ("Trigger: Referendum vote resolution.", "Effect: Force your vote to cooperate and reward controlled bloc wins."),
         "Saboteur Bloc": ("Trigger: Referendum vote resolution.", "Effect: Force your vote to defect and reward controlled sabotage wins."),
         "Bloc Politics": ("Trigger: Cooperation bloc wins referendum.", "Effect: Gain bloc bonus, amplified when your vote was controlled."),
+        "Concordat Protocol": ("Trigger: Previous round was mutual cooperation.", "Effect: Lock both players into cooperation and gain +2 on locked peace."),
+        "Iron Decree": ("Trigger: Every third round.", "Effect: Force opponent cooperation and gain +2 on forced betrayal conversion."),
+        "Vendetta Statute": ("Trigger: Opponent defected last round.", "Effect: Lock your next move to defection and gain +2 on retaliation rounds."),
+        "Shadow Succession": ("Trigger: Round 1 and final round.", "Effect: Force your betrayal timing and heavily reward betrayal into cooperation."),
+        "Mandate Forge": ("Trigger: Referendum vote resolution.", "Effect: Alternate vote control and gain +2 on controlled bloc wins."),
+        "Schism Ritual": ("Trigger: Every round.", "Effect: Alternate forced stance and gain +2 on non-mirrored outcomes."),
     }
     trigger_effect = by_name.get(powerup.name, ("Trigger: Context dependent.", f"Effect: {powerup.description}"))
     return trigger_effect[0], trigger_effect[1], f"Role: {role}."
@@ -150,6 +156,8 @@ class Powerup:
     name: str = "Unnamed Powerup"
     description: str = "No description available."
     synergy_tags: ClassVar[tuple[str, ...]] = ()
+    doctrine_family: ClassVar[str] = "chaos"
+    crown_piece: ClassVar[bool] = False
 
     @property
     def keywords(self) -> tuple[str, ...]:
@@ -180,6 +188,7 @@ class OpeningGambit(Powerup):
     name: str = "Opening Gambit"
     description: str = "If you defect on round 1, gain bonus points."
     synergy_tags: ClassVar[tuple[str, ...]] = ("opportunist", "rewards_betrayal", "enabler")
+    doctrine_family: ClassVar[str] = "opportunist"
 
     def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
         if context.round_index == 0 and my_move == DEFECT:
@@ -193,6 +202,7 @@ class TrustDividend(Powerup):
     name: str = "Trust Dividend"
     description: str = "Mutual cooperation gives bonus points. Locked peace gives +1 more."
     synergy_tags: ClassVar[tuple[str, ...]] = ("rewards_mutual_coop", "coalition", "payoff")
+    doctrine_family: ClassVar[str] = "trust"
 
     def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
         if my_move == COOPERATE and opp_move == COOPERATE:
@@ -208,6 +218,7 @@ class LastLaugh(Powerup):
     name: str = "Last Laugh"
     description: str = "Force defect on the final round. Final-round betrayal gains bonus points (+1 more if round 1 was betrayal)."
     synergy_tags: ClassVar[tuple[str, ...]] = ("opportunist", "final_round_payoff", "rewards_betrayal", "payoff")
+    doctrine_family: ClassVar[str] = "opportunist"
 
     def self_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
         if context.round_index == context.total_rounds - 1:
@@ -228,6 +239,7 @@ class SpiteEngine(Powerup):
     name: str = "Spite Engine"
     description: str = "If retaliation triggers, your defection gains bonus points. In a mutual-defection spiral, gain +1 more."
     synergy_tags: ClassVar[tuple[str, ...]] = ("retaliation_payoff", "rewards_betrayal", "payoff")
+    doctrine_family: ClassVar[str] = "retaliation"
 
     def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
         if ROUND_EVENT_RETALIATION_TRIGGERED in context.combo_events:
@@ -242,6 +254,7 @@ class MercyShield(Powerup):
     name: str = "Mercy Shield"
     description: str = "After opponent defected last round, they gain no points from defecting this round. If retaliation triggers, gain +1."
     synergy_tags: ClassVar[tuple[str, ...]] = ("retaliation_payoff", "control", "amplifier")
+    doctrine_family: ClassVar[str] = "retaliation"
 
     def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
         if context.opp_history and context.opp_history[-1] == DEFECT and opp_move == DEFECT:
@@ -256,6 +269,7 @@ class GoldenHandshake(Powerup):
     name: str = "Golden Handshake"
     description: str = "On round 1, lock both players into cooperation."
     synergy_tags: ClassVar[tuple[str, ...]] = ("creates_lock", "rewards_mutual_coop", "anchor")
+    doctrine_family: ClassVar[str] = "trust"
 
     def self_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
         if context.round_index == 0:
@@ -273,6 +287,7 @@ class CoerciveControl(Powerup):
     name: str = "Coercive Control"
     description: str = "After you defect into their cooperation, force them to cooperate again next round. Betrayal into forced cooperation gains +1."
     synergy_tags: ClassVar[tuple[str, ...]] = ("creates_force", "rewards_force", "anchor")
+    doctrine_family: ClassVar[str] = "control"
 
     def opponent_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
         if context.my_history and context.opp_history:
@@ -291,6 +306,7 @@ class CounterIntel(Powerup):
     name: str = "Counter-Intel"
     description: str = "If they defected last round, force them toward cooperation. If that becomes mutual cooperation this round, gain +1."
     synergy_tags: ClassVar[tuple[str, ...]] = ("creates_force", "retaliation_payoff", "bridge")
+    doctrine_family: ClassVar[str] = "control"
 
     def opponent_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
         if context.opp_history and context.opp_history[-1] == DEFECT:
@@ -308,6 +324,7 @@ class PanicButton(Powerup):
     name: str = "Panic Button"
     description: str = "After mutual defection, lock both players into defection next round. In that spiral, your defection gains +1."
     synergy_tags: ClassVar[tuple[str, ...]] = ("creates_lock", "chaos", "anchor")
+    doctrine_family: ClassVar[str] = "chaos"
 
     def self_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
         if context.my_history and context.opp_history:
@@ -333,6 +350,7 @@ class ComplianceDividend(Powerup):
     name: str = "Compliance Dividend"
     description: str = "If you betray into cooperation, gain bonus points. Gain +1 when cooperation was forced, +1 on retaliation conversion, and +1 on final-round betrayal."
     synergy_tags: ClassVar[tuple[str, ...]] = ("rewards_force", "rewards_betrayal", "payoff")
+    doctrine_family: ClassVar[str] = "opportunist"
 
     def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
         if ROUND_EVENT_BETRAYAL_INTO_COOP in context.combo_events:
@@ -351,6 +369,7 @@ class UnityTicket(Powerup):
     name: str = "Unity Ticket"
     description: str = "Your referendum vote is forced to cooperation. If that controlled vote helps a cooperation bloc win, gain +1 referendum point."
     synergy_tags: ClassVar[tuple[str, ...]] = ("referendum_control", "rewards_mutual_coop", "enabler")
+    doctrine_family: ClassVar[str] = "referendum"
 
     def self_referendum_directives(self, *, owner: "Agent", context: ReferendumContext) -> list[MoveDirective]:
         return [MoveDirective(move=COOPERATE, priority=DirectivePriority.FORCE, source=self.name)]
@@ -366,6 +385,7 @@ class SaboteurBloc(Powerup):
     name: str = "Saboteur Bloc"
     description: str = "Your referendum vote is forced to defection. If that controlled vote helps sabotage prevail, gain +1 referendum point."
     synergy_tags: ClassVar[tuple[str, ...]] = ("referendum_control", "rewards_betrayal", "enabler")
+    doctrine_family: ClassVar[str] = "referendum"
 
     def self_referendum_directives(self, *, owner: "Agent", context: ReferendumContext) -> list[MoveDirective]:
         return [MoveDirective(move=DEFECT, priority=DirectivePriority.FORCE, source=self.name)]
@@ -382,6 +402,7 @@ class BlocPolitics(Powerup):
     name: str = "Bloc Politics"
     description: str = "If cooperation wins and you cooperated, gain bonus referendum points. Controlled-vote wins gain +1 more."
     synergy_tags: ClassVar[tuple[str, ...]] = ("rewards_mutual_coop", "referendum_control", "amplifier")
+    doctrine_family: ClassVar[str] = "referendum"
 
     def on_referendum_reward(self, *, owner: "Agent", my_vote: int, cooperation_prevailed: bool, current_reward: int, context: ReferendumContext) -> int:
         if REFERENDUM_EVENT_COOP_BLOC_WIN in context.combo_events:
@@ -390,6 +411,126 @@ class BlocPolitics(Powerup):
                 reward += 1
             return reward
         return current_reward
+
+
+@dataclass(slots=True)
+class ConcordatProtocol(Powerup):
+    name: str = "Concordat Protocol"
+    description: str = "If peace held last round, lock both players into cooperation this round. Locked peace gains +2 points."
+    synergy_tags: ClassVar[tuple[str, ...]] = ("creates_lock", "rewards_mutual_coop", "anchor")
+    doctrine_family: ClassVar[str] = "trust"
+    crown_piece: ClassVar[bool] = True
+
+    def self_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
+        if context.my_history and context.opp_history and context.my_history[-1] == COOPERATE and context.opp_history[-1] == COOPERATE:
+            return [MoveDirective(move=COOPERATE, priority=DirectivePriority.LOCK, source=self.name)]
+        return []
+
+    def opponent_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
+        if context.my_history and context.opp_history and context.my_history[-1] == COOPERATE and context.opp_history[-1] == COOPERATE:
+            return [MoveDirective(move=COOPERATE, priority=DirectivePriority.LOCK, source=self.name)]
+        return []
+
+    def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
+        if ROUND_EVENT_LOCKED_MUTUAL_COOP in context.combo_events:
+            my_points += 2
+        return my_points, opp_points
+
+
+@dataclass(slots=True)
+class IronDecree(Powerup):
+    name: str = "Iron Decree"
+    description: str = "Every third round, force opponent cooperation. Betrayal into forced cooperation gains +2 points."
+    synergy_tags: ClassVar[tuple[str, ...]] = ("creates_force", "rewards_force", "anchor")
+    doctrine_family: ClassVar[str] = "control"
+    crown_piece: ClassVar[bool] = True
+
+    def opponent_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
+        if (context.round_index + 1) % 3 == 0:
+            return [MoveDirective(move=COOPERATE, priority=DirectivePriority.FORCE, source=self.name)]
+        return []
+
+    def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
+        if ROUND_EVENT_FORCED_OPPONENT_COOP in context.combo_events and ROUND_EVENT_BETRAYAL_INTO_COOP in context.combo_events:
+            my_points += 2
+        return my_points, opp_points
+
+
+@dataclass(slots=True)
+class VendettaStatute(Powerup):
+    name: str = "Vendetta Statute"
+    description: str = "After opponent defects, lock yourself to defection next round. Retaliation rounds gain +2 points."
+    synergy_tags: ClassVar[tuple[str, ...]] = ("retaliation_payoff", "creates_lock", "payoff")
+    doctrine_family: ClassVar[str] = "retaliation"
+    crown_piece: ClassVar[bool] = True
+
+    def self_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
+        if context.opp_history and context.opp_history[-1] == DEFECT:
+            return [MoveDirective(move=DEFECT, priority=DirectivePriority.LOCK, source=self.name)]
+        return []
+
+    def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
+        if ROUND_EVENT_RETALIATION_TRIGGERED in context.combo_events:
+            my_points += 2
+        return my_points, opp_points
+
+
+@dataclass(slots=True)
+class ShadowSuccession(Powerup):
+    name: str = "Shadow Succession"
+    description: str = "Round 1 and final round force your defection. Betrayal into cooperation gains +2 points (+1 if forced)."
+    synergy_tags: ClassVar[tuple[str, ...]] = ("opportunist", "rewards_betrayal", "anchor")
+    doctrine_family: ClassVar[str] = "opportunist"
+    crown_piece: ClassVar[bool] = True
+
+    def self_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
+        if context.round_index == 0 or context.round_index == context.total_rounds - 1:
+            return [MoveDirective(move=DEFECT, priority=DirectivePriority.OVERRIDE, source=self.name)]
+        return []
+
+    def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
+        if ROUND_EVENT_BETRAYAL_INTO_COOP in context.combo_events:
+            my_points += 2
+            if ROUND_EVENT_FORCED_OPPONENT_COOP in context.combo_events:
+                my_points += 1
+        return my_points, opp_points
+
+
+@dataclass(slots=True)
+class MandateForge(Powerup):
+    name: str = "Mandate Forge"
+    description: str = "Referendum votes alternate control by floor parity. Controlled bloc victories gain +2 points."
+    synergy_tags: ClassVar[tuple[str, ...]] = ("referendum_control", "amplifier", "anchor")
+    doctrine_family: ClassVar[str] = "referendum"
+    crown_piece: ClassVar[bool] = True
+
+    def self_referendum_directives(self, *, owner: "Agent", context: ReferendumContext) -> list[MoveDirective]:
+        vote = COOPERATE if context.floor_number % 2 == 0 else DEFECT
+        return [MoveDirective(move=vote, priority=DirectivePriority.FORCE, source=self.name)]
+
+    def on_referendum_reward(self, *, owner: "Agent", my_vote: int, cooperation_prevailed: bool, current_reward: int, context: ReferendumContext) -> int:
+        if REFERENDUM_EVENT_CONTROLLED_VOTE in context.combo_events:
+            if REFERENDUM_EVENT_COOP_BLOC_WIN in context.combo_events or REFERENDUM_EVENT_SABOTAGE_BLOC_WIN in context.combo_events:
+                return current_reward + 2
+        return current_reward
+
+
+@dataclass(slots=True)
+class SchismRitual(Powerup):
+    name: str = "Schism Ritual"
+    description: str = "On odd rounds force self defection, even rounds force self cooperation. Non-mirrored outcomes gain +2 points."
+    synergy_tags: ClassVar[tuple[str, ...]] = ("chaos", "amplifier", "anchor")
+    doctrine_family: ClassVar[str] = "chaos"
+    crown_piece: ClassVar[bool] = True
+
+    def self_move_directives(self, *, owner: "Agent", opponent: "Agent", context: RoundContext) -> list[MoveDirective]:
+        move = DEFECT if context.round_index % 2 == 0 else COOPERATE
+        return [MoveDirective(move=move, priority=DirectivePriority.FORCE, source=self.name)]
+
+    def on_score(self, *, owner: "Agent", opponent: "Agent", my_move: int, opp_move: int, my_points: int, opp_points: int, context: RoundContext) -> tuple[int, int]:
+        if my_move != opp_move:
+            my_points += 2
+        return my_points, opp_points
 
 
 ALL_POWERUP_TYPES = [
@@ -406,4 +547,10 @@ ALL_POWERUP_TYPES = [
     UnityTicket,
     SaboteurBloc,
     BlocPolitics,
+    ConcordatProtocol,
+    IronDecree,
+    VendettaStatute,
+    ShadowSuccession,
+    MandateForge,
+    SchismRitual,
 ]

@@ -8,7 +8,13 @@ from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.systems import genome_offers as genome_offers_module
 from prisoners_gambit.systems import offers as offers_module
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, generate_powerup_offers
+from prisoners_gambit.systems.offers import (
+    PowerupOfferContext,
+    derive_doctrine_state,
+    generate_powerup_offer_set,
+    generate_powerup_offers,
+    seed_run_house_doctrine,
+)
 
 
 class _FakePowerup:
@@ -94,7 +100,7 @@ def test_weighted_pick_uses_probabilistic_weights_not_argmax(monkeypatch) -> Non
     monkeypatch.setattr(
         offers_module,
         "_category_weight",
-        lambda powerup, category, signal, chosen_vectors, chosen_phases: weights[powerup.name],
+        lambda powerup, category, signal, chosen_families: weights[powerup.name],
     )
 
     picks = []
@@ -102,10 +108,9 @@ def test_weighted_pick_uses_probabilistic_weights_not_argmax(monkeypatch) -> Non
         picked = offers_module._weighted_pick(  # pylint: disable=protected-access
             random.Random(seed),
             [_P1(), _P2(), _P3()],
-            "reinforcement",
+            "familiar_line",
             offers_module._signal_from_context(None),  # pylint: disable=protected-access
-            chosen_vectors=set(),
-            chosen_phases=set(),
+            chosen_families=set(),
         )
         picks.append(picked.name)
 
@@ -119,17 +124,16 @@ def test_weighted_pick_falls_back_when_all_weights_invalid(monkeypatch) -> None:
     monkeypatch.setattr(
         offers_module,
         "_category_weight",
-        lambda powerup, category, signal, chosen_vectors, chosen_phases: float("nan"),
+        lambda powerup, category, signal, chosen_families: float("nan"),
     )
 
     picks = [
         offers_module._weighted_pick(  # pylint: disable=protected-access
             random.Random(seed),
             [_P1(), _P2(), _P3()],
-            "reinforcement",
+            "familiar_line",
             offers_module._signal_from_context(None),  # pylint: disable=protected-access
-            chosen_vectors=set(),
-            chosen_phases=set(),
+            chosen_families=set(),
         ).name
         for seed in range(12)
     ]
@@ -213,3 +217,128 @@ def test_offer_identity_is_still_randomized_across_seeds_for_same_build() -> Non
     }
 
     assert len(names_per_seed) > 1
+
+
+def test_powerup_pool_has_doctrine_family_for_all_powerups() -> None:
+    pool = build_powerup_pool()
+
+    assert pool
+    assert all(getattr(powerup, "doctrine_family", None) in {"trust", "control", "retaliation", "opportunist", "referendum", "chaos"} for powerup in pool)
+
+
+def test_hybrid_pair_support_trust_to_opportunist() -> None:
+    context = PowerupOfferContext(
+        owned_powerups=(TrustDividend(bonus=2),),
+        floor_number=5,
+        phase="ecosystem",
+        primary_doctrine_family="trust",
+        secondary_doctrine_family="opportunist",
+    )
+
+    hybrid_hits = 0
+    for seed in range(120):
+        offers = generate_powerup_offer_set(3, random.Random(seed), context=context)
+        hybrid_hits += sum(1 for entry in offers if entry.category == "hybrid_line" and entry.powerup.doctrine_family == "opportunist")
+
+    assert hybrid_hits > 0
+
+
+def test_hybrid_pair_support_control_to_retaliation() -> None:
+    context = PowerupOfferContext(
+        owned_powerups=(CoerciveControl(),),
+        floor_number=6,
+        phase="civil_war",
+        primary_doctrine_family="control",
+        secondary_doctrine_family="retaliation",
+    )
+
+    hybrid_hits = 0
+    for seed in range(120):
+        offers = generate_powerup_offer_set(3, random.Random(seed), context=context)
+        hybrid_hits += sum(1 for entry in offers if entry.category == "hybrid_line" and entry.powerup.doctrine_family == "retaliation")
+
+    assert hybrid_hits > 0
+
+
+def test_crown_piece_is_seeded_rare_and_non_guaranteed() -> None:
+    context = PowerupOfferContext(owned_powerups=(TrustDividend(bonus=1),), floor_number=5, phase="ecosystem")
+    runs_with_crown = 0
+    for seed in range(200):
+        offers = generate_powerup_offers(3, random.Random(seed), context=context)
+        if any(powerup.crown_piece for powerup in offers):
+            runs_with_crown += 1
+
+    assert runs_with_crown > 0
+    assert runs_with_crown < 200
+
+
+def test_primary_and_secondary_doctrine_influence_offer_mix() -> None:
+    trust_context = PowerupOfferContext(floor_number=4, primary_doctrine_family="trust", secondary_doctrine_family="opportunist")
+    control_context = PowerupOfferContext(floor_number=4, primary_doctrine_family="control", secondary_doctrine_family="retaliation")
+
+    trust_trust_hits = 0
+    control_trust_hits = 0
+    for seed in range(100):
+        trust_offers = generate_powerup_offers(3, random.Random(seed), context=trust_context)
+        control_offers = generate_powerup_offers(3, random.Random(seed), context=control_context)
+        trust_trust_hits += sum(1 for offer in trust_offers if offer.doctrine_family == "trust")
+        control_trust_hits += sum(1 for offer in control_offers if offer.doctrine_family == "trust")
+
+    assert trust_trust_hits > control_trust_hits
+
+
+def test_house_doctrine_seed_is_deterministic_and_intentional() -> None:
+    a = seed_run_house_doctrine(seed=17)
+    b = seed_run_house_doctrine(seed=17)
+    c = seed_run_house_doctrine(seed=18)
+
+    assert a == b
+    assert a in {"trust", "control", "retaliation", "opportunist", "referendum", "chaos"}
+    assert a != c
+
+
+def test_doctrine_state_tracking_is_not_pick_order_dependent() -> None:
+    house = "trust"
+    forward = derive_doctrine_state(
+        owned_powerups=(CoerciveControl(), TrustDividend(), CoerciveControl(), SpiteEngine()),
+        genome=None,
+        house_doctrine_family=house,
+    )
+    reverse = derive_doctrine_state(
+        owned_powerups=(SpiteEngine(), CoerciveControl(), TrustDividend(), CoerciveControl()),
+        genome=None,
+        house_doctrine_family=house,
+    )
+
+    assert forward == reverse
+    assert forward.primary_doctrine_family == "control"
+    assert forward.secondary_doctrine_family in {"retaliation", "trust"}
+
+
+def test_doctrine_state_uses_stable_house_as_baseline_when_build_is_empty() -> None:
+    doctrine = derive_doctrine_state(
+        owned_powerups=(),
+        genome=None,
+        house_doctrine_family="referendum",
+    )
+
+    assert doctrine.house_doctrine_family == "referendum"
+    assert doctrine.primary_doctrine_family == "referendum"
+    assert doctrine.secondary_doctrine_family is None
+
+
+def test_hybrid_targets_exist_without_forcing_active_secondary_doctrine() -> None:
+    signal = offers_module._signal_from_context(  # pylint: disable=protected-access
+        PowerupOfferContext(
+            owned_powerups=(),
+            genome=None,
+            floor_number=1,
+            phase="ecosystem",
+            house_doctrine_family="trust",
+            primary_doctrine_family="trust",
+            secondary_doctrine_family=None,
+        )
+    )
+
+    assert signal.secondary_family is None
+    assert "opportunist" in signal.mutation_targets

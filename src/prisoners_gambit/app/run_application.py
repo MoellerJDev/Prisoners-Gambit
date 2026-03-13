@@ -10,7 +10,13 @@ from prisoners_gambit.core.featured_inference import normalize_featured_inferenc
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.systems.evolution import EvolutionEngine
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, offer_category_hint
+from prisoners_gambit.systems.offers import (
+    PowerupOfferContext,
+    derive_doctrine_state,
+    generate_powerup_offer_set,
+    offer_category_hint,
+    seed_run_house_doctrine,
+)
 from prisoners_gambit.systems.population import create_population
 from prisoners_gambit.systems.progression import ProgressionEngine
 from prisoners_gambit.systems.tournament import TournamentEngine
@@ -38,6 +44,26 @@ class RunApplication:
         self.interaction_controller = InteractionController(renderer=renderer)
         self.tournament.interaction_controller = self.interaction_controller
 
+    def _doctrine_state_framing(self, *, house: str | None, primary: str | None, secondary: str | None) -> tuple[str, str]:
+        if not primary:
+            return ("Doctrine status: unresolved", "Lineage doctrine has not stabilized yet.")
+        if house is None or house == primary:
+            if secondary:
+                return (
+                    f"Doctrine status: {primary} house with {secondary} hybrid wing",
+                    f"Mutation pressure rises as {secondary} influence enters a {primary} house.",
+                )
+            return (f"Doctrine status: {primary} house holding", "Civil-war pressure favors doctrine continuity over fracture.")
+        if secondary:
+            return (
+                f"Doctrine status: mutated from {house} to {primary} (hybrid {secondary})",
+                f"Doctrine fracture risk is rising: {house} inheritance clashes with {primary}/{secondary} lines.",
+            )
+        return (
+            f"Doctrine status: mutated from {house} to {primary}",
+            f"Civil-war pressure rises as house {house} is displaced by {primary} doctrine.",
+        )
+
     def run(self) -> Agent:
         """Execute the deterministic run loop as repeated heir-shaping floor cycles.
 
@@ -58,6 +84,7 @@ class RunApplication:
 
         floor_number = 0
         ecosystem_phase = True
+        house_doctrine = seed_run_house_doctrine(seed=self.settings.seed)
 
         while True:
             floor_number += 1
@@ -151,6 +178,17 @@ class RunApplication:
                 )
                 self.renderer.show_successor_selected(player)
 
+            doctrine_state = derive_doctrine_state(
+                owned_powerups=tuple(player.powerups),
+                genome=player.genome,
+                house_doctrine_family=house_doctrine,
+            )
+            doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing(
+                house=house_doctrine,
+                primary=doctrine_state.primary_doctrine_family,
+                secondary=doctrine_state.secondary_doctrine_family,
+            )
+
             outsiders_remaining = [
                 agent for agent in survivors
                 if agent.lineage_id != player_lineage_id
@@ -165,6 +203,7 @@ class RunApplication:
                     current_host=player,
                     featured_inference_signals=normalize_featured_inference_signals(floor_clue_log),
                 )
+                civil_war_context.doctrine_pressure = [doctrine_pressure_note, *civil_war_context.doctrine_pressure][:4]
                 self.interaction_controller.clear_floor_vote_result()
                 self.interaction_controller.set_civil_war_context(civil_war_context)
 
@@ -210,6 +249,7 @@ class RunApplication:
                     self.renderer.show_victory(floor_number, player, self.settings.seed)
                     return player
 
+            phase = ("ecosystem" if ecosystem_phase else "civil_war")
             generated_powerup_offers = generate_powerup_offer_set(
                 self.settings.offers_per_floor,
                 self.progression.rng,
@@ -217,14 +257,17 @@ class RunApplication:
                     owned_powerups=tuple(player.powerups),
                     genome=player.genome,
                     floor_number=floor_number,
-                    phase=("ecosystem" if ecosystem_phase else "civil_war"),
+                    phase=phase,
+                    house_doctrine_family=house_doctrine,
+                    primary_doctrine_family=doctrine_state.primary_doctrine_family,
+                    secondary_doctrine_family=doctrine_state.secondary_doctrine_family,
                 ),
             )
             powerup_offers = [entry.powerup for entry in generated_powerup_offers]
             self.event_bus.publish(
                 Event(
                     "powerups_offered",
-                    {"floor": floor_number, "offers": [offer.name for offer in powerup_offers]},
+                    {"floor": floor_number, "offers": [offer.name for offer in powerup_offers], "doctrine": doctrine_chip},
                 )
             )
 
