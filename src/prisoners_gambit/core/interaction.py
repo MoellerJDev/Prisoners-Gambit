@@ -135,6 +135,19 @@ class FloorSummaryState:
 
 
 @dataclass(slots=True)
+class FloorIdentityState:
+    target_floor: int
+    host_name: str
+    headline: str
+    pressure_label: str
+    dominant_pressure: str
+    pressure_reason: str
+    lineage_direction: str
+    strategic_focus: str
+    key_signal: str | None = None
+
+
+@dataclass(slots=True)
 class FloorRosterEntryView:
     name: str
     public_profile: str
@@ -430,6 +443,7 @@ class RunSnapshot:
     floor_roster: FloorRosterState | None = None
     latest_featured_round: FeaturedRoundResult | None = None
     floor_summary: FloorSummaryState | None = None
+    floor_identity: FloorIdentityState | None = None
     floor_vote_result: FloorVoteResult | None = None
     dynasty_board: DynastyBoardState | None = None
     successor_options: SuccessorChoiceState | None = None

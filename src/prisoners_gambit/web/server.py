@@ -185,7 +185,8 @@ HTML = """<!doctype html>
     .controls .btn { flex:0 1 auto; }
     .action-controls { margin-bottom:8px; }
     .status-controls { gap:6px; }
-    .decision-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 40%); }
+    .decision-actions-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 40%); }
+    .decision-details-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 65%); }
     .primary-action { border-color:var(--accent); background:#223553; font-weight:600; }
     .actions { gap:10px; }
     .actions .btn { flex:1 1 170px; justify-content:center; display:inline-flex; align-items:center; min-height:46px; }
@@ -206,6 +207,7 @@ HTML = """<!doctype html>
     .good{ color:var(--good); }
     .danger{ color:var(--danger); }
     .warn{ color:var(--warn); }
+    .floor-headline { font-size:14px; font-weight:700; margin:0 0 8px; color:var(--text); }
 
     .fx-item {
       border-left:3px solid var(--effect);
@@ -252,18 +254,20 @@ HTML = """<!doctype html>
       .pill { font-size:12px; padding:6px 8px; text-align:center; }
       .kv { grid-template-columns:1fr; row-gap:4px; }
       .kv > div:nth-child(odd) { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
-      .decision-panel { position:sticky; top:8px; z-index:3; }
+      .decision-actions-panel { position:sticky; top:8px; z-index:3; }
       .actions { margin-top:8px; gap:8px; }
       .actions .btn { flex:1 1 100%; min-height:54px; }
-      .grid > .decision-panel { order:1; }
-      .grid > .result-panel { order:2; }
-      .grid > .summary-panel { order:3; }
-      .grid > .successor-panel { order:4; }
-      .grid > .vote-panel { order:5; }
-      .grid > .completion-panel { order:6; }
-      .grid > .dynasty-panel { order:7; }
-      .grid > .chronicle-panel { order:8; }
-      .grid > .panel-mobile-low { order:9; }
+      .grid > .decision-actions-panel { order:1; }
+      .grid > .decision-details-panel { order:2; }
+      .grid > .result-panel { order:3; }
+      .grid > .floor-identity-panel { order:4; }
+      .grid > .summary-panel { order:5; }
+      .grid > .successor-panel { order:6; }
+      .grid > .vote-panel { order:7; }
+      .grid > .completion-panel { order:8; }
+      .grid > .dynasty-panel { order:9; }
+      .grid > .chronicle-panel { order:10; }
+      .grid > .panel-mobile-low { order:11; }
       .raw-state-panel details:not([open]) pre { display:none; }
       pre { max-height:180px; font-size:11px; }
     }
@@ -301,18 +305,28 @@ HTML = """<!doctype html>
   </div>
 
   <div class='grid'>
-    <div class='panel panel-enter decision-panel'>
+    <div class='panel panel-enter decision-actions-panel'>
       <h3>Current Decision</h3>
       <div id='decisionType' class='muted'>No decision yet.</div>
-      <div id='decisionView' class='kv muted' style='margin-top:10px;'>Start run to begin.</div>
       <div id='actions' class='row actions' style='margin-top:10px;'></div>
       <div id='pending' class='warn' style='margin-top:8px;'></div>
+    </div>
+
+    <div class='panel panel-enter decision-details-panel'>
+      <h3>Decision Details</h3>
+      <div id='decisionView' class='kv muted'>Start run to begin.</div>
     </div>
 
     <div class='panel panel-enter result-panel'>
       <h3>Latest Round Result</h3>
       <div id='roundResult' class='muted'>No rounds resolved yet.</div>
       <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
+    </div>
+
+    <div class='panel panel-enter floor-identity-panel'>
+      <h3>Floor Identity</h3>
+      <div id='floorIdentityHeadline' class='floor-headline muted'>No floor identity committed yet.</div>
+      <ul id='floorIdentity' class='list muted'><li>No floor identity committed yet.</li></ul>
     </div>
 
     <div class='panel panel-enter vote-panel panel-mobile-low'>
@@ -377,13 +391,23 @@ function effectToken(label){ return `<span class='token effect'>✦ ${escapeHtml
 function branchToken(label){ return `<span class='token branch'>⎇ ${escapeHtml(label)}</span>`; }
 function powerupToken(label){ return `<span class='token powerup'>⚡ ${escapeHtml(label)}</span>`; }
 function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtml(label)}</span>`; }
+function shortDecisionLabel(type){
+  const labels = {
+    FeaturedRoundDecisionState: 'Round move',
+    FloorVoteDecisionState: 'Floor vote',
+    PowerupChoiceState: 'Powerup choice',
+    GenomeEditChoiceState: 'Genome edit',
+    SuccessorChoiceState: 'Successor choice',
+  };
+  return labels[type] || type || 'No active decision';
+}
 
 function renderDecision(data){
   const decision = data.decision;
   const t = data.decision_type;
   const actions = document.getElementById('actions');
   actions.innerHTML = '';
-  document.getElementById('decisionType').textContent = t ? `Decision: ${t}` : 'No active decision.';
+  document.getElementById('decisionType').textContent = t ? `Decision: ${shortDecisionLabel(t)}` : 'No active decision.';
   if (!decision) {
     document.getElementById('decisionView').innerHTML = 'No active decision.';
     return;
@@ -394,13 +418,13 @@ function renderDecision(data){
     const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No explicit clues.</li>';
     const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No prior featured clues this floor.</li>';
     document.getElementById('decisionView').innerHTML = `
-      <div>Opponent</div><div>${branchToken(p.masked_opponent_label)}</div>
+      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_move)}`)}</div>
       <div>Round</div><div>${p.round_index + 1}/${p.total_rounds}</div>
       <div>Score</div><div class='scoreline'>You <span class='good'>${p.my_match_score}</span> : <span class='danger'>${p.opp_match_score}</span> Opp</div>
-      <div>Suggested</div><div>${effectToken(`Autopilot recommends ${moveLabel(p.suggested_move)}`)}</div>
-      <div>Inference focus</div><div>${escapeHtml(p.inference_focus || 'Pattern confirmation')}</div>
-      <div>Clues</div><div><ul>${clues}</ul></div>
-      <div>Floor clue memory</div><div><ul>${floorLog}</ul></div>`;
+      <div>Rival</div><div>${branchToken(p.masked_opponent_label)}</div>
+      <div>Read on rival</div><div>${escapeHtml(p.inference_focus || 'Pattern check')}</div>
+      <div>Live clues</div><div><ul class='list tight'>${clues}</ul></div>
+      <div>Recent floor notes</div><div><ul class='list tight'>${floorLog}</ul></div>`;
     actions.innerHTML = `
       <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">Cooperate</button>
       <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">Defect</button>
@@ -416,7 +440,7 @@ function renderDecision(data){
     const p = decision.prompt;
     document.getElementById('decisionView').innerHTML = `
       <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
-      <div>Suggested Vote</div><div>${effectToken(`Model suggests ${moveLabel(p.suggested_vote)}`)}</div>
+      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_vote)}`)}</div>
       <div>Floor Score</div><div>${p.current_floor_score}</div>
       <div>Powerups</div><div>${(p.powerups || []).map(powerupToken).join(' ') || 'none'}</div>`;
     actions.innerHTML = `
@@ -427,7 +451,10 @@ function renderDecision(data){
   }
 
   if (t === 'PowerupChoiceState') {
-    document.getElementById('decisionView').innerHTML = `<div>Floor</div><div>${decision.floor_number}</div><div>Offers</div><div>${decision.offers.length}</div>`;
+    document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Powerup card</div>
+      <div>Floor</div><div>${decision.floor_number}</div>
+      <div>Cards</div><div>${decision.offers.length}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn';
@@ -446,8 +473,9 @@ function renderDecision(data){
 
   if (t === 'GenomeEditChoiceState') {
     document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Genome edit</div>
       <div>Floor</div><div>${decision.floor_number}</div>
-      <div>Current Genome</div><div>${genomeToken(decision.current_summary)}</div>`;
+      <div>Current build</div><div>${genomeToken(decision.current_summary)}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn';
@@ -466,7 +494,10 @@ function renderDecision(data){
   }
 
   if (t === 'SuccessorChoiceState') {
-    document.getElementById('decisionView').innerHTML = `<div>Floor</div><div>${decision.floor_number}</div><div>Candidates</div><div>${decision.candidates.length}</div>`;
+    document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Next host</div>
+      <div>Floor</div><div>${decision.floor_number}</div>
+      <div>Candidates</div><div>${decision.candidates.length}</div>`;
     decision.candidates.forEach((candidate, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn';
@@ -529,6 +560,20 @@ function renderSnapshot(snapshot){
     : 'No vote yet.';
 
   const capLines = (items, limit=2) => (items || []).slice(0, limit);
+  const floorIdentity = snapshot.floor_identity;
+  document.getElementById('floorIdentityHeadline').textContent = floorIdentity
+    ? floorIdentity.headline
+    : 'No floor identity committed yet.';
+  document.getElementById('floorIdentity').innerHTML = floorIdentity
+    ? `
+      <li><strong>Dominant pressure</strong>: ${escapeHtml(floorIdentity.dominant_pressure)}</li>
+      <li><strong>Why it matters</strong>: ${escapeHtml(floorIdentity.pressure_reason)}</li>
+      <li><strong>Lineage direction</strong>: ${escapeHtml(floorIdentity.lineage_direction)}</li>
+      <li><strong>Focus this floor</strong>: ${escapeHtml(floorIdentity.strategic_focus)}</li>
+      <li><strong>Host</strong>: ${branchToken(floorIdentity.host_name)} · F${escapeHtml(floorIdentity.target_floor)}</li>
+      ${floorIdentity.key_signal ? `<li><strong>Signal carryover</strong>: ${escapeHtml(floorIdentity.key_signal)}</li>` : ''}`
+    : '<li>No floor identity committed yet.</li>';
+
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
   const featuredInference = snapshot.floor_summary?.featured_inference_summary || [];

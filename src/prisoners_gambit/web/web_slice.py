@@ -33,6 +33,7 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundStanceView,
     FloorSummaryEntryView,
     FloorSummaryState,
+    FloorIdentityState,
     DynastyBoardEntryView,
     DynastyBoardState,
     FloorVoteDecisionState,
@@ -628,6 +629,7 @@ class FeaturedMatchWebSession:
         if action.candidate_index < 0 or action.candidate_index >= len(self._successor_candidates):
             raise ValueError("Invalid successor index")
         chosen = self._successor_candidates[action.candidate_index]
+        chosen_view = decision.candidates[action.candidate_index]
         previous_host = self.player.name
         chosen.is_player = True
         self.player.is_player = False
@@ -640,6 +642,7 @@ class FeaturedMatchWebSession:
         )
 
         if self._should_start_civil_war():
+            self.snapshot.floor_identity = None
             self.snapshot.current_phase = "civil_war"
             self.snapshot.floor_vote_result = None
             self.snapshot.civil_war_context = build_civil_war_context(
@@ -665,10 +668,36 @@ class FeaturedMatchWebSession:
         else:
             self.snapshot.current_phase = "ecosystem"
             self.snapshot.civil_war_context = None
+            self.snapshot.floor_identity = self._build_next_floor_identity(decision=decision, chosen=chosen_view)
             self._pending_screen = None
             self._pending_message = None
             self._begin_powerup_choice()
         self._rebuild_dynasty_board()
+
+    def _build_next_floor_identity(self, decision: SuccessorChoiceState, chosen: SuccessorCandidateView) -> FloorIdentityState:
+        threat_profile = list(decision.threat_profile or [])
+        pressure_label = {
+            "high": "Containment floor",
+            "rising": "Pressure-test floor",
+            "low": "Expansion floor",
+        }.get(decision.civil_war_pressure or "", "Lineage floor")
+        top_threat = threat_profile[0] if threat_profile else "no dominant threat tag"
+        heir_tag = chosen.tags[0] if chosen.tags else "untyped"
+        dominant_pressure = top_threat if top_threat != "no dominant threat tag" else heir_tag
+        clue_signal = (decision.featured_inference_summary[0] if decision.featured_inference_summary else None)
+        doctrine = decision.lineage_doctrine or chosen.branch_doctrine
+        headline = f"{pressure_label}: {chosen.name} · {chosen.branch_role}"
+        return FloorIdentityState(
+            target_floor=self.floor_number + 1,
+            host_name=chosen.name,
+            headline=headline,
+            pressure_label=pressure_label,
+            dominant_pressure=dominant_pressure,
+            pressure_reason=f"{chosen.name} inherits into {dominant_pressure} pressure.",
+            lineage_direction=f"Doctrine path: {doctrine}",
+            strategic_focus=f"Lean into {chosen.attractive_now.lower()} while respecting {chosen.danger_later.lower()}.",
+            key_signal=clue_signal,
+        )
 
     def _should_start_civil_war(self) -> bool:
         floor_summary = self.snapshot.floor_summary
@@ -718,11 +747,17 @@ class FeaturedMatchWebSession:
         self.opponent = Agent(name="Unknown Opponent", genome=self._opponent_genome())
         self.opponent.is_player = False
 
+        floor_identity = self.snapshot.floor_identity
+        identity_note = (
+            f" {floor_identity.pressure_label}: {floor_identity.strategic_focus}"
+            if floor_identity and floor_identity.target_floor == self.floor_number
+            else ""
+        )
         self._append_chronicle_entry(
             event_id=f"floor_start:{self.floor_number}",
             event_type="floor_start",
             floor_number=self.floor_number,
-            summary=f"Floor {self.floor_number} started in ecosystem play.",
+            summary=f"Floor {self.floor_number} started in ecosystem play.{identity_note}",
         )
         self._begin_featured_round_decision()
 
