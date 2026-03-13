@@ -36,6 +36,17 @@ class _BuildSignal:
     phase: str
 
 
+_CATEGORY_HINTS: dict[OfferCategory, str] = {
+    "reinforcement": "Build fit",
+    "bridge": "Pivot option",
+    "wildcard": "Wildcard",
+}
+
+
+def offer_category_hint(category: OfferCategory) -> str:
+    return _CATEGORY_HINTS.get(category, "Wildcard")
+
+
 def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
     if context is None:
         return _BuildSignal(
@@ -81,6 +92,31 @@ def _genome_vectors(genome: StrategyGenome | None) -> tuple[str, ...]:
     return tuple(vectors)
 
 
+def _lineage_focus_strength(signal: _BuildSignal) -> float:
+    vector_strength = min(1.0, len(signal.primary_vectors) * 0.45)
+    tag_strength = min(1.0, len(signal.owned_tags) * 0.08)
+    return min(1.0, (vector_strength + tag_strength) / 2)
+
+
+def _category_mix_weights(signal: _BuildSignal) -> dict[OfferCategory, float]:
+    focus = _lineage_focus_strength(signal)
+    reinforcement = 0.34 + (0.30 * focus)
+    bridge = 0.30 + (0.14 if signal.primary_vectors else 0.0) + (0.06 if signal.owned_tags else 0.0)
+    wildcard = 0.36 - (0.20 * focus)
+    if signal.floor_number <= 3:
+        wildcard += 0.06
+    if signal.phase == "both":
+        wildcard += 0.04
+
+    raw = {
+        "reinforcement": max(0.08, reinforcement),
+        "bridge": max(0.08, bridge),
+        "wildcard": max(0.08, wildcard),
+    }
+    total = sum(raw.values())
+    return {category: value / total for category, value in raw.items()}  # type: ignore[return-value]
+
+
 def _category_weight(
     powerup: Powerup,
     category: OfferCategory,
@@ -118,7 +154,6 @@ def _category_weight(
             weight += 0.8
         return weight + phase_bonus + novelty_bonus
 
-    # wildcard
     weight = 0.6
     if vector not in signal.primary_vectors and vector not in signal.secondary_vectors:
         weight += 2.4
@@ -141,11 +176,30 @@ def _weighted_pick(
         _category_weight(candidate, category, signal, chosen_vectors=chosen_vectors, chosen_phases=chosen_phases)
         for candidate in candidates
     ]
-    best_weight = max(weights)
-    tied = [candidate for candidate, weight in zip(candidates, weights) if weight == best_weight]
-    if len(tied) == 1:
-        return tied[0]
-    return rng.choice(tied)
+    return rng.choices(candidates, weights=weights, k=1)[0]
+
+
+def _choose_offer_category(
+    rng: random.Random,
+    signal: _BuildSignal,
+    counts_by_category: Counter[OfferCategory],
+    offers_remaining: int,
+) -> OfferCategory:
+    mix = _category_mix_weights(signal)
+    categories: list[OfferCategory] = ["reinforcement", "bridge", "wildcard"]
+    weights = [mix[category] for category in categories]
+
+    for idx, category in enumerate(categories):
+        if counts_by_category[category] >= 2:
+            weights[idx] *= 0.5
+
+    seen_categories = {category for category, count in counts_by_category.items() if count > 0}
+    if offers_remaining == 1 and len(seen_categories) < 2:
+        for idx, category in enumerate(categories):
+            if category not in seen_categories:
+                weights[idx] *= 2.0
+
+    return rng.choices(categories, weights=weights, k=1)[0]
 
 
 def generate_powerup_offer_set(
@@ -159,10 +213,11 @@ def generate_powerup_offer_set(
 
     signal = _signal_from_context(context)
     categories: list[OfferCategory] = []
-    if count >= 3:
-        categories.extend(["reinforcement", "bridge", "wildcard"])
-    while len(categories) < count:
-        categories.append(rng.choices(["reinforcement", "bridge", "wildcard"], weights=[0.45, 0.30, 0.25], k=1)[0])
+    counts_by_category: Counter[OfferCategory] = Counter()
+    for index in range(count):
+        category = _choose_offer_category(rng, signal, counts_by_category, offers_remaining=count - index)
+        categories.append(category)
+        counts_by_category[category] += 1
 
     chosen: list[GeneratedPowerupOffer] = []
     used_types: set[type[Powerup]] = set()

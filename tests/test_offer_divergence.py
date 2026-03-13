@@ -11,14 +11,6 @@ from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
 from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, generate_powerup_offers
 
 
-class _FirstChoiceRng:
-    def choice(self, seq):
-        return seq[0]
-
-    def choices(self, seq, weights, k):
-        return [seq[0]]
-
-
 class _FakePowerup:
     name = "Fake"
     description = "Fake"
@@ -96,21 +88,29 @@ def test_powerup_offers_bias_toward_phase_lane_diversity() -> None:
     assert len(phases) >= 2
 
 
-def test_powerup_offer_novelty_prioritizes_doctrine_before_phase(monkeypatch) -> None:
-    def guidance_for(powerup: _FakePowerup) -> OfferDoctrineGuidance:
-        mapping = {
-            "P1": OfferDoctrineGuidance("trust / reciprocity", "b", "t", "ecosystem survival", "s"),
-            "P2": OfferDoctrineGuidance("coercion / control", "b", "t", "ecosystem survival", "s"),
-            "P3": OfferDoctrineGuidance("trust / reciprocity", "b", "t", "civil-war readiness", "s"),
-        }
-        return mapping[powerup.name]
+def test_weighted_pick_uses_probabilistic_weights_not_argmax(monkeypatch) -> None:
+    weights = {"P1": 100.0, "P2": 1.0, "P3": 1.0}
 
-    monkeypatch.setattr(offers_module, "build_powerup_pool", lambda: [_P1(), _P3(), _P2()])
-    monkeypatch.setattr(offers_module, "guidance_for_powerup", guidance_for)
+    monkeypatch.setattr(
+        offers_module,
+        "_category_weight",
+        lambda powerup, category, signal, chosen_vectors, chosen_phases: weights[powerup.name],
+    )
 
-    offers = offers_module.generate_powerup_offers(2, _FirstChoiceRng())
+    picks = []
+    for seed in range(250):
+        picked = offers_module._weighted_pick(  # pylint: disable=protected-access
+            random.Random(seed),
+            [_P1(), _P2(), _P3()],
+            "reinforcement",
+            offers_module._signal_from_context(None),  # pylint: disable=protected-access
+            chosen_vectors=set(),
+            chosen_phases=set(),
+        )
+        picks.append(picked.name)
 
-    assert [offer.name for offer in offers] == ["P1", "P2"]
+    assert "P1" in picks
+    assert any(name != "P1" for name in picks)
 
 
 def test_genome_offer_novelty_uses_phase_as_secondary_tiebreaker(monkeypatch) -> None:
@@ -125,9 +125,10 @@ def test_genome_offer_novelty_uses_phase_as_secondary_tiebreaker(monkeypatch) ->
     monkeypatch.setattr(genome_offers_module, "build_genome_edit_pool", lambda: [_E1(), _E3(), _E2()])
     monkeypatch.setattr(genome_offers_module, "guidance_for_genome_edit", guidance_for)
 
-    offers = genome_offers_module.generate_genome_edit_offers(2, _FirstChoiceRng())
+    offers = genome_offers_module.generate_genome_edit_offers(2, random.Random(0))
 
-    assert [offer.name for offer in offers] == ["E1", "E2"]
+    assert offers[1].name == "E2"
+    assert offers[0].name in {"E1", "E3"}
 
 
 def test_powerup_offer_generation_is_deterministic_for_seed() -> None:
@@ -144,12 +145,17 @@ def test_genome_offer_generation_is_deterministic_for_seed() -> None:
     assert names1 == names2
 
 
-def test_offer_set_intentionally_includes_reinforcement_bridge_and_wildcard() -> None:
+def test_offer_categories_show_variety_without_forced_single_pattern() -> None:
     context = PowerupOfferContext(owned_powerups=(CoerciveControl(), ComplianceDividend(bonus=2)), floor_number=6, phase="civil_war")
 
-    categories = [entry.category for entry in generate_powerup_offer_set(3, random.Random(42), context=context)]
+    category_patterns = [
+        tuple(entry.category for entry in generate_powerup_offer_set(3, random.Random(seed), context=context))
+        for seed in range(80)
+    ]
 
-    assert categories == ["reinforcement", "bridge", "wildcard"]
+    assert len(set(category_patterns)) >= 4
+    assert any(len(set(pattern)) == 3 for pattern in category_patterns)
+    assert any(len(set(pattern)) < 3 for pattern in category_patterns)
 
 
 def test_control_lineage_gets_more_relevant_control_synergy_than_flat_random() -> None:

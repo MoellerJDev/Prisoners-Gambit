@@ -10,7 +10,7 @@ from prisoners_gambit.core.featured_inference import normalize_featured_inferenc
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.systems.evolution import EvolutionEngine
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
-from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set
+from prisoners_gambit.systems.offers import PowerupOfferContext, generate_powerup_offer_set, offer_category_hint
 from prisoners_gambit.systems.population import create_population
 from prisoners_gambit.systems.progression import ProgressionEngine
 from prisoners_gambit.systems.tournament import TournamentEngine
@@ -231,7 +231,7 @@ class RunApplication:
             selected_powerup = self.interaction_controller.choose_powerup(
                 floor_number,
                 powerup_offers,
-                offer_hints={entry.powerup.name: entry.category.replace("_", " ").title() for entry in generated_powerup_offers},
+                offer_hints={entry.powerup.name: offer_category_hint(entry.category) for entry in generated_powerup_offers},
             )
             player.powerups.append(selected_powerup)
             logger.info("Player selected powerup '%s' on floor %s", selected_powerup.name, floor_number)
