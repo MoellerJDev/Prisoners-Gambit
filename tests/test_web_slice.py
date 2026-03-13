@@ -954,6 +954,13 @@ def test_web_session_transition_action_hidden_when_decision_is_active() -> None:
     assert session.view()["transition_action_label"] is None
 
 
+def test_web_html_powerup_cards_render_trigger_effect_role_as_visible_content() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "const functional = [trigger, effect, role]" in web_server.HTML
+    assert "`${actionTile(label, subtitle)}${functional}<span class='muted'>${powerupToken(offer.name)}</span>`" in web_server.HTML
+
+
 def test_web_html_uses_contextual_transition_action_button() -> None:
     from prisoners_gambit.web import server as web_server
 
