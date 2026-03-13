@@ -6,7 +6,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from prisoners_gambit.core.constants import COOPERATE
+from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
     ChooseFloorVoteAction,
     ChooseGenomeEditAction,
@@ -16,6 +16,17 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
 )
+from prisoners_gambit.core.powerups import (
+    BlocPolitics,
+    CoerciveControl,
+    ComplianceDividend,
+    GoldenHandshake,
+    PanicButton,
+    SpiteEngine,
+    TrustDividend,
+    UnityTicket,
+)
+from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.web.server import Handler, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
@@ -714,7 +725,7 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert floor_identity["dominant_pressure"]
     assert floor_identity["lineage_direction"].startswith("Doctrine path: ")
     powerup_offer = session.view()["decision"]["offers"][0]
-    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "tags"}.issubset(powerup_offer.keys())
+    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "tags", "trigger", "effect", "role"}.issubset(powerup_offer.keys())
 
     session.submit_action(ChoosePowerupAction(offer_index=0))
     session.advance()
@@ -1540,3 +1551,84 @@ def test_web_api_export_uses_process_local_fallback_without_configured_secret(mo
     finally:
         server.shutdown()
         server.server_close()
+
+
+def _always_defect_genome() -> StrategyGenome:
+    return StrategyGenome(
+        first_move=DEFECT,
+        response_table={(COOPERATE, COOPERATE): DEFECT, (COOPERATE, DEFECT): DEFECT, (DEFECT, COOPERATE): DEFECT, (DEFECT, DEFECT): DEFECT},
+        noise=0.0,
+    )
+
+
+def test_web_runtime_forced_cooperation_combo_is_consumed_in_featured_round_flow() -> None:
+    session = FeaturedMatchWebSession(seed=41, rounds=2)
+    session.start()
+    session.player.powerups = [CoerciveControl(), ComplianceDividend(bonus=1)]
+    session.opponent.genome = StrategyGenome(
+        first_move=COOPERATE,
+        response_table={(COOPERATE, COOPERATE): DEFECT, (COOPERATE, DEFECT): DEFECT, (DEFECT, COOPERATE): DEFECT, (DEFECT, DEFECT): DEFECT},
+        noise=0.0,
+    )
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=DEFECT))
+    session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=DEFECT))
+    session.advance()
+
+    latest = session.view()["snapshot"]["latest_featured_round"]
+    assert latest is not None
+    sources = [entry["source"] for entry in latest["breakdown"]["score_adjustments"]]
+    assert "Coercive Control" in sources
+    assert "Compliance Dividend" in sources
+
+
+def test_web_runtime_locked_coop_trust_combo_is_consumed() -> None:
+    session = FeaturedMatchWebSession(seed=43, rounds=1)
+    session.start()
+    session.player.powerups = [GoldenHandshake(), TrustDividend()]
+    session.opponent.genome = _always_defect_genome()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=DEFECT))
+    session.advance()
+
+    latest = session.view()["snapshot"]["latest_featured_round"]
+    assert latest is not None
+    sources = [entry["source"] for entry in latest["breakdown"]["score_adjustments"]]
+    assert "Trust Dividend" in sources
+
+
+def test_web_runtime_retaliation_spiral_combo_is_consumed() -> None:
+    session = FeaturedMatchWebSession(seed=47, rounds=3)
+    session.start()
+    session.player.powerups = [SpiteEngine(), PanicButton()]
+    session.opponent.genome = _always_defect_genome()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=DEFECT))
+    session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=DEFECT))
+    session.advance()
+
+    latest = session.view()["snapshot"]["latest_featured_round"]
+    assert latest is not None
+    sources = [entry["source"] for entry in latest["breakdown"]["score_adjustments"]]
+    assert "Spite Engine" in sources
+    assert "Panic Button" in sources
+
+
+def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None:
+    session = FeaturedMatchWebSession(seed=53, rounds=1)
+    session.start()
+    session.player.powerups = [UnityTicket(), BlocPolitics(bonus=2)]
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    assert session.view()["decision_type"] == "FloorVoteDecisionState"
+
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=DEFECT))
+    session.advance()
+
+    vote_result = session.view()["snapshot"]["floor_vote_result"]
+    assert vote_result is not None
+    assert vote_result["player_vote"] == COOPERATE
+    assert vote_result["player_reward"] >= 6

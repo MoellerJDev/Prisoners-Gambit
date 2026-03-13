@@ -565,8 +565,12 @@ function renderDecision(data){
       const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
       const synergy = offer.tags && offer.tags.length ? `Synergy: ${offer.tags.join(', ')}` : '';
-      btn.innerHTML = `${actionTile(label, synergy || commitment || doctrine || 'Powerup option')}<span class='muted'>${powerupToken(offer.name)}</span>`;
-      btn.title = [offer.branch_identity, commitment || doctrine, synergy, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
+      const trigger = offer.trigger || '';
+      const effect = offer.effect || '';
+      const role = offer.role || '';
+      const subtitle = trigger || role || synergy || commitment || doctrine || 'Powerup option';
+      btn.innerHTML = `${actionTile(label, subtitle)}<span class='muted'>${powerupToken(offer.name)}</span>`;
+      btn.title = [offer.branch_identity, trigger, effect, role, commitment || doctrine, synergy, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
       actions.appendChild(btn);
     });

@@ -22,7 +22,7 @@ def test_terminal_powerup_choice_displays_name_and_description(monkeypatch, caps
     renderer.resolve_powerup_choice(
         PowerupChoiceState(
             floor_number=1,
-            offers=[PowerupOfferView(name="Trust Dividend", description="Mutual cooperation gives bonus", lineage_commitment="Choose if you want heirs to bank value through reciprocal trust loops.", doctrine_vector="trust / reciprocity", tradeoff="Safer but slower")],
+            offers=[PowerupOfferView(name="Trust Dividend", description="Mutual cooperation gives bonus", trigger="Trigger: mutual cooperation.", effect="Effect: gain +1.", role="Role: payoff.", lineage_commitment="Choose if you want heirs to bank value through reciprocal trust loops.", doctrine_vector="trust / reciprocity", tradeoff="Safer but slower")],
         )
     )
 
@@ -31,6 +31,9 @@ def test_terminal_powerup_choice_displays_name_and_description(monkeypatch, caps
     assert "Mutual cooperation gives bonus" in out
     assert "Lineage commitment: Choose if you want heirs to bank value through reciprocal trust loops." in out
     assert "Tradeoff: Safer but slower" in out
+    assert "Trigger: mutual cooperation." in out
+    assert "Effect: gain +1." in out
+    assert "Role: payoff." in out
 
 
 def test_terminal_genome_edit_choice_displays_name_and_description(monkeypatch, capsys) -> None:

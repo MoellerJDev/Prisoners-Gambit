@@ -8,7 +8,7 @@ from prisoners_gambit.core.offer_guidance import (
     guidance_for_powerup,
     lineage_commitment_text,
 )
-from prisoners_gambit.core.powerups import Powerup
+from prisoners_gambit.core.powerups import Powerup, powerup_presentation
 
 _ROLE_ORDER = ("anchor", "enabler", "payoff", "amplifier", "bridge")
 
@@ -25,9 +25,13 @@ def to_powerup_offer_view(powerup: Powerup) -> PowerupOfferView:
     guidance = guidance_for_powerup(powerup)
     role_hint = _role_hint(powerup)
     branch_identity = guidance.branch_identity if role_hint is None else f"{guidance.branch_identity} ({role_hint})"
+    trigger, effect, role_text = powerup_presentation(powerup)
     return PowerupOfferView(
         name=powerup.name,
         description=powerup.description,
+        trigger=trigger,
+        effect=effect,
+        role=role_text,
         lineage_commitment=lineage_commitment_text(guidance),
         doctrine_vector=guidance.doctrine_vector,
         branch_identity=branch_identity,

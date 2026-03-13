@@ -121,6 +121,31 @@ def derive_referendum_combo_events(
     return tuple(events)
 
 
+
+
+def powerup_presentation(powerup: "Powerup") -> tuple[str, str, str]:
+    role = "bridge"
+    for candidate in ("anchor", "enabler", "payoff", "amplifier", "bridge"):
+        if candidate in powerup.keywords:
+            role = candidate
+            break
+    by_name: dict[str, tuple[str, str]] = {
+        "Opening Gambit": ("Trigger: Round 1 and you defect.", "Effect: Gain bonus points for the opening betrayal."),
+        "Trust Dividend": ("Trigger: This round is mutual cooperation.", "Effect: Gain bonus points, plus extra when cooperation was lock-stabilized."),
+        "Last Laugh": ("Trigger: Final-round betrayal into opponent cooperation.", "Effect: Gain bonus points, plus extra if your opener was betrayal."),
+        "Spite Engine": ("Trigger: Retaliation event is active (you defect after their prior defection).", "Effect: Gain bonus points, plus extra in defection spirals."),
+        "Mercy Shield": ("Trigger: Opponent defected last round and defects again.", "Effect: Nullify their round payoff and gain bonus when retaliation is active."),
+        "Golden Handshake": ("Trigger: Round 1.", "Effect: Lock both players into cooperation to seed trust events."),
+        "Coercive Control": ("Trigger: Previous round was your betrayal into their cooperation.", "Effect: Force opponent cooperation next round and reward forced-betrayal conversion."),
+        "Counter-Intel": ("Trigger: Opponent defected last round.", "Effect: Force their cooperation and convert it into trust payoff if peace lands."),
+        "Panic Button": ("Trigger: Previous round was mutual defection.", "Effect: Lock both players into defection and convert spiral pressure into score."),
+        "Compliance Dividend": ("Trigger: Betrayal into cooperation event.", "Effect: Gain scaling bonus from forced cooperation, retaliation conversion, and final-round cashout."),
+        "Unity Ticket": ("Trigger: Referendum vote resolution.", "Effect: Force your vote to cooperate and reward controlled bloc wins."),
+        "Saboteur Bloc": ("Trigger: Referendum vote resolution.", "Effect: Force your vote to defect and reward controlled sabotage wins."),
+        "Bloc Politics": ("Trigger: Cooperation bloc wins referendum.", "Effect: Gain bloc bonus, amplified when your vote was controlled."),
+    }
+    trigger_effect = by_name.get(powerup.name, ("Trigger: Context dependent.", f"Effect: {powerup.description}"))
+    return trigger_effect[0], trigger_effect[1], f"Role: {role}."
 class Powerup:
     name: str = "Unnamed Powerup"
     description: str = "No description available."
