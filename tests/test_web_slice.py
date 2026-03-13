@@ -824,7 +824,8 @@ def test_web_html_adds_mobile_viewport_and_touch_targets() -> None:
 def test_web_html_mobile_layout_prioritizes_decision_context_and_reduces_clutter() -> None:
     from prisoners_gambit.web import server as web_server
 
-    assert ".decision-panel { position:sticky; top:8px; z-index:3; }" in web_server.HTML
+    assert ".decision-actions-panel { position:sticky; top:8px; z-index:3; }" in web_server.HTML
+    assert ".decision-details-panel {" in web_server.HTML
     assert "<div class='row controls action-controls'>" in web_server.HTML
     assert "<div class='row controls status-controls'>" in web_server.HTML
     assert "<details open>" in web_server.HTML
@@ -842,10 +843,20 @@ def test_web_html_marks_primary_actions_for_mobile_tap_focus() -> None:
 def test_web_html_prioritizes_mobile_panel_ordering() -> None:
     from prisoners_gambit.web import server as web_server
 
-    assert "grid > .decision-panel { order:1; }" in web_server.HTML
-    assert "grid > .result-panel { order:2; }" in web_server.HTML
-    assert "grid > .summary-panel { order:3; }" in web_server.HTML
+    assert "grid > .decision-actions-panel { order:1; }" in web_server.HTML
+    assert "grid > .decision-details-panel { order:2; }" in web_server.HTML
+    assert "grid > .result-panel { order:3; }" in web_server.HTML
     assert "panel panel-enter vote-panel panel-mobile-low" in web_server.HTML
+
+
+def test_web_html_splits_decision_actions_from_details_panel() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "<div class='panel panel-enter decision-actions-panel'>" in web_server.HTML
+    assert "<div id='actions' class='row actions'" in web_server.HTML
+    assert "<div class='panel panel-enter decision-details-panel'>" in web_server.HTML
+    assert "<h3>Decision Details</h3>" in web_server.HTML
+    assert "<div id='decisionView' class='kv muted'>" in web_server.HTML
 
 
 def test_web_root_contains_full_run_panels() -> None:

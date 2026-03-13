@@ -185,7 +185,8 @@ HTML = """<!doctype html>
     .controls .btn { flex:0 1 auto; }
     .action-controls { margin-bottom:8px; }
     .status-controls { gap:6px; }
-    .decision-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 40%); }
+    .decision-actions-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 40%); }
+    .decision-details-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 65%); }
     .primary-action { border-color:var(--accent); background:#223553; font-weight:600; }
     .actions { gap:10px; }
     .actions .btn { flex:1 1 170px; justify-content:center; display:inline-flex; align-items:center; min-height:46px; }
@@ -252,18 +253,19 @@ HTML = """<!doctype html>
       .pill { font-size:12px; padding:6px 8px; text-align:center; }
       .kv { grid-template-columns:1fr; row-gap:4px; }
       .kv > div:nth-child(odd) { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
-      .decision-panel { position:sticky; top:8px; z-index:3; }
+      .decision-actions-panel { position:sticky; top:8px; z-index:3; }
       .actions { margin-top:8px; gap:8px; }
       .actions .btn { flex:1 1 100%; min-height:54px; }
-      .grid > .decision-panel { order:1; }
-      .grid > .result-panel { order:2; }
-      .grid > .summary-panel { order:3; }
-      .grid > .successor-panel { order:4; }
-      .grid > .vote-panel { order:5; }
-      .grid > .completion-panel { order:6; }
-      .grid > .dynasty-panel { order:7; }
-      .grid > .chronicle-panel { order:8; }
-      .grid > .panel-mobile-low { order:9; }
+      .grid > .decision-actions-panel { order:1; }
+      .grid > .decision-details-panel { order:2; }
+      .grid > .result-panel { order:3; }
+      .grid > .summary-panel { order:4; }
+      .grid > .successor-panel { order:5; }
+      .grid > .vote-panel { order:6; }
+      .grid > .completion-panel { order:7; }
+      .grid > .dynasty-panel { order:8; }
+      .grid > .chronicle-panel { order:9; }
+      .grid > .panel-mobile-low { order:10; }
       .raw-state-panel details:not([open]) pre { display:none; }
       pre { max-height:180px; font-size:11px; }
     }
@@ -301,12 +303,16 @@ HTML = """<!doctype html>
   </div>
 
   <div class='grid'>
-    <div class='panel panel-enter decision-panel'>
+    <div class='panel panel-enter decision-actions-panel'>
       <h3>Current Decision</h3>
       <div id='decisionType' class='muted'>No decision yet.</div>
-      <div id='decisionView' class='kv muted' style='margin-top:10px;'>Start run to begin.</div>
       <div id='actions' class='row actions' style='margin-top:10px;'></div>
       <div id='pending' class='warn' style='margin-top:8px;'></div>
+    </div>
+
+    <div class='panel panel-enter decision-details-panel'>
+      <h3>Decision Details</h3>
+      <div id='decisionView' class='kv muted'>Start run to begin.</div>
     </div>
 
     <div class='panel panel-enter result-panel'>
@@ -377,13 +383,23 @@ function effectToken(label){ return `<span class='token effect'>✦ ${escapeHtml
 function branchToken(label){ return `<span class='token branch'>⎇ ${escapeHtml(label)}</span>`; }
 function powerupToken(label){ return `<span class='token powerup'>⚡ ${escapeHtml(label)}</span>`; }
 function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtml(label)}</span>`; }
+function shortDecisionLabel(type){
+  const labels = {
+    FeaturedRoundDecisionState: 'Round move',
+    FloorVoteDecisionState: 'Floor vote',
+    PowerupChoiceState: 'Powerup choice',
+    GenomeEditChoiceState: 'Genome edit',
+    SuccessorChoiceState: 'Successor choice',
+  };
+  return labels[type] || type || 'No active decision';
+}
 
 function renderDecision(data){
   const decision = data.decision;
   const t = data.decision_type;
   const actions = document.getElementById('actions');
   actions.innerHTML = '';
-  document.getElementById('decisionType').textContent = t ? `Decision: ${t}` : 'No active decision.';
+  document.getElementById('decisionType').textContent = t ? `Decision: ${shortDecisionLabel(t)}` : 'No active decision.';
   if (!decision) {
     document.getElementById('decisionView').innerHTML = 'No active decision.';
     return;
