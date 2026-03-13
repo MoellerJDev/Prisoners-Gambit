@@ -2,6 +2,7 @@ import random
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
+from prisoners_gambit.core.offer_views import to_powerup_offer_view
 from prisoners_gambit.core.powerups import (
     ALL_POWERUP_TYPES,
     BlocPolitics,
@@ -427,3 +428,140 @@ def test_powerups_expose_synergy_keywords_for_offer_reasoning() -> None:
     assert "creates_force" in CoerciveControl().keywords
     assert "rewards_force" in ComplianceDividend().keywords
     assert "referendum_control" in UnityTicket().keywords
+
+
+def test_control_lane_anchor_and_payoff_stack() -> None:
+    owner = static_agent("Controller", DEFECT)
+    opponent = static_agent("Target", COOPERATE)
+    owner.powerups.extend([CoerciveControl(), ComplianceDividend(bonus=2)])
+
+    context = RoundContext(
+        round_index=1,
+        total_rounds=3,
+        my_history=[COOPERATE],
+        opp_history=[DEFECT],
+        planned_move=DEFECT,
+        opp_planned_move=COOPERATE,
+    )
+
+    my_points, opp_points = owner.powerups[1].on_score(
+        owner=owner,
+        opponent=opponent,
+        my_move=DEFECT,
+        opp_move=COOPERATE,
+        my_points=1,
+        opp_points=0,
+        context=context,
+    )
+
+    assert my_points == 5
+    assert opp_points == 0
+
+
+def test_trust_lane_streak_pays_more_than_single_proc() -> None:
+    owner = static_agent("Coalition", COOPERATE)
+    opponent = static_agent("Ally", COOPERATE)
+    perk = TrustDividend()
+
+    context = RoundContext(
+        round_index=2,
+        total_rounds=4,
+        my_history=[COOPERATE, COOPERATE],
+        opp_history=[COOPERATE, COOPERATE],
+        planned_move=COOPERATE,
+        opp_planned_move=COOPERATE,
+    )
+
+    my_points, _ = perk.on_score(
+        owner=owner,
+        opponent=opponent,
+        my_move=COOPERATE,
+        opp_move=COOPERATE,
+        my_points=1,
+        opp_points=1,
+        context=context,
+    )
+
+    assert my_points == 3
+
+
+def test_referendum_lane_anchor_and_amplifier_stack() -> None:
+    owner = static_agent("Whip", COOPERATE)
+    owner.powerups.extend([UnityTicket(), TrustDividend(), BlocPolitics(bonus=2)])
+    context = ReferendumContext(floor_number=3, total_agents=10, current_floor_score=12)
+
+    reward = 2
+    for perk in owner.powerups:
+        reward = perk.on_referendum_reward(
+            owner=owner,
+            my_vote=COOPERATE,
+            cooperation_prevailed=True,
+            current_reward=reward,
+            context=context,
+        )
+
+    assert reward == 7
+
+
+def test_retaliation_spiral_anchor_payoff_and_amplifier_stack() -> None:
+    owner = static_agent("Spiral", DEFECT)
+    opponent = static_agent("Rival", DEFECT)
+    owner.powerups.extend([SpiteEngine(), MercyShield(), PanicButton()])
+
+    context = RoundContext(
+        round_index=2,
+        total_rounds=4,
+        my_history=[COOPERATE, DEFECT],
+        opp_history=[DEFECT, DEFECT],
+        planned_move=DEFECT,
+        opp_planned_move=DEFECT,
+    )
+
+    my_points, opp_points = 1, 1
+    for perk in owner.powerups:
+        my_points, opp_points = perk.on_score(
+            owner=owner,
+            opponent=opponent,
+            my_move=DEFECT,
+            opp_move=DEFECT,
+            my_points=my_points,
+            opp_points=opp_points,
+            context=context,
+        )
+
+    assert my_points == 5
+    assert opp_points == 0
+
+
+def test_opening_betrayal_bridges_into_last_laugh_cashout() -> None:
+    owner = static_agent("Closer", DEFECT)
+    opponent = static_agent("Victim", COOPERATE)
+    owner.powerups.extend([OpeningGambit(), LastLaugh(bonus=2)])
+
+    context = RoundContext(
+        round_index=2,
+        total_rounds=3,
+        my_history=[DEFECT, COOPERATE],
+        opp_history=[COOPERATE, COOPERATE],
+        planned_move=DEFECT,
+        opp_planned_move=COOPERATE,
+    )
+
+    my_points, _ = owner.powerups[1].on_score(
+        owner=owner,
+        opponent=opponent,
+        my_move=DEFECT,
+        opp_move=COOPERATE,
+        my_points=1,
+        opp_points=0,
+        context=context,
+    )
+
+    assert my_points == 4
+
+
+def test_offer_view_exposes_powerup_role_in_branch_identity_and_tags() -> None:
+    offer = to_powerup_offer_view(CoerciveControl())
+
+    assert offer.branch_identity is not None and "(anchor)" in offer.branch_identity
+    assert offer.tags is not None and "anchor" in offer.tags and "creates_force" in offer.tags
