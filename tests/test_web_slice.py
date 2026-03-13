@@ -230,6 +230,99 @@ def test_web_session_dynasty_board_exposes_central_rival_and_relation_tokens() -
     board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
     assert any(entry["is_central_rival"] for entry in board_entries)
     assert all(entry["lineage_relation"] in {"host", "kin", "outsider"} for entry in board_entries)
+
+
+def test_web_session_continuity_signals_are_stable_across_intra_floor_dynasty_rebuilds() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    baseline_board = session.view()["snapshot"]["dynasty_board"]
+    assert baseline_board is not None
+
+    session._rebuild_dynasty_board()
+    rebuilt_once = session.view()["snapshot"]["dynasty_board"]
+    session._rebuild_dynasty_board()
+    rebuilt_twice = session.view()["snapshot"]["dynasty_board"]
+
+    assert rebuilt_once == baseline_board
+    assert rebuilt_twice == baseline_board
+
+
+def test_web_session_continuity_baseline_updates_only_on_new_floor_summary() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    before = session.view()["snapshot"]["floor_summary"]["entries"]
+    before_by_name = {entry["name"]: entry for entry in before}
+
+    session._rebuild_dynasty_board()
+    session._rebuild_dynasty_board()
+    mid = session.view()["snapshot"]["floor_summary"]["entries"]
+    assert mid == before
+
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    after = session.view()["snapshot"]["floor_summary"]["entries"]
+    assert any(entry["survived_previous_floor"] for entry in after)
+    assert any(entry["continuity_streak"] >= 2 for entry in after)
+
+    shared = [entry for entry in after if entry["name"] in before_by_name]
+    assert shared
+    assert any(entry["score_delta"] == entry["score"] - before_by_name[entry["name"]]["score"] for entry in shared)
+
+
+def test_web_session_new_central_rival_is_transition_based_not_rebuild_based() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    floor_one_board = session.view()["snapshot"]["dynasty_board"]["entries"]
+    first_new_rivals = {entry["name"] for entry in floor_one_board if entry["is_new_central_rival"]}
+
+    session._rebuild_dynasty_board()
+    rebuilt_board = session.view()["snapshot"]["dynasty_board"]["entries"]
+    rebuilt_new_rivals = {entry["name"] for entry in rebuilt_board if entry["is_new_central_rival"]}
+    assert rebuilt_new_rivals == first_new_rivals
+
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    floor_two_board = session.view()["snapshot"]["dynasty_board"]["entries"]
+    second_new_rivals = {entry["name"] for entry in floor_two_board if entry["is_new_central_rival"]}
+    assert second_new_rivals
+    assert second_new_rivals != first_new_rivals
+
+
 def test_web_session_dynasty_board_marks_host_and_successor_pressure_on_floor_summary() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
