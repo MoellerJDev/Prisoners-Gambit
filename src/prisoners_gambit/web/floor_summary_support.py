@@ -9,13 +9,19 @@ from prisoners_gambit.core.interaction import FloorSummaryEntryView, FloorSummar
 from prisoners_gambit.core.models import Agent
 
 
+@dataclass(frozen=True)
+class FloorContinuityContext:
+    previous_floor_names: set[str]
+    branch_continuity_streaks: dict[str, int]
+    previous_branch_stats: dict[str, tuple[int, int]]
+    previous_pressure_levels: dict[str, int]
+    previous_central_rival: str | None
+
+
 @dataclass
 class FloorSummarySynthesis:
     summary: FloorSummaryState
-    previous_floor_names: set[str]
-    continuity_streaks: dict[str, int]
-    previous_branch_stats: dict[str, tuple[int, int]]
-    previous_pressure_levels: dict[str, int]
+    continuity: FloorContinuityContext
     central_rival_name: str | None
     current_floor_new_central_rival: str | None
 
@@ -26,11 +32,7 @@ def synthesize_floor_summary(
     summary_agents: list[Agent],
     player: Agent,
     floor_clue_log: list[str],
-    previous_floor_names: set[str],
-    branch_continuity_streaks: dict[str, int],
-    previous_branch_stats: dict[str, tuple[int, int]],
-    previous_pressure_levels: dict[str, int],
-    previous_central_rival: str | None,
+    continuity: FloorContinuityContext,
 ) -> FloorSummarySynthesis:
     pressure = analyze_floor_heir_pressure(summary_agents, player.lineage_id)
     heir_pressure = to_floor_summary_heir_pressure_view(pressure)
@@ -47,13 +49,13 @@ def synthesize_floor_summary(
         else:
             lineage_relation = "outsider"
 
-        survived_previous_floor = agent.name in previous_floor_names
-        continuity_streak = branch_continuity_streaks.get(agent.name, 0) + 1 if survived_previous_floor else 1
-        previous_score, previous_wins = previous_branch_stats.get(agent.name, (agent.score, agent.wins))
+        survived_previous_floor = agent.name in continuity.previous_floor_names
+        continuity_streak = continuity.branch_continuity_streaks.get(agent.name, 0) + 1 if survived_previous_floor else 1
+        previous_score, previous_wins = continuity.previous_branch_stats.get(agent.name, (agent.score, agent.wins))
         score_delta = agent.score - previous_score
         wins_delta = agent.wins - previous_wins
         pressure_level = int(agent.name in successor_names) + int(agent.name in threat_names)
-        previous_pressure_level = previous_pressure_levels.get(agent.name, pressure_level)
+        previous_pressure_level = continuity.previous_pressure_levels.get(agent.name, pressure_level)
         if pressure_level > previous_pressure_level:
             pressure_trend = "rising"
         elif pressure_level < previous_pressure_level:
@@ -85,7 +87,9 @@ def synthesize_floor_summary(
     ordered_entries = sorted(entries, key=lambda entry: (-entry.score, entry.name, entry.lineage_depth))
     central_rival_name = next((entry.name for entry in ordered_entries if not entry.is_player), None)
     current_floor_new_central_rival = (
-        central_rival_name if central_rival_name is not None and central_rival_name != previous_central_rival else None
+        central_rival_name
+        if central_rival_name is not None and central_rival_name != continuity.previous_central_rival
+        else None
     )
 
     summary = FloorSummaryState(
@@ -94,14 +98,18 @@ def synthesize_floor_summary(
         heir_pressure=heir_pressure,
         featured_inference_summary=summarize_featured_inference_signals(normalize_featured_inference_signals(floor_clue_log)),
     )
-    return FloorSummarySynthesis(
-        summary=summary,
+    next_continuity = FloorContinuityContext(
         previous_floor_names={entry.name for entry in entries},
-        continuity_streaks={entry.name: entry.continuity_streak for entry in entries},
+        branch_continuity_streaks={entry.name: entry.continuity_streak for entry in entries},
         previous_branch_stats={entry.name: (entry.score, entry.wins) for entry in entries},
         previous_pressure_levels={
             entry.name: int(entry.name in successor_names) + int(entry.name in threat_names) for entry in entries
         },
+        previous_central_rival=central_rival_name,
+    )
+    return FloorSummarySynthesis(
+        summary=summary,
+        continuity=next_continuity,
         central_rival_name=central_rival_name,
         current_floor_new_central_rival=current_floor_new_central_rival,
     )

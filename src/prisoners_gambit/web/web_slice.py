@@ -56,8 +56,9 @@ from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.content.genome_edit_templates import build_genome_edit_pool
 from prisoners_gambit.systems.genome_offers import generate_genome_edit_offers
 from prisoners_gambit.systems.offers import generate_powerup_offers
-from prisoners_gambit.web.floor_summary_support import synthesize_floor_summary
+from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
+    DynastyBoardBuildContext,
     lineage_cause_phrase,
     rebuild_dynasty_board,
     refresh_strategic_snapshot,
@@ -539,20 +540,22 @@ class FeaturedMatchWebSession:
             summary_agents=summary_agents,
             player=self.player,
             floor_clue_log=self._floor_clue_log,
-            previous_floor_names=self._previous_floor_names,
-            branch_continuity_streaks=self._branch_continuity_streaks,
-            previous_branch_stats=self._previous_branch_stats,
-            previous_pressure_levels=self._previous_pressure_levels,
-            previous_central_rival=self._previous_central_rival,
+            continuity=FloorContinuityContext(
+                previous_floor_names=self._previous_floor_names,
+                branch_continuity_streaks=self._branch_continuity_streaks,
+                previous_branch_stats=self._previous_branch_stats,
+                previous_pressure_levels=self._previous_pressure_levels,
+                previous_central_rival=self._previous_central_rival,
+            ),
         )
         self.snapshot.floor_summary = synthesis.summary
-        self._previous_floor_names = synthesis.previous_floor_names
-        self._branch_continuity_streaks = synthesis.continuity_streaks
-        self._previous_branch_stats = synthesis.previous_branch_stats
-        self._previous_pressure_levels = synthesis.previous_pressure_levels
+        self._previous_floor_names = synthesis.continuity.previous_floor_names
+        self._branch_continuity_streaks = synthesis.continuity.branch_continuity_streaks
+        self._previous_branch_stats = synthesis.continuity.previous_branch_stats
+        self._previous_pressure_levels = synthesis.continuity.previous_pressure_levels
         self._current_floor_central_rival = synthesis.central_rival_name
         self._current_floor_new_central_rival = synthesis.current_floor_new_central_rival
-        self._previous_central_rival = synthesis.central_rival_name
+        self._previous_central_rival = synthesis.continuity.previous_central_rival
         heir_pressure = synthesis.summary.heir_pressure
 
         self.snapshot.session_status = "running"
@@ -846,12 +849,14 @@ class FeaturedMatchWebSession:
 
     def _rebuild_dynasty_board(self) -> None:
         self.snapshot.dynasty_board = rebuild_dynasty_board(
-            self.snapshot,
-            player=self.player,
-            opponent=self.opponent,
-            successor_candidates=self._successor_candidates,
-            current_floor_central_rival=self._current_floor_central_rival,
-            current_floor_new_central_rival=self._current_floor_new_central_rival,
+            DynastyBoardBuildContext(
+                snapshot=self.snapshot,
+                player=self.player,
+                opponent=self.opponent,
+                successor_candidates=self._successor_candidates,
+                current_floor_central_rival=self._current_floor_central_rival,
+                current_floor_new_central_rival=self._current_floor_new_central_rival,
+            )
         )
 
     def _lineage_cause_phrase(self, shaping_causes: list[str], fallback: str) -> str:

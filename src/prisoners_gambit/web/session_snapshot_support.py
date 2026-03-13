@@ -1,8 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from prisoners_gambit.core.analysis import analyze_agent_identity
-from prisoners_gambit.core.interaction import DynastyBoardEntryView, DynastyBoardState, StrategicSnapshotState
+from prisoners_gambit.core.interaction import DynastyBoardEntryView, DynastyBoardState, RunSnapshot, StrategicSnapshotState
 from prisoners_gambit.core.models import Agent
+
+
+@dataclass(frozen=True)
+class DynastyBoardBuildContext:
+    snapshot: RunSnapshot
+    player: Agent
+    opponent: Agent
+    successor_candidates: list[Agent]
+    current_floor_central_rival: str | None
+    current_floor_new_central_rival: str | None
 
 
 def lineage_cause_phrase(shaping_causes: list[str], fallback: str) -> str:
@@ -11,62 +23,46 @@ def lineage_cause_phrase(shaping_causes: list[str], fallback: str) -> str:
     return f"because {compact}"
 
 
-def refresh_strategic_snapshot(snapshot, *, player_name: str, floor_number: int) -> StrategicSnapshotState:
-    def _pick(source, attr: str, default=None):
-        if source is None:
-            return default
-        if hasattr(source, attr):
-            return getattr(source, attr)
-        if isinstance(source, dict):
-            return source.get(attr, default)
-        return default
-
+def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor_number: int) -> StrategicSnapshotState:
     host_name = player_name
     floor_identity = snapshot.floor_identity
-    identity_target_floor = _pick(floor_identity, "target_floor")
-    identity_host_name = _pick(floor_identity, "host_name")
-    if identity_target_floor == floor_number and identity_host_name:
-        host_name = identity_host_name
+    if floor_identity and floor_identity.target_floor == floor_number and floor_identity.host_name:
+        host_name = floor_identity.host_name
 
     dynasty_board = snapshot.dynasty_board
-    board_entries = list(_pick(dynasty_board, "entries", []))
-    central_rival = next(
-        (
-            entry
-            for entry in board_entries
-            if (entry.is_central_rival if hasattr(entry, "is_central_rival") else entry.get("is_central_rival", False))
-        ),
-        None,
-    )
+    board_entries = dynasty_board.entries if dynasty_board else []
+    central_rival = next((entry for entry in board_entries if entry.is_central_rival), None)
 
     floor_pressure = "Floor pressure unresolved"
     if floor_identity is not None:
-        floor_pressure = _pick(floor_identity, "dominant_pressure", floor_pressure)
+        floor_pressure = floor_identity.dominant_pressure
     elif snapshot.civil_war_context is not None:
-        dangerous_branches = list(_pick(snapshot.civil_war_context, "dangerous_branches", []))
-        floor_pressure = dangerous_branches[0] if dangerous_branches else _pick(snapshot.civil_war_context, "thesis", floor_pressure)
-    elif snapshot.successor_options and _pick(snapshot.successor_options, "threat_profile"):
-        floor_pressure = _pick(snapshot.successor_options, "threat_profile", [floor_pressure])[0]
-    elif snapshot.floor_summary and _pick(snapshot.floor_summary, "heir_pressure"):
-        heir_pressure = _pick(snapshot.floor_summary, "heir_pressure")
-        future_threats = list(_pick(heir_pressure, "future_threats", []))
-        floor_pressure = _pick(future_threats[0], "name") if future_threats else _pick(heir_pressure, "branch_doctrine", floor_pressure)
+        floor_pressure = (
+            snapshot.civil_war_context.dangerous_branches[0]
+            if snapshot.civil_war_context.dangerous_branches
+            else snapshot.civil_war_context.thesis
+        )
+    elif snapshot.successor_options and snapshot.successor_options.threat_profile:
+        floor_pressure = snapshot.successor_options.threat_profile[0]
+    elif snapshot.floor_summary and snapshot.floor_summary.heir_pressure:
+        heir_pressure = snapshot.floor_summary.heir_pressure
+        floor_pressure = heir_pressure.future_threats[0].name if heir_pressure.future_threats else heir_pressure.branch_doctrine
 
     lineage_direction = "Lineage direction forming"
     if floor_identity is not None:
-        lineage_direction = _pick(floor_identity, "lineage_direction", lineage_direction)
-    elif snapshot.successor_options and _pick(snapshot.successor_options, "lineage_doctrine"):
-        lineage_direction = _pick(snapshot.successor_options, "lineage_doctrine", lineage_direction)
-    elif snapshot.floor_summary and _pick(snapshot.floor_summary, "heir_pressure"):
-        lineage_direction = _pick(_pick(snapshot.floor_summary, "heir_pressure"), "branch_doctrine", lineage_direction)
+        lineage_direction = floor_identity.lineage_direction
+    elif snapshot.successor_options and snapshot.successor_options.lineage_doctrine:
+        lineage_direction = snapshot.successor_options.lineage_doctrine
+    elif snapshot.floor_summary and snapshot.floor_summary.heir_pressure:
+        lineage_direction = snapshot.floor_summary.heir_pressure.branch_doctrine
 
     if snapshot.current_phase == "civil_war":
         immediate_posture = "Risk posture: coercive pressure"
-    elif snapshot.successor_options and _pick(snapshot.successor_options, "civil_war_pressure"):
-        immediate_posture = f"Risk posture: {_pick(snapshot.successor_options, 'civil_war_pressure')}"
-    elif central_rival and (central_rival.has_civil_war_danger if hasattr(central_rival, "has_civil_war_danger") else central_rival.get("has_civil_war_danger", False)):
+    elif snapshot.successor_options and snapshot.successor_options.civil_war_pressure:
+        immediate_posture = f"Risk posture: {snapshot.successor_options.civil_war_pressure}"
+    elif central_rival and central_rival.has_civil_war_danger:
         immediate_posture = "Risk posture: instability rising"
-    elif central_rival and (central_rival.has_successor_pressure if hasattr(central_rival, "has_successor_pressure") else central_rival.get("has_successor_pressure", False)):
+    elif central_rival and central_rival.has_successor_pressure:
         immediate_posture = "Stability posture: contested succession"
     else:
         immediate_posture = "Stability posture: controlled"
@@ -75,37 +71,29 @@ def refresh_strategic_snapshot(snapshot, *, player_name: str, floor_number: int)
     if snapshot.current_phase == "civil_war":
         headline = f"Host {host_name} · Civil-war floor F{floor_number}"
 
-    rival_name = "none"
-    rival_signal = "waiting for floor ranking"
-    if central_rival is not None:
-        rival_name = central_rival.name if hasattr(central_rival, "name") else str(central_rival.get("name", "none"))
-        rival_signal = central_rival.doctrine_signal if hasattr(central_rival, "doctrine_signal") else str(central_rival.get("doctrine_signal", "waiting for floor ranking"))
+    rival_name = central_rival.name if central_rival is not None else "none"
+    rival_signal = central_rival.doctrine_signal if central_rival is not None else "waiting for floor ranking"
 
-    chips = [
-        f"Rival: {rival_name}",
-        f"Pressure: {floor_pressure}",
-        f"Lineage: {lineage_direction}",
-    ]
-    details = [
-        immediate_posture,
-        f"Central rival signal: {rival_signal}",
-    ]
     return StrategicSnapshotState(
         headline=headline,
-        chips=chips,
-        details=details,
+        chips=[
+            f"Rival: {rival_name}",
+            f"Pressure: {floor_pressure}",
+            f"Lineage: {lineage_direction}",
+        ],
+        details=[
+            immediate_posture,
+            f"Central rival signal: {rival_signal}",
+        ],
     )
 
 
-def rebuild_dynasty_board(
-    snapshot,
-    *,
-    player: Agent,
-    opponent: Agent,
-    successor_candidates: list[Agent],
-    current_floor_central_rival: str | None,
-    current_floor_new_central_rival: str | None,
-) -> DynastyBoardState:
+def rebuild_dynasty_board(context: DynastyBoardBuildContext) -> DynastyBoardState:
+    snapshot = context.snapshot
+    player = context.player
+    opponent = context.opponent
+    successor_candidates = context.successor_candidates
+
     pressure_names: set[str] = set()
     danger_names: set[str] = set()
     pressure_causes: dict[str, str] = {}
@@ -118,6 +106,7 @@ def rebuild_dynasty_board(
             pressure_causes[entry.name] = lineage_cause_phrase(entry.shaping_causes, entry.rationale)
         for entry in floor_summary.heir_pressure.future_threats:
             danger_causes[entry.name] = lineage_cause_phrase(entry.shaping_causes, entry.rationale)
+
     successor_options = snapshot.successor_options
     successor_candidate_views = {candidate.name: candidate for candidate in successor_options.candidates} if successor_options else {}
     if successor_options and successor_options.candidates:
@@ -164,8 +153,8 @@ def rebuild_dynasty_board(
                     score_delta=(floor_entry_by_name[agent.name].score_delta if agent.name in floor_entry_by_name else 0),
                     wins_delta=(floor_entry_by_name[agent.name].wins_delta if agent.name in floor_entry_by_name else 0),
                     pressure_trend=(floor_entry_by_name[agent.name].pressure_trend if agent.name in floor_entry_by_name else "steady"),
-                    is_central_rival=agent.name == current_floor_central_rival,
-                    is_new_central_rival=agent.name == current_floor_new_central_rival,
+                    is_central_rival=agent.name == context.current_floor_central_rival,
+                    is_new_central_rival=agent.name == context.current_floor_new_central_rival,
                 )
             )
     elif floor_summary and floor_summary.entries:
@@ -184,14 +173,14 @@ def rebuild_dynasty_board(
                     has_civil_war_danger=entry.name in danger_names,
                     successor_pressure_cause=pressure_causes.get(entry.name),
                     civil_war_danger_cause=danger_causes.get(entry.name),
-                    lineage_relation=getattr(entry, "lineage_relation", "host" if entry.is_player else "outsider"),
-                    survived_previous_floor=getattr(entry, "survived_previous_floor", False),
-                    continuity_streak=getattr(entry, "continuity_streak", 1),
-                    score_delta=getattr(entry, "score_delta", 0),
-                    wins_delta=getattr(entry, "wins_delta", 0),
-                    pressure_trend=getattr(entry, "pressure_trend", "steady"),
-                    is_central_rival=entry.name == current_floor_central_rival,
-                    is_new_central_rival=entry.name == current_floor_new_central_rival,
+                    lineage_relation=entry.lineage_relation,
+                    survived_previous_floor=entry.survived_previous_floor,
+                    continuity_streak=entry.continuity_streak,
+                    score_delta=entry.score_delta,
+                    wins_delta=entry.wins_delta,
+                    pressure_trend=entry.pressure_trend,
+                    is_central_rival=entry.name == context.current_floor_central_rival,
+                    is_new_central_rival=entry.name == context.current_floor_new_central_rival,
                 )
             )
     else:
@@ -217,8 +206,8 @@ def rebuild_dynasty_board(
                     score_delta=0,
                     wins_delta=0,
                     pressure_trend="steady",
-                    is_central_rival=agent.name == current_floor_central_rival,
-                    is_new_central_rival=agent.name == current_floor_new_central_rival,
+                    is_central_rival=agent.name == context.current_floor_central_rival,
+                    is_new_central_rival=agent.name == context.current_floor_new_central_rival,
                 )
             )
 

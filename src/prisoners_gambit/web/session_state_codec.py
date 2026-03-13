@@ -227,7 +227,11 @@ def decode_value(annotation, value):
         return tuple(decode_value(args[0], item) for item in value)
     if origin is None and hasattr(annotation, "__dataclass_fields__") and isinstance(value, dict):
         return build_dataclass(annotation, value)
-    if str(origin) in {"typing.Union", "types.UnionType"}:
+
+    is_union = str(origin) in {"typing.Union", "types.UnionType"} or (
+        origin is None and bool(args) and not hasattr(annotation, "__dataclass_fields__")
+    )
+    if is_union:
         for candidate in args:
             if candidate is type(None):
                 continue
