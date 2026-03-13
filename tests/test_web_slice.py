@@ -200,10 +200,67 @@ def test_floor_summary_lineage_doctrine_does_not_claim_no_survivors_when_lineage
     floor_summary = session.view()["snapshot"]["floor_summary"]
     assert floor_summary is not None
     doctrine = floor_summary["heir_pressure"]["branch_doctrine"]
-    lineage_entries = [entry for entry in floor_summary["entries"] if entry["name"] in {"You", "Echo Branch"}]
+    lineage_entries = [entry for entry in floor_summary["entries"] if entry["name"] in {"You", "Cinder Branch", "Vesper Branch"}]
 
     assert len(lineage_entries) >= 2
     assert "no active branch survived" not in doctrine.lower()
+
+
+def test_web_session_roster_continuity_reuses_branch_identities_across_ecosystem_floors() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    first_summary = session.view()["snapshot"]["floor_summary"]
+    assert first_summary is not None
+    first_floor_names = {entry["name"] for entry in first_summary["entries"]}
+
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    second_summary = session.view()["snapshot"]["floor_summary"]
+    assert second_summary is not None
+    second_floor_names = {entry["name"] for entry in second_summary["entries"]}
+
+    continuing = first_floor_names.intersection(second_floor_names)
+    assert len(continuing) >= 2
+    assert "Unknown Opponent" not in second_floor_names
+
+
+def test_web_session_successor_candidates_derive_from_persistent_roster() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    summary = session.view()["snapshot"]["floor_summary"]
+    assert summary is not None
+    summary_names = {entry["name"] for entry in summary["entries"]}
+
+    session.advance()
+    successor = session.view()["decision"]
+    assert successor is not None
+    candidate_names = {entry["name"] for entry in successor["candidates"]}
+
+    assert candidate_names
+    assert candidate_names.issubset(summary_names)
+    assert "Heir A" not in candidate_names
+    assert "Heir B" not in candidate_names
 
 
 def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice() -> None:

@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import random
+import zlib
 from typing import get_type_hints
 
 from prisoners_gambit.app.heir_view_mapping import to_floor_summary_heir_pressure_view, to_successor_candidate_view
@@ -95,6 +96,8 @@ class FeaturedMatchWebSession:
         self.opponent = Agent(name="Unknown Opponent", genome=self._opponent_genome())
         self.player.powerups.append(ComplianceDividend())
         self.opponent.powerups.append(CounterIntel())
+        self._branch_roster: list[Agent] = self._build_initial_branch_roster()
+        self.opponent = self._select_floor_opponent()
         self.player_history: list[int] = []
         self.opponent_history: list[int] = []
         self.player_score = 0
@@ -143,6 +146,7 @@ class FeaturedMatchWebSession:
             "powerup_offers": [self._serialize_powerup(powerup) for powerup in self._powerup_offers],
             "genome_offers": [self._serialize_genome_edit(edit) for edit in self._genome_offers],
             "successor_candidates": [self._serialize_agent(agent) for agent in self._successor_candidates],
+            "branch_roster": [self._serialize_agent(agent) for agent in self._branch_roster],
             "floor_clue_log": list(self._floor_clue_log),
             "chronicle_event_ids": sorted(self._chronicle_event_ids),
         }
@@ -157,7 +161,8 @@ class FeaturedMatchWebSession:
         # It does not protect against users who can modify/replace the server code or secret.
         envelope = {
             "version": SAVE_STATE_VERSION,
-            "payload": payload_json,
+            "compressed": True,
+            "payload": base64.urlsafe_b64encode(zlib.compress(payload_json.encode("utf-8"))).decode("ascii"),
             "signature": signature,
         }
         encoded = json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -191,6 +196,17 @@ class FeaturedMatchWebSession:
             session._powerup_offers = [cls._deserialize_powerup(entry) for entry in payload.get("powerup_offers", [])]
             session._genome_offers = [cls._deserialize_genome_edit(entry) for entry in payload.get("genome_offers", [])]
             session._successor_candidates = [cls._deserialize_agent(entry) for entry in payload.get("successor_candidates", [])]
+            session._branch_roster = [cls._deserialize_agent(entry) for entry in payload.get("branch_roster", [])]
+            if not session._branch_roster:
+                session._branch_roster = session._build_initial_branch_roster()
+            matched_player = next((agent for agent in session._branch_roster if agent.name == session.player.name), None)
+            if matched_player is not None:
+                matched_player.is_player = True
+                session.player = matched_player
+            session.opponent = next(
+                (agent for agent in session._branch_roster if agent.name == session.opponent.name and not agent.is_player),
+                session._select_floor_opponent(),
+            )
             session._floor_clue_log = list(payload.get("floor_clue_log", []))
             session._chronicle_event_ids = set(payload.get("chronicle_event_ids", []))
 
@@ -223,6 +239,11 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid save code")
 
         payload_json = envelope["payload"]
+        if envelope.get("compressed"):
+            try:
+                payload_json = zlib.decompress(base64.urlsafe_b64decode(payload_json.encode("ascii"))).decode("utf-8")
+            except (ValueError, UnicodeDecodeError, zlib.error) as exc:
+                raise ValueError("Invalid save code") from exc
         provided_signature = envelope["signature"]
         expected_signature = hmac.new(secret, payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(provided_signature, expected_signature):
@@ -502,7 +523,8 @@ class FeaturedMatchWebSession:
         self.snapshot.floor_vote_result = result
         self.player_score += result.player_reward
 
-        summary_agents = self._mock_floor_ranking()
+        self._advance_branch_roster_for_floor()
+        summary_agents = self._branch_floor_ranking()
         entries: list[FloorSummaryEntryView] = []
         for agent in summary_agents:
             identity = analyze_agent_identity(agent)
@@ -744,8 +766,7 @@ class FeaturedMatchWebSession:
         self._pending_message = None
 
         self._reset_floor_state_for_new_match()
-        self.opponent = Agent(name="Unknown Opponent", genome=self._opponent_genome())
-        self.opponent.is_player = False
+        self.opponent = self._select_floor_opponent()
 
         floor_identity = self.snapshot.floor_identity
         identity_note = (
@@ -1050,52 +1071,52 @@ class FeaturedMatchWebSession:
                 adjustments.append(ScoreAdjustment(source=powerup.name, player_delta=player_delta, opponent_delta=opponent_delta))
         return adjusted_my, adjusted_opp
 
-    def _mock_floor_ranking(self) -> list[Agent]:
-        player_clone = Agent(
-            name=self.player.name,
-            genome=self.player.genome,
-            is_player=True,
-            score=self.player_score,
-            wins=2,
-            lineage_id=self.player.lineage_id,
-            lineage_depth=self.player.lineage_depth,
-        )
-        rival_a = Agent(
-            name="Echo Branch",
-            genome=self._opponent_genome(),
-            score=self.player_score - 1,
-            wins=2,
-            lineage_id=self.player.lineage_id,
-            lineage_depth=2,
-        )
-        rival_b = Agent(
-            name="Delta Branch",
-            genome=self._default_genome(),
-            score=self.player_score - 2,
-            wins=1,
-            lineage_id=None,
-            lineage_depth=3,
-        )
-        return [player_clone, rival_a, rival_b]
+    def _build_initial_branch_roster(self) -> list[Agent]:
+        player = self.player
+        player.is_player = True
+        return [
+            player,
+            Agent(name="Cinder Branch", genome=self._default_genome(), lineage_id=1, lineage_depth=1),
+            Agent(name="Vesper Branch", genome=self._opponent_genome(), lineage_id=1, lineage_depth=2),
+            Agent(name="Thorn Compact", genome=self._opponent_genome(), lineage_depth=2),
+            Agent(name="Morrow Syndic", genome=self._default_genome(), lineage_depth=3),
+        ]
+
+    def _advance_branch_roster_for_floor(self) -> None:
+        self.player.score = self.player_score
+        self.player.wins = max(0, min(self.rounds, (self.player_score + 1) // 2))
+        rivals = [agent for agent in self._branch_roster if agent is not self.player]
+        rivals.sort(key=lambda agent: agent.agent_id)
+        for idx, rival in enumerate(rivals, start=1):
+            swing = ((self.seed + self.floor_number + rival.agent_id) % 3) - 1
+            rival.score = max(0, self.player_score - idx + swing)
+            rival.wins = max(0, min(self.rounds, rival.score // 2))
+
+    def _branch_floor_ranking(self) -> list[Agent]:
+        ranked = sorted(self._branch_roster, key=lambda agent: (agent.score, agent.wins, -agent.agent_id), reverse=True)
+        return ranked[:4]
+
+    def _select_floor_opponent(self) -> Agent:
+        rivals = [agent for agent in self._branch_roster if agent is not self.player]
+        if not rivals:
+            return Agent(name="Civil War Rival", genome=self._opponent_genome())
+        opponent = max(rivals, key=lambda agent: (agent.score, agent.wins, -agent.agent_id))
+        opponent.is_player = False
+        return opponent
 
     def _build_successor_candidates(self) -> list[Agent]:
-        candidate_a = Agent(
-            name="Heir A",
-            genome=self._default_genome(),
-            score=self.player_score + 1,
-            wins=2,
-            lineage_id=self.player.lineage_id,
-            lineage_depth=2,
-        )
-        candidate_b = Agent(
-            name="Heir B",
-            genome=self._opponent_genome(),
-            score=self.player_score,
-            wins=1,
-            lineage_id=self.player.lineage_id,
-            lineage_depth=3,
-        )
-        return [candidate_a, candidate_b]
+        lineage_branches = [
+            agent
+            for agent in self._branch_roster
+            if agent.lineage_id == self.player.lineage_id and agent is not self.player
+        ]
+        if not lineage_branches:
+            new_heir = self.player.clone_for_offspring(self.player.genome)
+            new_heir.lineage_id = self.player.lineage_id
+            self._branch_roster.append(new_heir)
+            lineage_branches.append(new_heir)
+        lineage_branches.sort(key=lambda agent: (agent.score, agent.wins, -agent.agent_id), reverse=True)
+        return lineage_branches[:3]
 
     @staticmethod
     def _default_genome() -> StrategyGenome:
