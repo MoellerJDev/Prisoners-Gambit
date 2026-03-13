@@ -120,7 +120,7 @@ This is useful for quickly validating installs or sharing reproducible outcomes.
 
 ## Web prototype (new UI)
 
-A browser-based prototype is included for the decision flow.
+A browser-based prototype is included for a truthful run-state slice: featured rounds, real branch standings, referendum tallies, floor summaries, and successor/reward decisions.
 
 Start it with:
 
@@ -179,7 +179,7 @@ Use a **Web Service** on Render connected to this repo.
    - **Run Completion**,
    - **Raw State** JSON panel.
 
-The web prototype is a full-run decision surface over typed state/actions, but it is still a prototype UI rather than a complete production client.
+The web prototype reuses core progression mechanics for floor standings and referendum outcomes, while exposing a focused typed decision surface in prototype UI form.
 
 ---
 

@@ -27,6 +27,7 @@ from prisoners_gambit.core.powerups import (
     UnityTicket,
 )
 from prisoners_gambit.core.strategy import StrategyGenome
+from prisoners_gambit.systems.tournament import MatchResult
 from prisoners_gambit.web.server import Handler, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
@@ -1639,6 +1640,82 @@ def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None
     assert vote_result is not None
     assert vote_result["player_vote"] == COOPERATE
     assert vote_result["player_reward"] >= 6
+
+
+def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
+    session = FeaturedMatchWebSession(seed=29, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    assert session.view()["decision_type"] == "FloorVoteDecisionState"
+
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    vote_result = session.view()["snapshot"]["floor_vote_result"]
+    assert vote_result is not None
+    assert vote_result["cooperators"] + vote_result["defectors"] == len(session._branch_roster)
+
+
+def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_once() -> None:
+    session = FeaturedMatchWebSession(seed=31, rounds=1)
+    session.start()
+
+    session.player.powerups = []
+    for agent in session._branch_roster:
+        agent.powerups = []
+        agent.genome = _always_defect_genome()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+
+    call_pairs: list[frozenset[int]] = []
+    expected_scores = {agent.agent_id: 0 for agent in session._branch_roster}
+    expected_wins = {agent.agent_id: 0 for agent in session._branch_roster}
+
+    # Featured pairing already resolved in the interactive rounds.
+    expected_scores[session.player.agent_id] += session.player_score
+    expected_scores[session.opponent.agent_id] += session.opponent_score
+    if session.player_score > session.opponent_score:
+        expected_wins[session.player.agent_id] += 1
+    elif session.opponent_score > session.player_score:
+        expected_wins[session.opponent.agent_id] += 1
+
+    def fake_play_match(*, left, right, rounds_per_match=None):
+        call_pairs.append(frozenset((left.agent_id, right.agent_id)))
+        left_score = left.agent_id % 3 + 1
+        right_score = right.agent_id % 2
+        expected_scores[left.agent_id] += left_score
+        expected_scores[right.agent_id] += right_score
+        if left_score > right_score:
+            expected_wins[left.agent_id] += 1
+        elif right_score > left_score:
+            expected_wins[right.agent_id] += 1
+        return MatchResult(left_score=left_score, right_score=right_score)
+
+    session._tournament.play_match = fake_play_match  # type: ignore[method-assign]
+
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=DEFECT))
+    session.advance()
+
+    featured_pair = frozenset((session.player.agent_id, session.opponent.agent_id))
+    all_pairs = {
+        frozenset((left.agent_id, right.agent_id))
+        for idx, left in enumerate(session._branch_roster)
+        for right in session._branch_roster[idx + 1 :]
+    }
+    expected_non_featured_pairs = all_pairs - {featured_pair}
+
+    assert set(call_pairs) == expected_non_featured_pairs
+    assert len(call_pairs) == len(expected_non_featured_pairs)
+
+    for agent in session._branch_roster:
+        assert agent.score == expected_scores[agent.agent_id]
+        assert agent.wins == expected_wins[agent.agent_id]
+
+    assert session.opponent.score >= session.opponent_score
+    assert session.opponent.wins >= 1
 
 
 def test_web_session_initializes_house_doctrine_from_seed() -> None:
