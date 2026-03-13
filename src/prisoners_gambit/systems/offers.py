@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import math
 from dataclasses import dataclass
 import random
 from typing import Literal, Sequence
@@ -172,11 +173,18 @@ def _weighted_pick(
     chosen_vectors: set[str],
     chosen_phases: set[str],
 ) -> Powerup:
-    weights = [
+    raw_weights = [
         _category_weight(candidate, category, signal, chosen_vectors=chosen_vectors, chosen_phases=chosen_phases)
         for candidate in candidates
     ]
-    return rng.choices(candidates, weights=weights, k=1)[0]
+    weights = [weight if math.isfinite(weight) and weight > 0 else 0.0 for weight in raw_weights]
+    if any(weight > 0 for weight in weights):
+        return rng.choices(candidates, weights=weights, k=1)[0]
+
+    # Safety fallback only when weights are invalid/non-positive.
+    fallback_weight = max(raw_weights) if raw_weights else 0.0
+    fallback_candidates = [candidate for candidate, weight in zip(candidates, raw_weights) if weight == fallback_weight]
+    return rng.choice(fallback_candidates if fallback_candidates else candidates)
 
 
 def _choose_offer_category(

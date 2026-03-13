@@ -113,6 +113,30 @@ def test_weighted_pick_uses_probabilistic_weights_not_argmax(monkeypatch) -> Non
     assert any(name != "P1" for name in picks)
 
 
+
+
+def test_weighted_pick_falls_back_when_all_weights_invalid(monkeypatch) -> None:
+    monkeypatch.setattr(
+        offers_module,
+        "_category_weight",
+        lambda powerup, category, signal, chosen_vectors, chosen_phases: float("nan"),
+    )
+
+    picks = [
+        offers_module._weighted_pick(  # pylint: disable=protected-access
+            random.Random(seed),
+            [_P1(), _P2(), _P3()],
+            "reinforcement",
+            offers_module._signal_from_context(None),  # pylint: disable=protected-access
+            chosen_vectors=set(),
+            chosen_phases=set(),
+        ).name
+        for seed in range(12)
+    ]
+
+    assert set(picks).issubset({"P1", "P2", "P3"})
+    assert len(set(picks)) > 1
+
 def test_genome_offer_novelty_uses_phase_as_secondary_tiebreaker(monkeypatch) -> None:
     def guidance_for(edit: _FakeEdit) -> OfferDoctrineGuidance:
         mapping = {
