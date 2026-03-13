@@ -859,6 +859,15 @@ def test_web_html_splits_decision_actions_from_details_panel() -> None:
     assert "<div id='decisionView' class='kv muted'>" in web_server.HTML
 
 
+def test_web_html_decision_details_copy_is_short_and_scannable() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "<div>Next pick</div>" in web_server.HTML
+    assert "<div>Read on rival</div>" in web_server.HTML
+    assert "<div>Recent floor notes</div>" in web_server.HTML
+    assert "<ul class='list tight'>" in web_server.HTML
+
+
 def test_web_root_contains_full_run_panels() -> None:
     from http.server import ThreadingHTTPServer
 

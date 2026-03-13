@@ -410,13 +410,13 @@ function renderDecision(data){
     const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No explicit clues.</li>';
     const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No prior featured clues this floor.</li>';
     document.getElementById('decisionView').innerHTML = `
-      <div>Opponent</div><div>${branchToken(p.masked_opponent_label)}</div>
+      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_move)}`)}</div>
       <div>Round</div><div>${p.round_index + 1}/${p.total_rounds}</div>
       <div>Score</div><div class='scoreline'>You <span class='good'>${p.my_match_score}</span> : <span class='danger'>${p.opp_match_score}</span> Opp</div>
-      <div>Suggested</div><div>${effectToken(`Autopilot recommends ${moveLabel(p.suggested_move)}`)}</div>
-      <div>Inference focus</div><div>${escapeHtml(p.inference_focus || 'Pattern confirmation')}</div>
-      <div>Clues</div><div><ul>${clues}</ul></div>
-      <div>Floor clue memory</div><div><ul>${floorLog}</ul></div>`;
+      <div>Rival</div><div>${branchToken(p.masked_opponent_label)}</div>
+      <div>Read on rival</div><div>${escapeHtml(p.inference_focus || 'Pattern check')}</div>
+      <div>Live clues</div><div><ul class='list tight'>${clues}</ul></div>
+      <div>Recent floor notes</div><div><ul class='list tight'>${floorLog}</ul></div>`;
     actions.innerHTML = `
       <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">Cooperate</button>
       <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">Defect</button>
@@ -432,7 +432,7 @@ function renderDecision(data){
     const p = decision.prompt;
     document.getElementById('decisionView').innerHTML = `
       <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
-      <div>Suggested Vote</div><div>${effectToken(`Model suggests ${moveLabel(p.suggested_vote)}`)}</div>
+      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_vote)}`)}</div>
       <div>Floor Score</div><div>${p.current_floor_score}</div>
       <div>Powerups</div><div>${(p.powerups || []).map(powerupToken).join(' ') || 'none'}</div>`;
     actions.innerHTML = `
@@ -443,7 +443,10 @@ function renderDecision(data){
   }
 
   if (t === 'PowerupChoiceState') {
-    document.getElementById('decisionView').innerHTML = `<div>Floor</div><div>${decision.floor_number}</div><div>Offers</div><div>${decision.offers.length}</div>`;
+    document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Powerup card</div>
+      <div>Floor</div><div>${decision.floor_number}</div>
+      <div>Cards</div><div>${decision.offers.length}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn';
@@ -462,8 +465,9 @@ function renderDecision(data){
 
   if (t === 'GenomeEditChoiceState') {
     document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Genome edit</div>
       <div>Floor</div><div>${decision.floor_number}</div>
-      <div>Current Genome</div><div>${genomeToken(decision.current_summary)}</div>`;
+      <div>Current build</div><div>${genomeToken(decision.current_summary)}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn';
@@ -482,7 +486,10 @@ function renderDecision(data){
   }
 
   if (t === 'SuccessorChoiceState') {
-    document.getElementById('decisionView').innerHTML = `<div>Floor</div><div>${decision.floor_number}</div><div>Candidates</div><div>${decision.candidates.length}</div>`;
+    document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Next host</div>
+      <div>Floor</div><div>${decision.floor_number}</div>
+      <div>Candidates</div><div>${decision.candidates.length}</div>`;
     decision.candidates.forEach((candidate, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn';
