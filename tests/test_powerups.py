@@ -9,6 +9,8 @@ from prisoners_gambit.core.powerups import (
     CoerciveControl,
     ComplianceDividend,
     CounterIntel,
+    derive_referendum_combo_events,
+    derive_round_combo_events,
     DirectivePriority,
     GoldenHandshake,
     LastLaugh,
@@ -17,6 +19,14 @@ from prisoners_gambit.core.powerups import (
     OpeningGambit,
     PanicButton,
     ReferendumContext,
+    REFERENDUM_EVENT_CONTROLLED_VOTE,
+    REFERENDUM_EVENT_COOP_BLOC_WIN,
+    ROUND_EVENT_BETRAYAL_INTO_COOP,
+    ROUND_EVENT_FINAL_ROUND_BETRAYAL,
+    ROUND_EVENT_FORCED_OPPONENT_COOP,
+    ROUND_EVENT_LOCKED_MUTUAL_COOP,
+    ROUND_EVENT_MUTUAL_DEFECTION_SPIRAL,
+    ROUND_EVENT_RETALIATION_TRIGGERED,
     RoundContext,
     SaboteurBloc,
     SpiteEngine,
@@ -117,6 +127,7 @@ def test_spite_engine_rewards_retaliatory_defection() -> None:
         opp_history=[DEFECT],
         planned_move=DEFECT,
         opp_planned_move=COOPERATE,
+        combo_events=(ROUND_EVENT_RETALIATION_TRIGGERED,),
     )
 
     my_points, opp_points = owner.powerups[0].on_score(
@@ -261,6 +272,7 @@ def test_compliance_dividend_rewards_successful_exploitation() -> None:
         opp_history=[],
         planned_move=DEFECT,
         opp_planned_move=COOPERATE,
+        combo_events=(ROUND_EVENT_BETRAYAL_INTO_COOP, ROUND_EVENT_FINAL_ROUND_BETRAYAL),
     )
 
     my_points, opp_points = perk.on_score(
@@ -273,7 +285,7 @@ def test_compliance_dividend_rewards_successful_exploitation() -> None:
         context=context,
     )
 
-    assert my_points == 3
+    assert my_points == 4
     assert opp_points == 0
 
 
@@ -303,7 +315,7 @@ def test_bloc_politics_adds_bonus_when_cooperation_prevailed_and_owner_cooperate
     agent = static_agent("Voter", COOPERATE)
     perk = BlocPolitics(bonus=3)
 
-    context = ReferendumContext(floor_number=2, total_agents=10, current_floor_score=12)
+    context = ReferendumContext(floor_number=2, total_agents=10, current_floor_score=12, combo_events=(REFERENDUM_EVENT_COOP_BLOC_WIN,))
     reward = perk.on_referendum_reward(
         owner=agent,
         my_vote=COOPERATE,
@@ -376,6 +388,7 @@ def test_last_laugh_adds_final_round_bonus_when_opponent_cooperates() -> None:
         opp_history=[COOPERATE, COOPERATE],
         planned_move=DEFECT,
         opp_planned_move=COOPERATE,
+        combo_events=(ROUND_EVENT_FINAL_ROUND_BETRAYAL,),
     )
 
     my_points, opp_points = perk.on_score(
@@ -404,6 +417,7 @@ def test_compliance_dividend_rewards_recovered_control_after_betrayal() -> None:
         opp_history=[COOPERATE, DEFECT],
         planned_move=DEFECT,
         opp_planned_move=COOPERATE,
+        combo_events=(ROUND_EVENT_BETRAYAL_INTO_COOP, ROUND_EVENT_RETALIATION_TRIGGERED),
     )
 
     my_points, _ = perk.on_score(
@@ -442,6 +456,7 @@ def test_control_lane_anchor_and_payoff_stack() -> None:
         opp_history=[DEFECT],
         planned_move=DEFECT,
         opp_planned_move=COOPERATE,
+        combo_events=(ROUND_EVENT_BETRAYAL_INTO_COOP, ROUND_EVENT_FORCED_OPPONENT_COOP, ROUND_EVENT_RETALIATION_TRIGGERED),
     )
 
     my_points, opp_points = owner.powerups[1].on_score(
@@ -470,6 +485,7 @@ def test_trust_lane_streak_pays_more_than_single_proc() -> None:
         opp_history=[COOPERATE, COOPERATE],
         planned_move=COOPERATE,
         opp_planned_move=COOPERATE,
+        combo_events=(ROUND_EVENT_LOCKED_MUTUAL_COOP,),
     )
 
     my_points, _ = perk.on_score(
@@ -488,7 +504,7 @@ def test_trust_lane_streak_pays_more_than_single_proc() -> None:
 def test_referendum_lane_anchor_and_amplifier_stack() -> None:
     owner = static_agent("Whip", COOPERATE)
     owner.powerups.extend([UnityTicket(), TrustDividend(), BlocPolitics(bonus=2)])
-    context = ReferendumContext(floor_number=3, total_agents=10, current_floor_score=12)
+    context = ReferendumContext(floor_number=3, total_agents=10, current_floor_score=12, combo_events=(REFERENDUM_EVENT_CONTROLLED_VOTE, REFERENDUM_EVENT_COOP_BLOC_WIN))
 
     reward = 2
     for perk in owner.powerups:
@@ -500,7 +516,7 @@ def test_referendum_lane_anchor_and_amplifier_stack() -> None:
             context=context,
         )
 
-    assert reward == 7
+    assert reward == 6
 
 
 def test_retaliation_spiral_anchor_payoff_and_amplifier_stack() -> None:
@@ -515,6 +531,7 @@ def test_retaliation_spiral_anchor_payoff_and_amplifier_stack() -> None:
         opp_history=[DEFECT, DEFECT],
         planned_move=DEFECT,
         opp_planned_move=DEFECT,
+        combo_events=(ROUND_EVENT_RETALIATION_TRIGGERED, ROUND_EVENT_MUTUAL_DEFECTION_SPIRAL),
     )
 
     my_points, opp_points = 1, 1
@@ -545,6 +562,7 @@ def test_opening_betrayal_bridges_into_last_laugh_cashout() -> None:
         opp_history=[COOPERATE, COOPERATE],
         planned_move=DEFECT,
         opp_planned_move=COOPERATE,
+        combo_events=(ROUND_EVENT_FINAL_ROUND_BETRAYAL,),
     )
 
     my_points, _ = owner.powerups[1].on_score(
@@ -565,3 +583,37 @@ def test_offer_view_exposes_powerup_role_in_branch_identity_and_tags() -> None:
 
     assert offer.branch_identity is not None and "(anchor)" in offer.branch_identity
     assert offer.tags is not None and "anchor" in offer.tags and "creates_force" in offer.tags
+
+
+def test_round_combo_events_detect_forced_and_final_betrayal() -> None:
+    context = RoundContext(
+        round_index=2,
+        total_rounds=3,
+        my_history=[DEFECT, COOPERATE],
+        opp_history=[COOPERATE, DEFECT],
+        planned_move=DEFECT,
+        opp_planned_move=DEFECT,
+    )
+    events = derive_round_combo_events(
+        context=context,
+        my_move=DEFECT,
+        opp_move=COOPERATE,
+        my_directives=[],
+        opp_directives=[MoveDirective(move=COOPERATE, priority=DirectivePriority.FORCE, source="x")],
+    )
+
+    assert ROUND_EVENT_FORCED_OPPONENT_COOP in events
+    assert ROUND_EVENT_BETRAYAL_INTO_COOP in events
+    assert ROUND_EVENT_FINAL_ROUND_BETRAYAL in events
+
+
+def test_referendum_combo_events_detect_controlled_bloc_win() -> None:
+    events = derive_referendum_combo_events(
+        base_vote=DEFECT,
+        final_vote=COOPERATE,
+        directives=[MoveDirective(move=COOPERATE, priority=DirectivePriority.FORCE, source="Unity Ticket")],
+        cooperation_prevailed=True,
+    )
+
+    assert REFERENDUM_EVENT_CONTROLLED_VOTE in events
+    assert REFERENDUM_EVENT_COOP_BLOC_WIN in events
