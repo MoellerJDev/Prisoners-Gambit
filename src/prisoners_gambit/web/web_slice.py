@@ -37,6 +37,7 @@ from prisoners_gambit.core.interaction import (
     FloorIdentityState,
     DynastyBoardEntryView,
     DynastyBoardState,
+    StrategicSnapshotState,
     FloorVoteDecisionState,
     FloorVotePrompt,
     FloorVoteResult,
@@ -344,6 +345,7 @@ class FeaturedMatchWebSession:
             return
 
     def view(self) -> dict:
+        self._refresh_strategic_snapshot()
         transition_label = self._transition_action_label()
         return {
             "status": self.session.status,
@@ -355,6 +357,95 @@ class FeaturedMatchWebSession:
             "transition_action_label": transition_label,
             "transition_action_visible": transition_label is not None,
         }
+
+    def _refresh_strategic_snapshot(self) -> None:
+        def _pick(source, attr: str, default=None):
+            if source is None:
+                return default
+            if hasattr(source, attr):
+                return getattr(source, attr)
+            if isinstance(source, dict):
+                return source.get(attr, default)
+            return default
+
+        host_name = self.player.name
+        floor_identity = self.snapshot.floor_identity
+        identity_target_floor = _pick(floor_identity, "target_floor")
+        identity_host_name = _pick(floor_identity, "host_name")
+        if identity_target_floor == self.floor_number and identity_host_name:
+            host_name = identity_host_name
+
+        dynasty_board = self.snapshot.dynasty_board
+        board_entries = list(_pick(dynasty_board, "entries", []))
+        central_rival = next(
+            (
+                entry
+                for entry in board_entries
+                if (entry.is_central_rival if hasattr(entry, "is_central_rival") else entry.get("is_central_rival", False))
+            ),
+            None,
+        )
+
+        floor_pressure = "Floor pressure unresolved"
+        if floor_identity is not None:
+            floor_pressure = _pick(floor_identity, "dominant_pressure", floor_pressure)
+        elif self.snapshot.civil_war_context is not None:
+            dangerous_branches = list(_pick(self.snapshot.civil_war_context, "dangerous_branches", []))
+            floor_pressure = dangerous_branches[0] if dangerous_branches else _pick(self.snapshot.civil_war_context, "thesis", floor_pressure)
+        elif self.snapshot.successor_options and _pick(self.snapshot.successor_options, "threat_profile"):
+            floor_pressure = _pick(self.snapshot.successor_options, "threat_profile", [floor_pressure])[0]
+        elif self.snapshot.floor_summary and _pick(self.snapshot.floor_summary, "heir_pressure"):
+            heir_pressure = _pick(self.snapshot.floor_summary, "heir_pressure")
+            future_threats = list(_pick(heir_pressure, "future_threats", []))
+            floor_pressure = (
+                _pick(future_threats[0], "name")
+                if future_threats
+                else _pick(heir_pressure, "branch_doctrine", floor_pressure)
+            )
+
+        lineage_direction = "Lineage direction forming"
+        if floor_identity is not None:
+            lineage_direction = _pick(floor_identity, "lineage_direction", lineage_direction)
+        elif self.snapshot.successor_options and _pick(self.snapshot.successor_options, "lineage_doctrine"):
+            lineage_direction = _pick(self.snapshot.successor_options, "lineage_doctrine", lineage_direction)
+        elif self.snapshot.floor_summary and _pick(self.snapshot.floor_summary, "heir_pressure"):
+            lineage_direction = _pick(_pick(self.snapshot.floor_summary, "heir_pressure"), "branch_doctrine", lineage_direction)
+
+        if self.snapshot.current_phase == "civil_war":
+            immediate_posture = "Risk posture: coercive pressure"
+        elif self.snapshot.successor_options and _pick(self.snapshot.successor_options, "civil_war_pressure"):
+            immediate_posture = f"Risk posture: {_pick(self.snapshot.successor_options, 'civil_war_pressure')}"
+        elif central_rival and (central_rival.has_civil_war_danger if hasattr(central_rival, "has_civil_war_danger") else central_rival.get("has_civil_war_danger", False)):
+            immediate_posture = "Risk posture: instability rising"
+        elif central_rival and (central_rival.has_successor_pressure if hasattr(central_rival, "has_successor_pressure") else central_rival.get("has_successor_pressure", False)):
+            immediate_posture = "Stability posture: contested succession"
+        else:
+            immediate_posture = "Stability posture: controlled"
+
+        headline = f"Host {host_name} · F{self.floor_number}"
+        if self.snapshot.current_phase == "civil_war":
+            headline = f"Host {host_name} · Civil-war floor F{self.floor_number}"
+
+        rival_name = "none"
+        rival_signal = "waiting for floor ranking"
+        if central_rival is not None:
+            rival_name = central_rival.name if hasattr(central_rival, "name") else str(central_rival.get("name", "none"))
+            rival_signal = central_rival.doctrine_signal if hasattr(central_rival, "doctrine_signal") else str(central_rival.get("doctrine_signal", "waiting for floor ranking"))
+
+        chips = [
+            f"Rival: {rival_name}",
+            f"Pressure: {floor_pressure}",
+            f"Lineage: {lineage_direction}",
+        ]
+        details = [
+            immediate_posture,
+            f"Central rival signal: {rival_signal}",
+        ]
+        self.snapshot.strategic_snapshot = StrategicSnapshotState(
+            headline=headline,
+            chips=chips,
+            details=details,
+        )
 
     def _transition_action_label(self) -> str | None:
         if self.session.current_decision is not None:

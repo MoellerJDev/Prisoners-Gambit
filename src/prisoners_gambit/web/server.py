@@ -260,6 +260,8 @@ HTML = """<!doctype html>
     .danger{ color:var(--danger); }
     .warn{ color:var(--warn); }
     .floor-headline { font-size:14px; font-weight:700; margin:0 0 8px; color:var(--text); }
+    .snapshot-headline { font-size:14px; font-weight:700; margin:0 0 8px; color:var(--text); }
+    .snapshot-chips { margin-bottom:8px; }
 
     .fx-item {
       border-left:3px solid var(--effect);
@@ -318,13 +320,14 @@ HTML = """<!doctype html>
       .grid > .decision-details-panel { order:2; }
       .grid > .result-panel { order:3; }
       .grid > .floor-identity-panel { order:4; }
-      .grid > .summary-panel { order:5; }
-      .grid > .successor-panel { order:6; }
-      .grid > .vote-panel { order:7; }
-      .grid > .completion-panel { order:8; }
-      .grid > .dynasty-panel { order:9; }
-      .grid > .chronicle-panel { order:10; }
-      .grid > .panel-mobile-low { order:11; }
+      .grid > .strategic-snapshot-panel { order:5; }
+      .grid > .summary-panel { order:6; }
+      .grid > .successor-panel { order:7; }
+      .grid > .vote-panel { order:8; }
+      .grid > .completion-panel { order:9; }
+      .grid > .dynasty-panel { order:10; }
+      .grid > .chronicle-panel { order:11; }
+      .grid > .panel-mobile-low { order:12; }
       .raw-state-panel details:not([open]) pre { display:none; }
       pre { max-height:180px; font-size:11px; }
     }
@@ -383,6 +386,13 @@ HTML = """<!doctype html>
       <h3>Latest Round Result</h3>
       <div id='roundResult' class='muted'>No rounds resolved yet.</div>
       <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
+    </div>
+
+    <div class='panel panel-enter strategic-snapshot-panel'>
+      <h3>Strategic Snapshot</h3>
+      <div id='strategicSnapshotHeadline' class='snapshot-headline muted'>No strategic snapshot yet.</div>
+      <div id='strategicSnapshotChips' class='row snapshot-chips'></div>
+      <ul id='strategicSnapshotDetails' class='list muted'><li>No strategic snapshot yet.</li></ul>
     </div>
 
     <div class='panel panel-enter floor-identity-panel'>
@@ -653,6 +663,15 @@ function renderSnapshot(snapshot){
     : 'No vote yet.';
 
   const capLines = (items, limit=2) => (items || []).slice(0, limit);
+  const strategic = snapshot.strategic_snapshot;
+  document.getElementById('strategicSnapshotHeadline').textContent = strategic?.headline || 'No strategic snapshot yet.';
+  document.getElementById('strategicSnapshotChips').innerHTML = strategic
+    ? (strategic.chips || []).map(chip => effectToken(chip)).join('')
+    : '';
+  document.getElementById('strategicSnapshotDetails').innerHTML = strategic
+    ? (strategic.details || []).slice(0, 3).map(line => `<li>${escapeHtml(line)}</li>`).join('')
+    : '<li>No strategic snapshot yet.</li>';
+
   const floorIdentity = snapshot.floor_identity;
   document.getElementById('floorIdentityHeadline').textContent = floorIdentity
     ? floorIdentity.headline

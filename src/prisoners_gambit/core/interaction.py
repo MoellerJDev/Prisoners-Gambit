@@ -440,6 +440,13 @@ class DynastyBoardState:
 
 
 @dataclass(slots=True)
+class StrategicSnapshotState:
+    headline: str
+    chips: list[str]
+    details: list[str]
+
+
+@dataclass(slots=True)
 class LineageChronicleEntry:
     event_id: str
     event_type: str
@@ -460,6 +467,7 @@ class RunSnapshot:
     floor_identity: FloorIdentityState | None = None
     floor_vote_result: FloorVoteResult | None = None
     dynasty_board: DynastyBoardState | None = None
+    strategic_snapshot: StrategicSnapshotState | None = None
     successor_options: SuccessorChoiceState | None = None
     civil_war_context: CivilWarContext | None = None
     active_featured_stance: FeaturedRoundStanceView | None = None

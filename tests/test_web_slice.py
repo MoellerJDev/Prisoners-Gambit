@@ -232,6 +232,61 @@ def test_web_session_dynasty_board_exposes_central_rival_and_relation_tokens() -
     assert all(entry["lineage_relation"] in {"host", "kin", "outsider"} for entry in board_entries)
 
 
+def test_web_session_strategic_snapshot_generates_from_representative_states() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+
+    start_snapshot = session.view()["snapshot"]["strategic_snapshot"]
+    assert start_snapshot is not None
+    assert start_snapshot["headline"].startswith("Host You")
+    assert any(chip.startswith("Rival:") for chip in start_snapshot["chips"])
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    summary_snapshot = session.view()["snapshot"]["strategic_snapshot"]
+    assert summary_snapshot is not None
+    assert any(chip.startswith("Pressure:") for chip in summary_snapshot["chips"])
+    assert any(line.startswith("Stability posture:") or line.startswith("Risk posture:") for line in summary_snapshot["details"])
+
+
+def test_web_session_strategic_snapshot_surfaces_central_rival_floor_pressure_and_lineage_posture() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    strategic = session.view()["snapshot"]["strategic_snapshot"]
+    board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
+    central_rival = next(entry["name"] for entry in board_entries if entry["is_central_rival"])
+
+    assert any(chip == f"Rival: {central_rival}" for chip in strategic["chips"])
+    assert any(chip.startswith("Pressure:") and chip != "Pressure: Floor pressure unresolved" for chip in strategic["chips"])
+    assert any(chip.startswith("Lineage:") and chip != "Lineage: Lineage direction forming" for chip in strategic["chips"])
+    assert any(line.startswith("Central rival signal:") for line in strategic["details"])
+
+
+def test_web_session_strategic_snapshot_survives_save_restore_without_progression_regression() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=2)
+    session.start()
+    session.submit_action(ChooseRoundAutopilotAction(mode="autopilot_match"))
+    session.advance()
+
+    strategic_before = session.view()["snapshot"]["strategic_snapshot"]
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+    strategic_after = restored.view()["snapshot"]["strategic_snapshot"]
+
+    assert strategic_before == strategic_after
+
+    session.advance()
+    restored.advance()
+    assert restored.view() == session.view()
+
+
 def test_web_session_continuity_signals_are_stable_across_intra_floor_dynasty_rebuilds() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
