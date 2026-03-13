@@ -93,6 +93,7 @@ def test_seeded_defect_vote_path_changes_vote_summary_shape() -> None:
 def test_seeded_completion_slice_finishes_for_multiple_paths(seed: int, candidate_index: int) -> None:
     session = build_seeded_session(seed=seed, rounds=2)
     reach_successor_choice(session)
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
     advance_through_transition_and_complete(session, candidate_index=candidate_index)
 
     completion = session.view()["snapshot"]["completion"]

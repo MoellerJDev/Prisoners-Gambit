@@ -74,11 +74,13 @@ def test_regression_successor_transition_payload_contract() -> None:
     assert session.view()["pending_screen"] is None
     assert snapshot["current_phase"] == "ecosystem"
     assert snapshot["current_floor"] == 1
+    assert session.view()["decision_type"] == "PowerupChoiceState"
 
 
 def test_regression_completion_snapshot_contract() -> None:
     session = build_seeded_session(seed=7, rounds=1)
     reach_successor_choice(session)
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
     advance_through_transition_and_complete(session, candidate_index=0)
 
     view = session.view()

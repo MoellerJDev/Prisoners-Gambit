@@ -455,8 +455,11 @@ def test_web_session_advances_through_full_run_loop() -> None:
 
     session.submit_action(ChooseGenomeEditAction(offer_index=0))
     session.advance()
-    assert session.view()["status"] == "completed"
-    assert session.view()["snapshot"]["completion"] is not None
+    assert session.view()["status"] == "awaiting_decision"
+    assert session.view()["snapshot"]["completion"] is None
+    assert session.view()["snapshot"]["current_phase"] == "ecosystem"
+    assert session.view()["snapshot"]["current_floor"] == 2
+    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
 
 
 
@@ -480,6 +483,34 @@ def test_web_session_successor_transition_does_not_require_civil_war_when_trigge
     assert session.view()["status"] != "completed"
     assert session.view()["snapshot"]["completion"] is None
 
+
+
+
+def test_web_session_save_resume_persists_next_floor_transition_after_reward_resolution() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
+
+    saved = session.serialize_state()
+    restored = FeaturedMatchWebSession.from_serialized_state(saved)
+
+    assert restored.view()["status"] == "awaiting_decision"
+    assert restored.view()["snapshot"]["completion"] is None
+    assert restored.view()["snapshot"]["current_phase"] == "ecosystem"
+    assert restored.view()["snapshot"]["current_floor"] == 2
+    assert restored.view()["decision_type"] == "FeaturedRoundDecisionState"
 
 def test_web_session_pending_messages_describe_next_required_action() -> None:
     session = FeaturedMatchWebSession(seed=19, rounds=1)
