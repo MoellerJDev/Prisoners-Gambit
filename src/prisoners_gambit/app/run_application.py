@@ -15,7 +15,7 @@ from prisoners_gambit.systems.offers import (
     derive_doctrine_state,
     generate_powerup_offer_set,
     offer_category_hint,
-    seed_house_doctrine,
+    seed_run_house_doctrine,
 )
 from prisoners_gambit.systems.population import create_population
 from prisoners_gambit.systems.progression import ProgressionEngine
@@ -64,7 +64,7 @@ class RunApplication:
 
         floor_number = 0
         ecosystem_phase = True
-        house_doctrine = seed_house_doctrine(seed=self.settings.seed)
+        house_doctrine = seed_run_house_doctrine(seed=self.settings.seed)
 
         while True:
             floor_number += 1

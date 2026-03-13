@@ -13,7 +13,7 @@ from prisoners_gambit.systems.offers import (
     derive_doctrine_state,
     generate_powerup_offer_set,
     generate_powerup_offers,
-    seed_house_doctrine,
+    seed_run_house_doctrine,
 )
 
 
@@ -288,9 +288,9 @@ def test_primary_and_secondary_doctrine_influence_offer_mix() -> None:
 
 
 def test_house_doctrine_seed_is_deterministic_and_intentional() -> None:
-    a = seed_house_doctrine(seed=17)
-    b = seed_house_doctrine(seed=17)
-    c = seed_house_doctrine(seed=18)
+    a = seed_run_house_doctrine(seed=17)
+    b = seed_run_house_doctrine(seed=17)
+    c = seed_run_house_doctrine(seed=18)
 
     assert a == b
     assert a in {"trust", "control", "retaliation", "opportunist", "referendum", "chaos"}
@@ -325,3 +325,20 @@ def test_doctrine_state_uses_stable_house_as_baseline_when_build_is_empty() -> N
     assert doctrine.house_doctrine_family == "referendum"
     assert doctrine.primary_doctrine_family == "referendum"
     assert doctrine.secondary_doctrine_family is None
+
+
+def test_hybrid_targets_exist_without_forcing_active_secondary_doctrine() -> None:
+    signal = offers_module._signal_from_context(  # pylint: disable=protected-access
+        PowerupOfferContext(
+            owned_powerups=(),
+            genome=None,
+            floor_number=1,
+            phase="ecosystem",
+            house_doctrine_family="trust",
+            primary_doctrine_family="trust",
+            secondary_doctrine_family=None,
+        )
+    )
+
+    assert signal.secondary_family is None
+    assert "opportunist" in signal.mutation_targets

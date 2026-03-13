@@ -75,9 +75,15 @@ def _normalize_family(family: str | None) -> str | None:
     return family if family in _DOCTRINE_FAMILIES else None
 
 
-def seed_house_doctrine(*, seed: int | None) -> str:
+def seed_run_house_doctrine(*, seed: int | None) -> str:
+    """Deterministically choose the run's inherited house doctrine once from seed."""
     seed_value = (seed or 0) % len(_DOCTRINE_FAMILIES)
     return _DOCTRINE_FAMILIES[seed_value]
+
+
+def seed_house_doctrine(*, seed: int | None) -> str:
+    """Backward-compatible alias for seed_run_house_doctrine."""
+    return seed_run_house_doctrine(seed=seed)
 
 
 def _infer_from_genome(genome: StrategyGenome | None) -> tuple[str | None, str | None]:
@@ -148,7 +154,7 @@ def derive_doctrine_state(
 
 def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
     if context is None:
-        house = seed_house_doctrine(seed=None)
+        house = seed_run_house_doctrine(seed=None)
         doctrine = DoctrineState(house, house, None)
         return _BuildSignal(
             house_family=doctrine.house_doctrine_family,
@@ -161,7 +167,7 @@ def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
             phase="both",
         )
 
-    house = _normalize_family(context.house_doctrine_family) or seed_house_doctrine(seed=None)
+    house = _normalize_family(context.house_doctrine_family) or seed_run_house_doctrine(seed=None)
     doctrine = derive_doctrine_state(
         owned_powerups=context.owned_powerups,
         genome=context.genome,

@@ -63,7 +63,7 @@ from prisoners_gambit.systems.offers import (
     derive_doctrine_state,
     generate_powerup_offer_set,
     offer_category_hint,
-    seed_house_doctrine,
+    seed_run_house_doctrine,
 )
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
@@ -270,7 +270,7 @@ class FeaturedMatchWebSession:
         self.snapshot.header = self.snapshot.header or None
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
-        self.snapshot.house_doctrine_family = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed)
+        self.snapshot.house_doctrine_family = self.snapshot.house_doctrine_family or seed_run_house_doctrine(seed=self.seed)
         doctrine_state = derive_doctrine_state(
             owned_powerups=tuple(self.player.powerups),
             genome=self.player.genome,
@@ -929,7 +929,7 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid powerup index")
         chosen_powerup = self._powerup_offers[action.offer_index]
         self.player.powerups.append(chosen_powerup)
-        house = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed)
+        house = self.snapshot.house_doctrine_family or seed_run_house_doctrine(seed=self.seed)
         self.snapshot.house_doctrine_family = house
         doctrine_state = derive_doctrine_state(
             owned_powerups=tuple(self.player.powerups),

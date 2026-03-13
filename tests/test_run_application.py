@@ -435,11 +435,11 @@ def test_run_application_uses_stable_house_doctrine_across_phases(monkeypatch) -
 
 
 def test_run_and_web_use_same_house_doctrine_seed_rule() -> None:
-    from prisoners_gambit.systems.offers import seed_house_doctrine
+    from prisoners_gambit.systems.offers import seed_run_house_doctrine
     from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
     seed = 33
-    expected = seed_house_doctrine(seed=seed)
+    expected = seed_run_house_doctrine(seed=seed)
 
     session = FeaturedMatchWebSession(seed=seed, rounds=1)
     session.start()
