@@ -288,9 +288,9 @@ def test_primary_and_secondary_doctrine_influence_offer_mix() -> None:
 
 
 def test_house_doctrine_seed_is_deterministic_and_intentional() -> None:
-    a = seed_house_doctrine(seed=17, floor_number=1, phase="ecosystem")
-    b = seed_house_doctrine(seed=17, floor_number=1, phase="ecosystem")
-    c = seed_house_doctrine(seed=18, floor_number=1, phase="ecosystem")
+    a = seed_house_doctrine(seed=17)
+    b = seed_house_doctrine(seed=17)
+    c = seed_house_doctrine(seed=18)
 
     assert a == b
     assert a in {"trust", "control", "retaliation", "opportunist", "referendum", "chaos"}
@@ -313,3 +313,15 @@ def test_doctrine_state_tracking_is_not_pick_order_dependent() -> None:
     assert forward == reverse
     assert forward.primary_doctrine_family == "control"
     assert forward.secondary_doctrine_family in {"retaliation", "trust"}
+
+
+def test_doctrine_state_uses_stable_house_as_baseline_when_build_is_empty() -> None:
+    doctrine = derive_doctrine_state(
+        owned_powerups=(),
+        genome=None,
+        house_doctrine_family="referendum",
+    )
+
+    assert doctrine.house_doctrine_family == "referendum"
+    assert doctrine.primary_doctrine_family == "referendum"
+    assert doctrine.secondary_doctrine_family is None

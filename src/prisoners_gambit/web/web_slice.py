@@ -270,7 +270,7 @@ class FeaturedMatchWebSession:
         self.snapshot.header = self.snapshot.header or None
         self.snapshot.current_floor = self.floor_number
         self.snapshot.current_phase = "ecosystem"
-        self.snapshot.house_doctrine_family = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed, floor_number=self.floor_number, phase="ecosystem")
+        self.snapshot.house_doctrine_family = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed)
         doctrine_state = derive_doctrine_state(
             owned_powerups=tuple(self.player.powerups),
             genome=self.player.genome,
@@ -929,7 +929,7 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid powerup index")
         chosen_powerup = self._powerup_offers[action.offer_index]
         self.player.powerups.append(chosen_powerup)
-        house = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed, floor_number=self.floor_number, phase=(self.snapshot.current_phase or "ecosystem"))
+        house = self.snapshot.house_doctrine_family or seed_house_doctrine(seed=self.seed)
         self.snapshot.house_doctrine_family = house
         doctrine_state = derive_doctrine_state(
             owned_powerups=tuple(self.player.powerups),

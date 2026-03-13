@@ -1665,3 +1665,24 @@ def test_web_snapshot_surfaces_doctrine_identity_chip() -> None:
 
     chips = session.view()["snapshot"]["strategic_snapshot"]["chips"]
     assert any(str(chip).startswith("Doctrine: ") for chip in chips)
+
+
+def test_web_house_doctrine_stays_stable_across_floor_progression() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    house = session.view()["snapshot"]["house_doctrine_family"]
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
+
+    assert session.view()["snapshot"]["current_floor"] == 2
+    assert session.view()["snapshot"]["house_doctrine_family"] == house

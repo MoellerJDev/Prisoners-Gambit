@@ -64,6 +64,7 @@ class RunApplication:
 
         floor_number = 0
         ecosystem_phase = True
+        house_doctrine = seed_house_doctrine(seed=self.settings.seed)
 
         while True:
             floor_number += 1
@@ -217,7 +218,6 @@ class RunApplication:
                     return player
 
             phase = ("ecosystem" if ecosystem_phase else "civil_war")
-            house_doctrine = seed_house_doctrine(seed=self.settings.seed, floor_number=floor_number, phase=phase)
             doctrine_state = derive_doctrine_state(
                 owned_powerups=tuple(player.powerups),
                 genome=player.genome,

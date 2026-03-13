@@ -53,6 +53,7 @@ class _BuildSignal:
     house_family: str
     primary_family: str
     secondary_family: str | None
+    mutation_targets: frozenset[str]
     owned_families: frozenset[str]
     owned_tags: frozenset[str]
     floor_number: int
@@ -74,10 +75,9 @@ def _normalize_family(family: str | None) -> str | None:
     return family if family in _DOCTRINE_FAMILIES else None
 
 
-def seed_house_doctrine(*, seed: int | None, floor_number: int, phase: str) -> str:
-    phase_idx = {"ecosystem": 0, "civil_war": 1, "both": 2}.get(phase, 2)
+def seed_house_doctrine(*, seed: int | None) -> str:
     seed_value = (seed or 0) % len(_DOCTRINE_FAMILIES)
-    return _DOCTRINE_FAMILIES[(seed_value + max(1, floor_number) + phase_idx) % len(_DOCTRINE_FAMILIES)]
+    return _DOCTRINE_FAMILIES[seed_value]
 
 
 def _infer_from_genome(genome: StrategyGenome | None) -> tuple[str | None, str | None]:
@@ -148,19 +148,20 @@ def derive_doctrine_state(
 
 def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
     if context is None:
-        house = seed_house_doctrine(seed=None, floor_number=1, phase="both")
+        house = seed_house_doctrine(seed=None)
         doctrine = DoctrineState(house, house, None)
         return _BuildSignal(
             house_family=doctrine.house_doctrine_family,
             primary_family=doctrine.primary_doctrine_family,
             secondary_family=doctrine.secondary_doctrine_family,
+            mutation_targets=frozenset(_HYBRID_PAIRS.get(doctrine.primary_doctrine_family, ())),
             owned_families=frozenset(),
             owned_tags=frozenset(),
             floor_number=1,
             phase="both",
         )
 
-    house = _normalize_family(context.house_doctrine_family) or seed_house_doctrine(seed=None, floor_number=context.floor_number, phase=context.phase)
+    house = _normalize_family(context.house_doctrine_family) or seed_house_doctrine(seed=None)
     doctrine = derive_doctrine_state(
         owned_powerups=context.owned_powerups,
         genome=context.genome,
@@ -171,14 +172,11 @@ def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
     secondary = _normalize_family(context.secondary_doctrine_family) or doctrine.secondary_doctrine_family
     if secondary == primary:
         secondary = None
-    if secondary is None:
-        inferred = _HYBRID_PAIRS.get(primary, ())
-        secondary = inferred[0] if inferred else None
-
     return _BuildSignal(
         house_family=house,
         primary_family=primary,
         secondary_family=secondary,
+        mutation_targets=frozenset(_HYBRID_PAIRS.get(primary, ())),
         owned_families=frozenset(powerup.doctrine_family for powerup in context.owned_powerups),
         owned_tags=frozenset(tag for powerup in context.owned_powerups for tag in powerup.keywords),
         floor_number=max(1, context.floor_number),
@@ -195,7 +193,7 @@ def _lineage_focus_strength(signal: _BuildSignal) -> float:
 def _category_mix_weights(signal: _BuildSignal) -> dict[OfferCategory, float]:
     focus = _lineage_focus_strength(signal)
     familiar = 0.38 + (0.30 * focus)
-    hybrid = 0.30 + (0.15 if signal.secondary_family else 0.0)
+    hybrid = 0.30 + (0.15 if signal.secondary_family else 0.0) + (0.05 if signal.mutation_targets else 0.0)
     temptation = 0.32 - (0.22 * focus)
     if signal.floor_number <= 3:
         familiar += 0.18
@@ -225,7 +223,7 @@ def _category_weight(
     tags = set(powerup.keywords)
     shared_tags = len(tags & signal.owned_tags)
     novelty_bonus = 0.4 if family not in chosen_families else 0.0
-    hybrid_targets = set(_HYBRID_PAIRS.get(signal.primary_family, ()))
+    hybrid_targets = set(signal.mutation_targets)
 
     if category == "familiar_line":
         weight = 0.8
