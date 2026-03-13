@@ -648,6 +648,7 @@ class FeaturedMatchWebSession:
         self._pending_message = f"Floor {self.floor_number} complete — {next_step}."
         featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No solid clue read survived this floor."
         doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Playstyle trend is unclear."
+        doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
         self._append_chronicle_entry(
             event_id=f"floor_complete:{self.floor_number}",
             event_type="floor_complete",
@@ -658,7 +659,7 @@ class FeaturedMatchWebSession:
             event_id=f"doctrine_pivot:{self.floor_number}",
             event_type="doctrine_pivot",
             floor_number=self.floor_number,
-            summary=f"Lineage trend: {doctrine_note}",
+            summary=f"Lineage trend: {doctrine_note}. {doctrine_chip}",
             cause=self._lineage_cause_phrase(
                 self.snapshot.floor_summary.featured_inference_summary,
                 doctrine_note,
@@ -677,6 +678,7 @@ class FeaturedMatchWebSession:
                 lineage_doctrine = self.snapshot.floor_summary.heir_pressure.branch_doctrine
                 for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
                     threat_tags.update(threat.tags)
+            doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
                 assessment = assess_successor_candidate(
@@ -684,7 +686,7 @@ class FeaturedMatchWebSession:
                     top_score=top_score,
                     phase=self.snapshot.current_phase,
                     threat_tags=threat_tags,
-                    lineage_doctrine=lineage_doctrine,
+                    lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
                 )
                 candidates.append(
                     to_successor_candidate_view(
@@ -702,7 +704,7 @@ class FeaturedMatchWebSession:
                 floor_number=self.floor_number,
                 candidates=candidates,
                 current_phase=self.snapshot.current_phase,
-                lineage_doctrine=lineage_doctrine,
+                lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
                 threat_profile=sorted(threat_tags),
                 civil_war_pressure=civil_war_pressure,
                 featured_inference_summary=(
@@ -775,6 +777,8 @@ class FeaturedMatchWebSession:
                 current_host=chosen,
                 featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
             )
+            doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
+            self.snapshot.civil_war_context.doctrine_pressure = [doctrine_pressure_note, *self.snapshot.civil_war_context.doctrine_pressure][:4]
             self.floor_number = 2
             self.snapshot.current_floor = self.floor_number
             self._pending_screen = "civil_war_transition"
@@ -798,6 +802,37 @@ class FeaturedMatchWebSession:
             self._pending_message = None
             self._begin_powerup_choice()
         self._rebuild_dynasty_board()
+
+
+    def _doctrine_state_framing(self) -> tuple[str, str]:
+        house = self.snapshot.house_doctrine_family
+        primary = self.snapshot.primary_doctrine_family
+        secondary = self.snapshot.secondary_doctrine_family
+
+        if not primary:
+            return (
+                "Doctrine status: unresolved",
+                "The lineage has not stabilized around a doctrine yet.",
+            )
+        if house is None or house == primary:
+            if secondary:
+                return (
+                    f"Doctrine status: {primary} house with {secondary} hybrid wing",
+                    f"The lineage is deepening house doctrine while mutating toward {secondary}.",
+                )
+            return (
+                f"Doctrine status: {primary} house holding",
+                "The lineage is reinforcing inherited doctrine with low internal fracture.",
+            )
+        if secondary:
+            return (
+                f"Doctrine status: mutated from {house} to {primary} (hybrid {secondary})",
+                f"Doctrine fracture risk is rising: {house} inheritance is colliding with {primary}/{secondary} ambitions.",
+            )
+        return (
+            f"Doctrine status: mutated from {house} to {primary}",
+            f"The lineage has pivoted away from its house doctrine ({house}) toward {primary}.",
+        )
 
     def _build_next_floor_identity(self, decision: SuccessorChoiceState, chosen: SuccessorCandidateView) -> FloorIdentityState:
         threat_profile = list(decision.threat_profile or [])

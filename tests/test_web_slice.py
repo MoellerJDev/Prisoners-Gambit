@@ -1686,3 +1686,48 @@ def test_web_house_doctrine_stays_stable_across_floor_progression() -> None:
 
     assert session.view()["snapshot"]["current_floor"] == 2
     assert session.view()["snapshot"]["house_doctrine_family"] == house
+
+
+def test_successor_and_chronicle_surface_doctrine_mutation_framing() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.snapshot.house_doctrine_family = "trust"
+    session.snapshot.primary_doctrine_family = "control"
+    session.snapshot.secondary_doctrine_family = "retaliation"
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+
+    decision = session.view()["decision"]
+    assert decision is not None
+    assert "Doctrine status:" in str(decision.get("lineage_doctrine"))
+
+    chronicle = session.view()["snapshot"]["lineage_chronicle"]
+    doctrine_entries = [entry for entry in chronicle if entry["event_type"] in {"doctrine_pivot", "successor_pressure"}]
+    assert doctrine_entries
+    assert any("Doctrine status:" in entry["summary"] for entry in doctrine_entries)
+
+
+def test_civil_war_context_includes_doctrine_mutation_pressure_note() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.snapshot.house_doctrine_family = "trust"
+    session.snapshot.primary_doctrine_family = "control"
+    session.snapshot.secondary_doctrine_family = "retaliation"
+
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+    session.advance()
+    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+
+    context = session.view()["snapshot"]["civil_war_context"]
+    assert context is not None
+    assert context["doctrine_pressure"]
+    assert "Doctrine" in context["doctrine_pressure"][0] or "doctrine" in context["doctrine_pressure"][0]
