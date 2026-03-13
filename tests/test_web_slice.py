@@ -1115,7 +1115,8 @@ def test_web_html_splits_decision_actions_from_details_panel() -> None:
     from prisoners_gambit.web import server as web_server
 
     assert "<div class='panel panel-enter decision-actions-panel'>" in web_server.HTML
-    assert "<div id='actions' class='row actions'" in web_server.HTML
+    assert "id='actionsPrimaryLabel' class='actions-primary-label'" in web_server.HTML
+    assert "<div id='actions' class='row actions'>" in web_server.HTML
     assert "<details id='advancedActions' class='advanced-actions'" in web_server.HTML
     assert "<div id='advancedActionsGrid' class='row actions actions-secondary'>" in web_server.HTML
     assert "<div class='panel panel-enter decision-details-panel'>" in web_server.HTML
@@ -1138,9 +1139,10 @@ def test_web_html_round_decision_separates_core_actions_from_advanced_tactics() 
     assert "actionTile('Cooperate', 'Manual move · primary')" in web_server.HTML
     assert "actionTile('Defect', 'Manual move · primary')" in web_server.HTML
     assert "actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)" in web_server.HTML
-    assert "advancedLabel.textContent = 'Advanced tactics · stance setup';" in web_server.HTML
+    assert "advancedLabel.textContent = 'Advanced tactic setup (optional)';" in web_server.HTML
     assert "actionTile('C until betrayed', 'Stance')" in web_server.HTML
     assert "actionTile('Autopilot N', 'Stance with duration')" in web_server.HTML
+    assert "actionsPrimaryLabel.textContent = 'Main choice now';" in web_server.HTML
 
 
 def test_web_root_contains_full_run_panels() -> None:

@@ -209,6 +209,13 @@ HTML = """<!doctype html>
     .action-tile-title { font-size:14px; font-weight:600; color:var(--text); line-height:1.25; }
     .action-tile-meta { font-size:12px; color:var(--muted); line-height:1.25; }
     .action-tile-secondary { border-color:color-mix(in oklab, var(--border), #000 35%); background:#172236; }
+    .actions-primary-label {
+      margin-top:8px;
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
     .advanced-actions {
       margin-top:8px;
       border:1px solid color-mix(in oklab, var(--border), #000 15%);
@@ -302,6 +309,7 @@ HTML = """<!doctype html>
       .decision-actions-panel { position:sticky; top:8px; z-index:3; }
       .actions { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }
       .actions .btn { min-height:56px; padding:8px 9px; }
+      .actions-primary-label { margin-top:6px; font-size:10px; }
       .action-tile-title { font-size:13px; }
       .action-tile-meta { font-size:11px; }
       .advanced-actions { padding:6px 7px; }
@@ -357,7 +365,8 @@ HTML = """<!doctype html>
     <div class='panel panel-enter decision-actions-panel'>
       <h3>Current Decision</h3>
       <div id='decisionType' class='muted'>No decision yet.</div>
-      <div id='actions' class='row actions' style='margin-top:10px;'></div>
+      <div id='actionsPrimaryLabel' class='actions-primary-label'>Main choice now</div>
+      <div id='actions' class='row actions'></div>
       <details id='advancedActions' class='advanced-actions' style='display:none;'>
         <summary id='advancedActionsLabel'>Advanced tactics</summary>
         <div id='advancedActionsGrid' class='row actions actions-secondary'></div>
@@ -474,15 +483,18 @@ function renderDecision(data){
   const decision = data.decision;
   const t = data.decision_type;
   const actions = document.getElementById('actions');
+  const actionsPrimaryLabel = document.getElementById('actionsPrimaryLabel');
   const advanced = document.getElementById('advancedActions');
   const advancedLabel = document.getElementById('advancedActionsLabel');
   const advancedGrid = document.getElementById('advancedActionsGrid');
   actions.innerHTML = '';
+  actionsPrimaryLabel.textContent = 'Main choice now';
   advancedGrid.innerHTML = '';
   advanced.open = false;
   advanced.style.display = 'none';
   document.getElementById('decisionType').textContent = t ? `Decision: ${shortDecisionLabel(t)}` : 'No active decision.';
   if (!decision) {
+    actionsPrimaryLabel.textContent = '';
     document.getElementById('decisionView').innerHTML = 'No active decision.';
     return;
   }
@@ -504,7 +516,7 @@ function renderDecision(data){
       <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile('Defect', 'Manual move · primary')}</button>
       <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">${actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)}</button>`;
     advanced.style.display = 'block';
-    advancedLabel.textContent = 'Advanced tactics · stance setup';
+    advancedLabel.textContent = 'Advanced tactic setup (optional)';
     advancedGrid.innerHTML = `
       <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">${actionTile('C until betrayed', 'Stance')}</button>
       <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">${actionTile('D until punished', 'Stance')}</button>
@@ -514,6 +526,7 @@ function renderDecision(data){
   }
 
   if (t === 'FloorVoteDecisionState') {
+    actionsPrimaryLabel.textContent = 'Main choice now';
     const p = decision.prompt;
     document.getElementById('decisionView').innerHTML = `
       <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
@@ -528,6 +541,7 @@ function renderDecision(data){
   }
 
   if (t === 'PowerupChoiceState') {
+    actionsPrimaryLabel.textContent = 'Choose one offer';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Powerup card</div>
       <div>Floor</div><div>${decision.floor_number}</div>
@@ -549,6 +563,7 @@ function renderDecision(data){
   }
 
   if (t === 'GenomeEditChoiceState') {
+    actionsPrimaryLabel.textContent = 'Choose one offer';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Genome edit</div>
       <div>Floor</div><div>${decision.floor_number}</div>
@@ -571,6 +586,7 @@ function renderDecision(data){
   }
 
   if (t === 'SuccessorChoiceState') {
+    actionsPrimaryLabel.textContent = 'Choose next host';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Next host</div>
       <div>Floor</div><div>${decision.floor_number}</div>
