@@ -197,6 +197,30 @@ function shortDecisionLabel(type){
   return labels[type] || type || getNestedText('fallbacks.no_active_decision');
 }
 
+function hasVisibleTransitionAction(data){
+  const transitionLabel = data?.transition_action_label;
+  return Boolean(data?.transition_action_visible && transitionLabel && String(transitionLabel).trim());
+}
+
+function transitionDecisionCopy(data){
+  const transitionLabel = data?.transition_action_label || '';
+  const isSuccessorReview = data?.pending_screen === 'floor_summary' || /successor/i.test(transitionLabel);
+  if (isSuccessorReview) {
+    return {
+      decisionLabel: getNestedText('transition_decisions.successor_review.label'),
+      helper: getNestedText('transition_decisions.successor_review.helper'),
+      explanation: getNestedText('transition_decisions.successor_review.explanation'),
+      actionMeta: getNestedText('transition_decisions.successor_review.action_meta'),
+    };
+  }
+  return {
+    decisionLabel: getNestedText('transition_decisions.generic.label'),
+    helper: getNestedText('transition_decisions.generic.helper'),
+    explanation: getNestedText('transition_decisions.generic.explanation'),
+    actionMeta: getNestedText('transition_decisions.generic.action_meta'),
+  };
+}
+
 function setSecondaryTab(tab){
   activeSecondaryTab = tab;
   const tabs = ['summary', 'board', 'chronicle', 'debug'];
@@ -268,6 +292,15 @@ function renderDecision(data){
   advanced.style.display = 'none';
   document.getElementById('decisionType').textContent = decisionType ? `${getNestedText('labels.decision_prefix')} ${shortDecisionLabel(decisionType)}` : getNestedText('fallbacks.no_active_decision');
   if (!decision) {
+    if (hasVisibleTransitionAction(data)) {
+      const transitionCopy = transitionDecisionCopy(data);
+      actionsPrimaryLabel.textContent = getNestedText('transition_decisions.primary_label');
+      phaseActionHelper.textContent = transitionCopy.helper;
+      document.getElementById('decisionType').textContent = `${getNestedText('labels.decision_prefix')} ${transitionCopy.decisionLabel}`;
+      document.getElementById('decisionView').innerHTML = escapeHtml(transitionCopy.explanation);
+      actions.innerHTML = `<button class='btn primary-action' onclick='advanceFlow()'>${actionTile(data.transition_action_label, transitionCopy.actionMeta)}</button>`;
+      return;
+    }
     actionsPrimaryLabel.textContent = '';
     phaseActionHelper.textContent = '';
     document.getElementById('decisionView').innerHTML = getNestedText('fallbacks.no_active_decision');
@@ -573,7 +606,7 @@ function renderSnapshot(snapshot){
 
   const advanceBtn = document.getElementById('advanceBtn');
   const transitionLabel = latest?.transition_action_label || '';
-  const transitionVisible = Boolean(latest?.transition_action_visible && transitionLabel);
+  const transitionVisible = hasVisibleTransitionAction(latest);
   advanceBtn.style.display = transitionVisible ? 'inline-flex' : 'none';
   advanceBtn.textContent = transitionLabel || getNestedText('buttons.continue_next_phase');
 
