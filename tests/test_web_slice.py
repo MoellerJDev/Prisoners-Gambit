@@ -1324,7 +1324,7 @@ def test_web_html_splits_decision_actions_from_details_panel() -> None:
     assert "<details id='advancedActions' class='advanced-actions'" in web_server.HTML
     assert "<div id='advancedActionsGrid' class='row actions actions-secondary'>" in web_server.HTML
     assert "<div class='panel panel-enter decision-details-panel'>" in web_server.HTML
-    assert "<h3>Decision Details</h3>" in web_server.HTML
+    assert "Decision Details <button class='btn help-chip-inline'" in web_server.HTML
     assert "<div id='decisionView' class='kv muted'>" in web_server.HTML
 
 
@@ -1416,6 +1416,41 @@ def test_web_html_successor_choice_has_compact_primary_preview_with_secondary_fu
     assert "<span class='muted-label'>Pitch</span>" in web_server.HTML
     assert "<span class='muted-label'>Clue</span>" in web_server.HTML
 
+
+
+
+def test_web_html_onboarding_glossary_and_phase_helpers_present() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "id='onboardingPanel'" in web_server.HTML
+    assert "Quick start" in web_server.HTML
+    assert "ONBOARDING_DISMISSED_KEY" in web_server.HTML
+    assert "dismissOnboarding()" in web_server.HTML
+    assert "maybeShowOnboarding()" in web_server.HTML
+    assert "id='glossaryPanel'" in web_server.HTML
+    assert "function toggleGlossaryTerm(term){" in web_server.HTML
+    assert "Doctrine ?" in web_server.HTML
+    assert "Heir Pressure ?" in web_server.HTML
+    assert "Civil War Danger ?" in web_server.HTML
+    assert "Central Rival ?" in web_server.HTML
+    assert "Controlled Vote ?" in web_server.HTML
+    assert "shaped or forced by your active effects and commitments" in web_server.HTML
+    assert "Clue Fit / Memory ?" in web_server.HTML
+    assert "Lineage Direction ?" in web_server.HTML
+    assert "id='phaseActionHelper'" in web_server.HTML
+    assert "Pick by the first-line effect; use tags and notes only as tie-breakers." in web_server.HTML
+    assert "Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host." in web_server.HTML
+
+
+def test_web_html_tab_discoverability_copy_exists() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "id='tabHelpText'" in web_server.HTML
+    assert "const TAB_HELP_TEXT = Object.freeze({" in web_server.HTML
+    assert "Summary: floor stakes, pressure leaders, and why this turn matters." in web_server.HTML
+    assert "Board: live pressure markers, rival status, and civil-war risk." in web_server.HTML
+    assert "Chronicle: concise timeline of dynasty shifts across floors." in web_server.HTML
+    assert "Debug: raw state for troubleshooting only; ignore during normal play." in web_server.HTML
 
 def test_run_server_defaults_to_public_host(monkeypatch) -> None:
     captured = {}
