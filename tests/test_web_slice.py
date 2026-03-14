@@ -34,7 +34,6 @@ from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 TEST_PADDING_LENGTH = 20_000
 
 
-
 def test_new_web_session_honors_pg_seed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PG_SEED", "1234")
     session = _new_web_session()
@@ -49,6 +48,7 @@ def test_new_web_session_uses_fresh_seed_without_pg_seed(monkeypatch: pytest.Mon
     second = _new_web_session()
 
     assert first.seed != second.seed
+
 
 def test_new_web_session_uses_configured_rounds_per_match(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PG_ROUNDS_PER_MATCH", "9")
@@ -71,8 +71,6 @@ def test_featured_match_web_session_round_trip_typed_action() -> None:
     view = session.view()
     assert view["snapshot"]["latest_featured_round"] is not None
     assert view["snapshot"]["latest_featured_round"]["breakdown"]["base_player_points"] >= 0
-
-
 
 
 def test_web_session_featured_prompt_and_round_payload_include_inference_fields() -> None:
