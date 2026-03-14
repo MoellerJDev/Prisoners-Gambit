@@ -29,6 +29,7 @@ function movementGlyph(delta){
   return '→0';
 }
 function branchToken(label){ return `<span class='token branch'>⎇ ${escapeHtml(label)}</span>`; }
+function t(key, fallback=''){ return getNestedText(key, fallback); }
 function powerupToken(label){ return `<span class='token powerup'>⚡ ${escapeHtml(label)}</span>`; }
 function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtml(label)}</span>`; }
 
@@ -83,8 +84,8 @@ function renderPowerupChoiceCard(offer, idx){
 function renderGenomeChoiceCard(offer, idx){
   const label = `${idx + 1}. ${offer.name}`;
   const drift = offer.doctrine_drift ? `Drift: ${offer.doctrine_drift}` : '';
-  const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff || 'Tuning lineage behavior toward this doctrine.';
-  const tags = [offer.phase_support ? `Phase ${offer.phase_support}` : '', drift, offer.successor_pressure ? 'Heir pressure' : ''].filter(Boolean);
+  const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff || t('fallbacks.tuning_lineage_behavior');
+  const tags = [offer.phase_support ? `${t('labels.phase')} ${offer.phase_support}` : '', drift, offer.successor_pressure ? t('labels.heir_pressure') : ''].filter(Boolean);
   return `
     <span class='action-tile-title'>${escapeHtml(label)}</span>
     <span class='choice-card-effect'>${escapeHtml(beforeAfter)}</span>
@@ -94,17 +95,17 @@ function renderGenomeChoiceCard(offer, idx){
 }
 
 function renderSuccessorComparisonCard(candidate){
-  const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch || 'No shaping cause available.';
+  const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch || t('fallbacks.no_shaping_cause');
   return `<li class='comparison-card'>
     <div class='comparison-top'>
       <span class='comparison-name'>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.branch_role || 'unknown role')}</span>
       <span class='comparison-score'>${escapeHtml(candidate.score ?? '-')} score / ${escapeHtml(candidate.wins ?? '-')} wins</span>
     </div>
     <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.cause'))}</span>${escapeHtml(topCause)}</div>
-    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.pick_for'))}</span>${escapeHtml(candidate.attractive_now || 'n/a')}</div>
-    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.risk'))}</span>${escapeHtml(candidate.danger_later || 'n/a')}</div>
-    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.pitch'))}</span>${escapeHtml(candidate.succession_pitch || 'n/a')}</div>
-    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.clue'))}</span>${escapeHtml(candidate.featured_inference_context || 'No direct clue fit.')}</div>
+    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.pick_for'))}</span>${escapeHtml(candidate.attractive_now || t('fallbacks.not_available'))}</div>
+    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.risk'))}</span>${escapeHtml(candidate.danger_later || t('fallbacks.not_available'))}</div>
+    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.pitch'))}</span>${escapeHtml(candidate.succession_pitch || t('fallbacks.not_available'))}</div>
+    <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.clue'))}</span>${escapeHtml(candidate.featured_inference_context || t('fallbacks.no_direct_clue_fit'))}</div>
   </li>`;
 }
 
@@ -263,28 +264,28 @@ function renderDecision(data){
 
   if (t === 'FeaturedRoundDecisionState') {
     const p = decision.prompt;
-    const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No explicit clues.</li>';
-    const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No prior featured clues this floor.</li>';
+    const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || `<li class="muted">${escapeHtml(t('fallbacks.no_explicit_clues'))}</li>`;
+    const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || `<li class="muted">${escapeHtml(t('fallbacks.no_prior_featured_clues'))}</li>`;
     document.getElementById('decisionView').innerHTML = `
-      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_move)}`)}</div>
-      <div>Round</div><div>${p.round_index + 1}/${p.total_rounds}</div>
-      <div>Score</div><div class='scoreline'>You <span class='good'>${p.my_match_score}</span> : <span class='danger'>${p.opp_match_score}</span> Opp</div>
-      <div>Rival</div><div>${branchToken(p.masked_opponent_label)}</div>
-      <div>Read on rival</div><div>${escapeHtml(p.inference_focus || 'Pattern check')}</div>
-      <div>Live clues</div><div><ul class='list tight'>${clues}</ul></div>
-      <div>Recent floor notes</div><div><ul class='list tight'>${floorLog}</ul></div>`;
+      <div>${escapeHtml(t('labels.next_pick'))}</div><div>${effectToken(`${t('labels.autopilot')}: ${moveLabel(p.suggested_move)}`)}</div>
+      <div>${escapeHtml(t('labels.round'))}</div><div>${p.round_index + 1}/${p.total_rounds}</div>
+      <div>${escapeHtml(t('labels.score'))}</div><div class='scoreline'>${escapeHtml(t('labels.you'))} <span class='good'>${p.my_match_score}</span> : <span class='danger'>${p.opp_match_score}</span> ${escapeHtml(t('labels.opponent_short'))}</div>
+      <div>${escapeHtml(t('labels.rival'))}</div><div>${branchToken(p.masked_opponent_label)}</div>
+      <div>${escapeHtml(t('labels.read_on_rival'))}</div><div>${escapeHtml(p.inference_focus || t('fallbacks.pattern_check'))}</div>
+      <div>${escapeHtml(t('labels.live_clues'))}</div><div><ul class='list tight'>${clues}</ul></div>
+      <div>${escapeHtml(t('labels.recent_floor_notes'))}</div><div><ul class='list tight'>${floorLog}</ul></div>`;
     phaseActionHelper.textContent = getNestedText('decision_helpers.featured_round');
     actions.innerHTML = `
-      <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">${actionTile('Cooperate', 'Manual move · primary')}</button>
-      <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile('Defect', 'Manual move · primary')}</button>
-      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">${actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)}</button>`;
+      <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">${actionTile(t('actions.cooperate'), t('actions.manual_move_primary'))}</button>
+      <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile(t('actions.defect'), t('actions.manual_move_primary'))}</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">${actionTile(t('actions.autopilot'), `${t('actions.recommended')} · ${moveLabel(p.suggested_move)}`)}</button>`;
     advanced.style.display = 'block';
     advancedLabel.textContent = getNestedText('labels.advanced_tactic_setup');
     advancedGrid.innerHTML = `
-      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">${actionTile('C until betrayed', 'Stance')}</button>
-      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">${actionTile('D until punished', 'Stance')}</button>
-      <button class='btn action-tile-secondary' onclick="sendStanceN('follow_autopilot_for_n_rounds')">${actionTile('Autopilot N', 'Stance with duration')}</button>
-      <button class='btn action-tile-secondary' onclick="sendStanceN('lock_last_manual_move_for_n_rounds')">${actionTile('Lock last N', 'Stance with duration')}</button>`;
+      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">${actionTile(t('actions.c_until_betrayed'), t('actions.stance'))}</button>
+      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">${actionTile(t('actions.d_until_punished'), t('actions.stance'))}</button>
+      <button class='btn action-tile-secondary' onclick="sendStanceN('follow_autopilot_for_n_rounds')">${actionTile(t('actions.autopilot_n'), t('actions.stance_with_duration'))}</button>
+      <button class='btn action-tile-secondary' onclick="sendStanceN('lock_last_manual_move_for_n_rounds')">${actionTile(t('actions.lock_last_n'), t('actions.stance_with_duration'))}</button>`;
     return;
   }
 
@@ -293,14 +294,14 @@ function renderDecision(data){
   phaseActionHelper.textContent = getNestedText('decision_helpers.floor_vote');
     const p = decision.prompt;
     document.getElementById('decisionView').innerHTML = `
-      <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
-      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_vote)}`)}</div>
-      <div>Floor Score</div><div>${p.current_floor_score}</div>
-      <div>Powerups</div><div>${compactTokenPreview(p.powerups || [], powerupToken, 3, 'none')}</div>`;
+      <div>${escapeHtml(t('labels.floor'))}</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
+      <div>${escapeHtml(t('labels.next_pick'))}</div><div>${effectToken(`${t('labels.autopilot')}: ${moveLabel(p.suggested_vote)}`)}</div>
+      <div>${escapeHtml(t('labels.floor_score'))}</div><div>${p.current_floor_score}</div>
+      <div>${escapeHtml(t('labels.powerups'))}</div><div>${compactTokenPreview(p.powerups || [], powerupToken, 3, t('fallbacks.none'))}</div>`;
     actions.innerHTML = `
-      <button class='btn ${p.suggested_vote === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'C'})">${actionTile('Vote Cooperate', 'Manual vote · primary')}</button>
-      <button class='btn ${p.suggested_vote === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'D'})">${actionTile('Vote Defect', 'Manual vote · primary')}</button>
-      <button class='btn primary-action' onclick="sendAction({type:'autopilot_vote'})">${actionTile('Autopilot Vote', `Recommended · ${moveLabel(p.suggested_vote)}`)}</button>`;
+      <button class='btn ${p.suggested_vote === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'C'})">${actionTile(t('actions.vote_cooperate'), t('actions.manual_vote_primary'))}</button>
+      <button class='btn ${p.suggested_vote === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'D'})">${actionTile(t('actions.vote_defect'), t('actions.manual_vote_primary'))}</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_vote'})">${actionTile(t('actions.autopilot_vote'), `${t('actions.recommended')} · ${moveLabel(p.suggested_vote)}`)}</button>`;
     return;
   }
 
@@ -308,18 +309,18 @@ function renderDecision(data){
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.powerup_choice', 'Pick by the first-line effect; use tags and notes only as tie-breakers.');
     document.getElementById('decisionView').innerHTML = `
-      <div>Choose now</div><div>Powerup card</div>
-      <div>Floor</div><div>${decision.floor_number}</div>
-      <div>Cards</div><div>${decision.offers.length}</div>`;
+      <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.powerup_card'))}</div>
+      <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
+      <div>${escapeHtml(t('labels.cards'))}</div><div>${decision.offers.length}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
-      const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
-      const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
-      const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
-      const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
+      const commitment = offer.lineage_commitment ? `${t('labels.commitment')}: ${offer.lineage_commitment}` : '';
+      const doctrine = offer.doctrine_vector ? `${t('labels.doctrine')}: ${offer.doctrine_vector}` : '';
+      const tradeoff = offer.tradeoff ? `${t('labels.tradeoff')}: ${offer.tradeoff}` : '';
+      const pressure = offer.successor_pressure ? `${t('labels.heir_pressure')}: ${offer.successor_pressure}` : '';
       btn.innerHTML = renderPowerupChoiceCard(offer, idx);
-      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
+      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `${t('labels.phase')}: ${offer.phase_support || t('fallbacks.both')}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
       actions.appendChild(btn);
     });
@@ -330,19 +331,19 @@ function renderDecision(data){
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.genome_edit_choice');
     document.getElementById('decisionView').innerHTML = `
-      <div>Choose now</div><div>Genome edit</div>
-      <div>Floor</div><div>${decision.floor_number}</div>
-      <div>Current build</div><div>${genomeToken(decision.current_summary)}</div>`;
+      <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.genome_edit'))}</div>
+      <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
+      <div>${escapeHtml(t('labels.current_build'))}</div><div>${genomeToken(decision.current_summary)}</div>`;
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
-      const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
-      const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
-      const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
-      const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
-      const drift = offer.doctrine_drift ? `Doctrine drift: ${offer.doctrine_drift}` : '';
+      const commitment = offer.lineage_commitment ? `${t('labels.commitment')}: ${offer.lineage_commitment}` : '';
+      const doctrine = offer.doctrine_vector ? `${t('labels.doctrine')}: ${offer.doctrine_vector}` : '';
+      const tradeoff = offer.tradeoff ? `${t('labels.tradeoff')}: ${offer.tradeoff}` : '';
+      const pressure = offer.successor_pressure ? `${t('labels.heir_pressure')}: ${offer.successor_pressure}` : '';
+      const drift = offer.doctrine_drift ? `${t('labels.doctrine_drift')}: ${offer.doctrine_drift}` : '';
       btn.innerHTML = renderGenomeChoiceCard(offer, idx);
-      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure, drift].filter(Boolean).join(' | ');
+      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `${t('labels.phase')}: ${offer.phase_support || t('fallbacks.both')}`, pressure, drift].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_genome_edit', offer_index: idx});
       actions.appendChild(btn);
     });
@@ -353,9 +354,9 @@ function renderDecision(data){
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_next_host');
     phaseActionHelper.textContent = getNestedText('decision_helpers.successor_choice', 'Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host.');
     document.getElementById('decisionView').innerHTML = `
-      <div>Choose now</div><div>Next host</div>
-      <div>Floor</div><div>${decision.floor_number}</div>
-      <div>Candidates</div><div>${decision.candidates.length}</div>`;
+      <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.next_host'))}</div>
+      <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
+      <div>${escapeHtml(t('labels.candidates'))}</div><div>${decision.candidates.length}</div>`;
     decision.candidates.forEach((candidate, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
@@ -542,20 +543,20 @@ function renderSnapshot(snapshot){
 
   const chronicle = snapshot.lineage_chronicle || [];
   const chronicleLabels = {
-    run_start: getNestedText('chronicle_labels.run_start', 'Run start'),
-    floor_complete: getNestedText('chronicle_labels.floor_complete', 'Floor end'),
-    doctrine_pivot: getNestedText('chronicle_labels.doctrine_pivot', 'Doctrine shift'),
-    successor_pressure: getNestedText('chronicle_labels.successor_pressure', 'Succession pressure'),
-    successor_choice: getNestedText('chronicle_labels.successor_choice', 'New host'),
-    phase_transition: getNestedText('chronicle_labels.phase_transition', 'Phase change'),
-    civil_war_round_start: getNestedText('chronicle_labels.civil_war_round_start', 'Civil-war round'),
-    run_outcome: getNestedText('chronicle_labels.run_outcome', 'Run result'),
+    run_start: t('chronicle_labels.run_start'),
+    floor_complete: t('chronicle_labels.floor_complete'),
+    doctrine_pivot: t('chronicle_labels.doctrine_pivot'),
+    successor_pressure: t('chronicle_labels.successor_pressure'),
+    successor_choice: t('chronicle_labels.successor_choice'),
+    phase_transition: t('chronicle_labels.phase_transition'),
+    civil_war_round_start: t('chronicle_labels.civil_war_round_start'),
+    run_outcome: t('chronicle_labels.run_outcome'),
   };
   document.getElementById('chronicle').innerHTML = chronicle.length
     ? chronicle.slice(-PANEL_LIMITS.chronicleEntries).reverse().map(entry => `<li><strong>${escapeHtml(chronicleLabels[entry.event_type] || entry.event_type.replaceAll('_', ' '))}</strong> · F${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}${entry.cause ? `<br/><span class='muted'>${escapeHtml(cleanCauseLine(entry.cause))}</span>` : ''}</li>`).join('')
     : `<li>${escapeHtml(getNestedText('fallbacks.no_lineage_events'))}</li>`;
 
-  const pending = latest?.pending_message ? `Next action: ${latest.pending_message}` : '';
+  const pending = latest?.pending_message ? `${t('labels.next_action')}: ${latest.pending_message}` : '';
   document.getElementById('pending').textContent = pending;
 
   const advanceBtn = document.getElementById('advanceBtn');

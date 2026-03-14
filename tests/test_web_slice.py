@@ -1429,6 +1429,8 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "Choose next host" not in js_source
     assert "Decision:" not in js_source
     assert "Run Completion" not in js_source
+    assert "Cooperate" not in js_source
+    assert "Vote Cooperate" not in js_source
 
     rendered = render_web_app()
     assert "Start Run" in rendered
@@ -1448,11 +1450,16 @@ def test_server_root_lang_selection_changes_visible_bundle_text() -> None:
             html = resp.read().decode("utf-8")
         assert "Start Run [test]" in html
         assert "Current Decision [test]" in html
+        assert "Summary [test]" in html
+        assert "Prisoner's Gambit [test]" in html
 
         with urlopen(f"http://127.0.0.1:{port}/?lang=unknown") as resp:
             fallback_html = resp.read().decode("utf-8")
         assert "Start Run [test]" not in fallback_html
+        assert "Current Decision [test]" not in fallback_html
+        assert "Summary [test]" not in fallback_html
         assert "Start Run" in fallback_html
+        assert "Current Decision" in fallback_html
     finally:
         server.shutdown()
         server.server_close()
