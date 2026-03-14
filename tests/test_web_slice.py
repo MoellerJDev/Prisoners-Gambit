@@ -1383,6 +1383,8 @@ def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
     assert strings["status_labels"]["status"] == "status"
     assert strings["status_formats"]["stance_active"].startswith("{label}:")
     assert strings["round_effects"]["labels"]["you"] == "You"
+    assert strings["round_effects"]["labels"]["opp"] == "Opp"
+    assert strings["status_formats"]["phase"] == "{label}: {value}"
     assert strings["labels"]["drift"] == "Drift"
     assert strings["vote_result"]["labels"]["cooperators"] == "cooperators"
     assert strings["dynasty_board"]["empty"]["no_active_markers"].startswith("No active lineage pressure")
@@ -1476,6 +1478,8 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "status: " not in js_source
     assert "stance: " not in js_source
     assert "Drift: " not in js_source
+    assert "→ You " not in js_source
+    assert ", Opp " not in js_source
 
     rendered = render_web_app()
     assert "Start Run" in rendered
