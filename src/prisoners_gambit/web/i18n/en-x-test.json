@@ -20,7 +20,8 @@
     "featured_round": "Round move [test]"
   },
   "labels": {
-    "next_pick": "Next pick [test]"
+    "next_pick": "Next pick [test]",
+    "drift": "Drift [test]"
   },
   "round_result": {
     "labels": {
@@ -29,5 +30,14 @@
   },
   "accessibility": {
     "secondary_information_tablist": "Secondary information [test]"
+  },
+  "status_labels": {
+    "status": "status[test]"
+  },
+  "round_effects": {
+    "labels": {
+      "you": "You[test]",
+      "opp": "Opp[test]"
+    }
   }
 }

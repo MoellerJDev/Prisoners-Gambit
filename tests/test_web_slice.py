@@ -1380,6 +1380,10 @@ def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
     assert strings["successor_preview"]["labels"]["main_threats"] == "Main threats"
     assert strings["marker_labels"]["new_rival"] == "NEW RIVAL"
     assert strings["accessibility"]["secondary_information_tablist"] == "Secondary information"
+    assert strings["status_labels"]["status"] == "status"
+    assert strings["status_formats"]["stance_active"].startswith("{label}:")
+    assert strings["round_effects"]["labels"]["you"] == "You"
+    assert strings["labels"]["drift"] == "Drift"
     assert strings["vote_result"]["labels"]["cooperators"] == "cooperators"
     assert strings["dynasty_board"]["empty"]["no_active_markers"].startswith("No active lineage pressure")
     assert "controlled_vote" in strings["glossary"]
@@ -1397,12 +1401,14 @@ def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> Non
     assert test_bundle["buttons"]["start_run"] == "Start Run [test]"
     assert test_bundle["buttons"]["clear_run"] == "Clear Run"
     assert test_bundle["labels"]["next_pick"] == "Next pick [test]"
+    assert test_bundle["status_labels"]["status"] == "status[test]"
 
     html = render_web_app(language="en-x-test")
     assert "Summary [test]" in html
     assert "Start Run [test]" in html
     assert "Next pick [test]" in html
     assert "Round [test]" in html
+    assert "status[test]" in html
 
 
 def test_server_module_no_longer_embeds_full_html_document() -> None:
@@ -1465,6 +1471,11 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "No outside pressure spotted." not in js_source
     assert "No active score rules." not in js_source
     assert "No clue memory this floor." not in js_source
+    assert "phase: " not in js_source
+    assert "floor: " not in js_source
+    assert "status: " not in js_source
+    assert "stance: " not in js_source
+    assert "Drift: " not in js_source
 
     rendered = render_web_app()
     assert "Start Run" in rendered

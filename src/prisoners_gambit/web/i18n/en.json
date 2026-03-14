@@ -162,7 +162,8 @@
     "doctrine": "Doctrine",
     "heir_pressure": "Heir pressure",
     "doctrine_drift": "Doctrine drift",
-    "points_short": "pts"
+    "points_short": "pts",
+    "drift": "Drift"
   },
   "hints": {
     "summary_tab_context": "Open Summary tab for full floor context.",
@@ -346,5 +347,24 @@
   "accessibility": {
     "controlled_vote_help_title": "What is controlled vote?",
     "secondary_information_tablist": "Secondary information"
+  },
+  "status_labels": {
+    "status": "status",
+    "phase": "phase",
+    "floor": "floor",
+    "stance": "stance"
+  },
+  "status_formats": {
+    "status": "{label}: {value}",
+    "phase": "{label}: {value}",
+    "floor": "{label}: {value}",
+    "stance_active": "{label}: {stance} ({rounds})",
+    "stance_none": "{label}: none"
+  },
+  "round_effects": {
+    "labels": {
+      "you": "You",
+      "opp": "Opp"
+    }
   }
 }

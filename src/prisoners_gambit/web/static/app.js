@@ -83,7 +83,7 @@ function renderPowerupChoiceCard(offer, idx){
 
 function renderGenomeChoiceCard(offer, idx){
   const label = `${idx + 1}. ${offer.name}`;
-  const drift = offer.doctrine_drift ? `Drift: ${offer.doctrine_drift}` : '';
+  const drift = offer.doctrine_drift ? `${t('labels.drift')}: ${offer.doctrine_drift}` : '';
   const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff || t('fallbacks.tuning_lineage_behavior');
   const tags = [offer.phase_support ? `${t('labels.phase')} ${offer.phase_support}` : '', drift, offer.successor_pressure ? t('labels.heir_pressure') : ''].filter(Boolean);
   return `
@@ -388,7 +388,7 @@ function renderRoundEffects(round) {
   }
   const modifiers = round.breakdown?.score_adjustments || [];
   const modifierLines = modifiers.length
-    ? modifiers.map(entry => `<div class='fx-item'>${powerupToken(entry.source)} → You ${entry.player_delta >= 0 ? '+' : ''}${entry.player_delta}, Opp ${entry.opponent_delta >= 0 ? '+' : ''}${entry.opponent_delta}</div>`).join('')
+    ? modifiers.map(entry => `<div class='fx-item'>${powerupToken(entry.source)} → ${t('round_effects.labels.you')} ${entry.player_delta >= 0 ? '+' : ''}${entry.player_delta}, ${t('round_effects.labels.opp')} ${entry.opponent_delta >= 0 ? '+' : ''}${entry.opponent_delta}</div>`).join('')
     : `<div class='fx-item muted'>${escapeHtml(t('round_result.empty.no_score_modifiers'))}</div>`;
   root.innerHTML = `
     <div class='fx-item'>${effectToken(`${t('round_result.labels.directive_you')} ${round.player_reason}`)}</div>
@@ -397,13 +397,13 @@ function renderRoundEffects(round) {
 }
 
 function renderSnapshot(snapshot){
-  document.getElementById('phase').textContent = `phase: ${snapshot.current_phase || '-'}`;
-  document.getElementById('floor').textContent = `floor: ${snapshot.current_floor || '-'}`;
+  document.getElementById('phase').textContent = t('status_formats.phase', '{label}: {value}').replace('{label}', t('status_labels.phase')).replace('{value}', String(snapshot.current_phase || '-')); 
+  document.getElementById('floor').textContent = t('status_formats.floor', '{label}: {value}').replace('{label}', t('status_labels.floor')).replace('{value}', String(snapshot.current_floor || '-')); 
 
   const stance = snapshot.active_featured_stance;
   document.getElementById('activeStance').textContent = stance
-    ? `stance: ${stance.stance} (${stance.rounds_remaining ?? '∞'})`
-    : 'stance: none';
+    ? t('status_formats.stance_active', '{label}: {stance} ({rounds})').replace('{label}', t('status_labels.stance')).replace('{stance}', String(stance.stance)).replace('{rounds}', String(stance.rounds_remaining ?? '∞'))
+    : t('status_formats.stance_none', '{label}: none').replace('{label}', t('status_labels.stance'));
 
   const round = snapshot.latest_featured_round;
   const roundResult = document.getElementById('roundResult');
@@ -583,7 +583,7 @@ function renderSnapshot(snapshot){
 async function refresh(){
   const response = await fetch('/api/state');
   latest = await response.json();
-  document.getElementById('status').textContent = `status: ${latest.status}`;
+  document.getElementById('status').textContent = t('status_formats.status', '{label}: {value}').replace('{label}', t('status_labels.status')).replace('{value}', String(latest.status));
   renderDecision(latest);
   renderSnapshot(latest.snapshot || {});
   setSecondaryTab(activeSecondaryTab || 'summary');
