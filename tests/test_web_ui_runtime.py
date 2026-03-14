@@ -163,12 +163,25 @@ def test_runtime_glossary_toggle_and_tab_help_updates(web_server_runtime, playwr
 
     page.click("button:has-text('Doctrine ?')")
     page.wait_for_timeout(50)
-    assert "strategic tendency" in glossary.inner_text()
+    assert "build identity" in glossary.inner_text()
 
     page.click("#tabBoardBtn")
     assert "gaining pressure" in page.locator("#tabHelpText").inner_text()
     page.click("#tabChronicleBtn")
     assert "changed across floors" in page.locator("#tabHelpText").inner_text()
+
+
+
+
+def test_runtime_controlled_vote_glossary_is_mechanically_explicit(web_server_runtime, playwright_page) -> None:
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+
+    page.click("button:has-text('Controlled Vote ?')")
+    page.wait_for_timeout(50)
+    glossary_text = page.locator("#glossaryPanel").inner_text()
+    assert "shaped or forced" in glossary_text
+    assert "not a free pick" in glossary_text
 
 
 def test_runtime_phase_helpers_show_for_reward_and_successor_choices(web_server_runtime, playwright_page) -> None:
@@ -179,12 +192,12 @@ def test_runtime_phase_helpers_show_for_reward_and_successor_choices(web_server_
     page.evaluate("refresh()")
     page.wait_for_timeout(150)
 
-    assert "Comparison rows map to Cause" in page.locator("#phaseActionHelper").inner_text()
+    assert "Compare Cause, Pick for, Risk" in page.locator("#phaseActionHelper").inner_text()
 
     page.locator("#actions button").first.click()
     page.wait_for_timeout(150)
     assert "Powerup choice" in page.locator("#decisionType").inner_text()
-    assert "First line is the practical effect" in page.locator("#phaseActionHelper").inner_text()
+    assert "Pick by the first-line effect" in page.locator("#phaseActionHelper").inner_text()
 
 
 def test_runtime_mobile_onboarding_non_blocking_and_controls_tappable(web_server_runtime) -> None:

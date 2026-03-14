@@ -485,11 +485,11 @@ HTML = """<!doctype html>
       <div>
         <h3>Quick start</h3>
         <ul class='onboarding-points'>
-          <li><strong>Current Decision</strong> is where you act right now.</li>
-          <li><strong>Decision Details</strong> explains the active prompt in compact form.</li>
-          <li><strong>Summary</strong> explains why this floor matters; <strong>Board</strong> shows pressure shifts.</li>
-          <li><strong>Chronicle</strong> tracks what changed across hosts and floors.</li>
-          <li>Choice cards show <strong>effect first</strong>, with deeper tradeoffs below.</li>
+          <li>Act in <strong>Current Decision</strong>; that is the only required move right now.</li>
+          <li>Use <strong>Decision Details</strong> to confirm what this phase is asking and what your options do.</li>
+          <li><strong>Summary</strong> explains this floor; <strong>Board</strong> shows who is gaining pressure.</li>
+          <li><strong>Chronicle</strong> is your short history of what changed across floors and hosts.</li>
+          <li>On choice cards, read the <strong>first line</strong> first for immediate effect.</li>
         </ul>
       </div>
       <button class='btn onboarding-dismiss' onclick='dismissOnboarding()'>Got it</button>
@@ -543,7 +543,7 @@ HTML = """<!doctype html>
         <button class='btn tab-btn' id='tabChronicleBtn' data-tab='chronicle' onclick="setSecondaryTab('chronicle')" role='tab' aria-selected='false'>Chronicle</button>
         <button class='btn tab-btn' id='tabDebugBtn' data-tab='debug' onclick="setSecondaryTab('debug')" role='tab' aria-selected='false'>Debug</button>
       </div>
-      <div id='tabHelpText' class='tab-help'>Summary: why this floor matters and who is shaping it.</div>
+      <div id='tabHelpText' class='tab-help'>Summary: floor stakes, pressure leaders, and why this turn matters.</div>
       <div class='glossary-row'>
         <button class='help-chip' onclick="toggleGlossaryTerm('doctrine')">Doctrine ?</button>
         <button class='help-chip' onclick="toggleGlossaryTerm('heir_pressure')">Heir Pressure ?</button>
@@ -705,20 +705,20 @@ function renderSuccessorComparisonCard(candidate){
 }
 
 const TAB_HELP_TEXT = Object.freeze({
-  summary: 'Summary: why this floor matters and who is shaping it.',
-  board: 'Board: who is gaining pressure, rivalry, or civil-war danger.',
-  chronicle: 'Chronicle: what changed across floors and hosts.',
-  debug: 'Debug: raw state for deep inspection; secondary during play.',
+  summary: 'Summary: floor stakes, pressure leaders, and why this turn matters.',
+  board: 'Board: live pressure markers, rival status, and civil-war risk.',
+  chronicle: 'Chronicle: concise timeline of dynasty shifts across floors.',
+  debug: 'Debug: raw state for troubleshooting only; ignore during normal play.',
 });
 
 const GLOSSARY_TERMS = Object.freeze({
-  doctrine: "Doctrine is your branch's strategic tendency. It hints at what future offers and succession pressure will favor.",
-  heir_pressure: 'Heir Pressure means succession momentum is building around specific branches. It tells you who is likely to matter next floor.',
-  civil_war_danger: 'Civil War Danger signals that current pressure can spiral into costly conflict. Treat it as a warning about unstable succession paths.',
-  central_rival: 'Central Rival marks the branch currently shaping your hardest contest. Reading this rival well improves your immediate decisions.',
-  controlled_vote: 'Controlled Vote means your floor vote can be guided by your current plan, not just instincts. Use it to lock in floor-level direction.',
-  clue_fit: 'Clue Fit / Memory describes how well recent evidence matches a candidate or doctrine read. Better fit means your read has practical backing.',
-  lineage_direction: 'Lineage Direction summarizes where the dynasty is drifting if trends continue. It helps you decide whether to reinforce or pivot.',
+  doctrine: "Doctrine is your build identity: the playstyle your branch is tuned for. It tells you which offers and synergies are most likely to pay off.",
+  heir_pressure: 'Heir Pressure means succession momentum is concentrating around specific branches. Track it to see who is most likely to become the next host.',
+  civil_war_danger: 'Civil War Danger means current pressure patterns can trigger a costly conflict state. High danger is a signal to reduce instability before it snowballs.',
+  central_rival: 'Central Rival is the branch applying the strongest immediate pressure on your run. Prioritize reads and counterplay against this rival first.',
+  controlled_vote: 'Controlled Vote means your floor vote is being shaped or forced by your active effects and commitments. Treat this vote as a mechanical consequence of your current setup, not a free pick.',
+  clue_fit: 'Clue Fit / Memory shows whether recent observed signals support or weaken your current read. Strong fit means your next decision is backed by evidence, not guesswork.',
+  lineage_direction: 'Lineage Direction summarizes where the dynasty is drifting if current pressures continue. Use it to decide whether to reinforce that path or pivot now.',
 });
 
 function toggleGlossaryTerm(term){
@@ -824,7 +824,7 @@ function renderDecision(data){
   const phaseActionHelper = document.getElementById('phaseActionHelper');
   actions.innerHTML = '';
   actionsPrimaryLabel.textContent = 'Main choice now';
-  phaseActionHelper.textContent = 'Pick the highlighted action to keep pace.';
+  phaseActionHelper.textContent = 'Choose the action for the active phase; details explain the tradeoff.';
   advancedGrid.innerHTML = '';
   advanced.open = false;
   advanced.style.display = 'none';
@@ -848,7 +848,7 @@ function renderDecision(data){
       <div>Read on rival</div><div>${escapeHtml(p.inference_focus || 'Pattern check')}</div>
       <div>Live clues</div><div><ul class='list tight'>${clues}</ul></div>
       <div>Recent floor notes</div><div><ul class='list tight'>${floorLog}</ul></div>`;
-    phaseActionHelper.textContent = 'Read clues and rival focus, then choose your move.';
+    phaseActionHelper.textContent = 'Use clue channels and rival read to decide C, D, or autopilot.';
     actions.innerHTML = `
       <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">${actionTile('Cooperate', 'Manual move · primary')}</button>
       <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile('Defect', 'Manual move · primary')}</button>
@@ -865,7 +865,7 @@ function renderDecision(data){
 
   if (t === 'FloorVoteDecisionState') {
     actionsPrimaryLabel.textContent = 'Main choice now';
-  phaseActionHelper.textContent = 'Controlled Vote lets you lock floor direction before rewards.';
+  phaseActionHelper.textContent = 'Vote is shaped by active effects and commitments; confirm before locking floor outcome.';
     const p = decision.prompt;
     document.getElementById('decisionView').innerHTML = `
       <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
@@ -881,7 +881,7 @@ function renderDecision(data){
 
   if (t === 'PowerupChoiceState') {
     actionsPrimaryLabel.textContent = 'Choose one offer';
-    phaseActionHelper.textContent = 'First line is the practical effect; tags and notes are secondary tradeoffs.';
+    phaseActionHelper.textContent = 'Pick by the first-line effect; use tags and notes only as tie-breakers.';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Powerup card</div>
       <div>Floor</div><div>${decision.floor_number}</div>
@@ -903,7 +903,7 @@ function renderDecision(data){
 
   if (t === 'GenomeEditChoiceState') {
     actionsPrimaryLabel.textContent = 'Choose one offer';
-    phaseActionHelper.textContent = 'First line is the practical effect; doctrine drift explains long-term tilt.';
+    phaseActionHelper.textContent = 'First line is immediate impact; doctrine drift shows long-term direction change.';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Genome edit</div>
       <div>Floor</div><div>${decision.floor_number}</div>
@@ -926,7 +926,7 @@ function renderDecision(data){
 
   if (t === 'SuccessorChoiceState') {
     actionsPrimaryLabel.textContent = 'Choose next host';
-    phaseActionHelper.textContent = 'Comparison rows map to Cause, Pick for, Risk, Pitch, and Clue fit.';
+    phaseActionHelper.textContent = 'Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host.';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Next host</div>
       <div>Floor</div><div>${decision.floor_number}</div>

@@ -1434,11 +1434,12 @@ def test_web_html_onboarding_glossary_and_phase_helpers_present() -> None:
     assert "Civil War Danger ?" in web_server.HTML
     assert "Central Rival ?" in web_server.HTML
     assert "Controlled Vote ?" in web_server.HTML
+    assert "shaped or forced by your active effects and commitments" in web_server.HTML
     assert "Clue Fit / Memory ?" in web_server.HTML
     assert "Lineage Direction ?" in web_server.HTML
     assert "id='phaseActionHelper'" in web_server.HTML
-    assert "First line is the practical effect; tags and notes are secondary tradeoffs." in web_server.HTML
-    assert "Comparison rows map to Cause, Pick for, Risk, Pitch, and Clue fit." in web_server.HTML
+    assert "Pick by the first-line effect; use tags and notes only as tie-breakers." in web_server.HTML
+    assert "Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host." in web_server.HTML
 
 
 def test_web_html_tab_discoverability_copy_exists() -> None:
@@ -1446,10 +1447,10 @@ def test_web_html_tab_discoverability_copy_exists() -> None:
 
     assert "id='tabHelpText'" in web_server.HTML
     assert "const TAB_HELP_TEXT = Object.freeze({" in web_server.HTML
-    assert "Summary: why this floor matters and who is shaping it." in web_server.HTML
-    assert "Board: who is gaining pressure, rivalry, or civil-war danger." in web_server.HTML
-    assert "Chronicle: what changed across floors and hosts." in web_server.HTML
-    assert "Debug: raw state for deep inspection; secondary during play." in web_server.HTML
+    assert "Summary: floor stakes, pressure leaders, and why this turn matters." in web_server.HTML
+    assert "Board: live pressure markers, rival status, and civil-war risk." in web_server.HTML
+    assert "Chronicle: concise timeline of dynasty shifts across floors." in web_server.HTML
+    assert "Debug: raw state for troubleshooting only; ignore during normal play." in web_server.HTML
 
 def test_run_server_defaults_to_public_host(monkeypatch) -> None:
     captured = {}
