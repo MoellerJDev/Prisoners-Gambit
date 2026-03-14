@@ -1334,11 +1334,22 @@ def test_web_html_choice_phases_use_select_then_confirm_decision_surface() -> No
 
     html = render_web_app()
 
-    assert "function setPendingChoiceSelection(decisionType, selectedIndex){" in html
+    assert "function choiceSignatureFor(decisionType, decision){" in html
+    assert "function setPendingChoiceSelection(decisionType, choiceSignature, selectedIndex){" in html
+    assert "function getPendingChoiceSelection(decisionType, choiceSignature, itemCount){" in html
     assert "function renderChoiceSelectionPrompt(){" in html
     assert "t('messages.select_to_preview')" in html
     assert "t('buttons.confirm_choice')" in html
     assert "renderSuccessorChoiceDetails(decision.candidates[selectedIdx], selectedIdx)" in html
+
+
+def test_web_html_successor_choice_details_use_featured_inference_context_for_clue() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
+
+    html = render_web_app()
+
+    assert "candidate.featured_inference_context || t('fallbacks.no_direct_clue_fit')" in html
+    assert "candidate.clue_fit || t('fallbacks.no_direct_clue_fit')" not in html
 
 
 def test_web_html_prioritizes_mobile_panel_ordering() -> None:

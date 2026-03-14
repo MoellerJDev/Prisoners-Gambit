@@ -89,12 +89,26 @@ function renderGenomeChoiceCard(offer, idx){
   `;
 }
 
-function setPendingChoiceSelection(decisionType, selectedIndex){
-  pendingChoiceSelection = {decisionType, selectedIndex};
+function choiceSignatureFor(decisionType, decision){
+  if (!decision) return `${decisionType}:none`;
+  if (decisionType === 'PowerupChoiceState' || decisionType === 'GenomeEditChoiceState') {
+    const offers = (decision.offers || []).map(offer => offer?.name || '').join('|');
+    return `${decisionType}:${decision.floor_number || '-'}:${offers}`;
+  }
+  if (decisionType === 'SuccessorChoiceState') {
+    const candidates = (decision.candidates || []).map(candidate => candidate?.name || '').join('|');
+    return `${decisionType}:${decision.floor_number || '-'}:${candidates}`;
+  }
+  return `${decisionType}:other`;
 }
 
-function getPendingChoiceSelection(decisionType, itemCount){
+function setPendingChoiceSelection(decisionType, choiceSignature, selectedIndex){
+  pendingChoiceSelection = {decisionType, choiceSignature, selectedIndex};
+}
+
+function getPendingChoiceSelection(decisionType, choiceSignature, itemCount){
   if (!pendingChoiceSelection || pendingChoiceSelection.decisionType !== decisionType) return null;
+  if (pendingChoiceSelection.choiceSignature !== choiceSignature) return null;
   const idx = pendingChoiceSelection.selectedIndex;
   if (!Number.isInteger(idx) || idx < 0 || idx >= itemCount) return null;
   return idx;
@@ -155,7 +169,7 @@ function renderSuccessorChoiceDetails(candidate, idx){
     `<li><strong>${escapeHtml(t('successor_comparison.labels.pick_for'))}:</strong> ${escapeHtml(candidate.attractive_now || t('fallbacks.not_available'))}</li>`,
     `<li><strong>${escapeHtml(t('successor_comparison.labels.risk'))}:</strong> ${escapeHtml(candidate.danger_later || t('fallbacks.not_available'))}</li>`,
     `<li><strong>${escapeHtml(t('successor_comparison.labels.pitch'))}:</strong> ${escapeHtml(candidate.succession_pitch || t('fallbacks.not_available'))}</li>`,
-    `<li><strong>${escapeHtml(t('successor_comparison.labels.clue'))}:</strong> ${escapeHtml(candidate.clue_fit || t('fallbacks.no_direct_clue_fit'))}</li>`,
+    `<li><strong>${escapeHtml(t('successor_comparison.labels.clue'))}:</strong> ${escapeHtml(candidate.featured_inference_context || t('fallbacks.no_direct_clue_fit'))}</li>`,
     `<li><strong>${escapeHtml(t('labels.score'))}:</strong> ${escapeHtml(candidate.score ?? '-')} · ${escapeHtml(t('successor_comparison.labels.wins'))}: ${escapeHtml(candidate.wins ?? '-')} · ${escapeHtml(candidate.branch_role || t('fallbacks.unknown_role'))}</li>`,
   ].join('');
   return `
@@ -426,7 +440,8 @@ function renderDecision(data){
   if (decisionType === 'PowerupChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.powerup_choice');
-    const selectedIdx = getPendingChoiceSelection(decisionType, decision.offers.length);
+    const choiceSignature = choiceSignatureFor(decisionType, decision);
+    const selectedIdx = getPendingChoiceSelection(decisionType, choiceSignature, decision.offers.length);
     decisionView.className = 'muted choice-details-surface';
     decisionView.innerHTML = selectedIdx === null
       ? renderChoiceSelectionPrompt()
@@ -441,7 +456,7 @@ function renderDecision(data){
       btn.innerHTML = renderPowerupChoiceCard(offer, idx);
       btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `${t('labels.phase')}: ${offer.phase_support || t('fallbacks.both')}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => {
-        setPendingChoiceSelection(decisionType, idx);
+        setPendingChoiceSelection(decisionType, choiceSignature, idx);
         renderDecision(data);
       };
       actions.appendChild(btn);
@@ -452,7 +467,8 @@ function renderDecision(data){
   if (decisionType === 'GenomeEditChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.genome_edit_choice');
-    const selectedIdx = getPendingChoiceSelection(decisionType, decision.offers.length);
+    const choiceSignature = choiceSignatureFor(decisionType, decision);
+    const selectedIdx = getPendingChoiceSelection(decisionType, choiceSignature, decision.offers.length);
     decisionView.className = 'muted choice-details-surface';
     decisionView.innerHTML = selectedIdx === null
       ? renderChoiceSelectionPrompt()
@@ -468,7 +484,7 @@ function renderDecision(data){
       btn.innerHTML = renderGenomeChoiceCard(offer, idx);
       btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `${t('labels.phase')}: ${offer.phase_support || t('fallbacks.both')}`, pressure, drift].filter(Boolean).join(' | ');
       btn.onclick = () => {
-        setPendingChoiceSelection(decisionType, idx);
+        setPendingChoiceSelection(decisionType, choiceSignature, idx);
         renderDecision(data);
       };
       actions.appendChild(btn);
@@ -479,7 +495,8 @@ function renderDecision(data){
   if (decisionType === 'SuccessorChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_next_host');
     phaseActionHelper.textContent = getNestedText('decision_helpers.successor_choice');
-    const selectedIdx = getPendingChoiceSelection(decisionType, decision.candidates.length);
+    const choiceSignature = choiceSignatureFor(decisionType, decision);
+    const selectedIdx = getPendingChoiceSelection(decisionType, choiceSignature, decision.candidates.length);
     decisionView.className = 'muted choice-details-surface';
     decisionView.innerHTML = selectedIdx === null
       ? renderChoiceSelectionPrompt()
@@ -490,7 +507,7 @@ function renderDecision(data){
       btn.innerHTML = renderSuccessorChoiceCard(candidate, idx);
       btn.title = (candidate.shaping_causes || []).join('; ');
       btn.onclick = () => {
-        setPendingChoiceSelection(decisionType, idx);
+        setPendingChoiceSelection(decisionType, choiceSignature, idx);
         renderDecision(data);
       };
       actions.appendChild(btn);
