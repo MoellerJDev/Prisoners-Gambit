@@ -54,7 +54,6 @@ def test_state_codec_import_supports_uncompressed_envelope() -> None:
 
     assert import_save_code(encoded, b"secret", version=SAVE_STATE_VERSION) == {"seed": 7, "version": 1}
 
-
 def test_refresh_strategic_snapshot_uses_typed_snapshot_and_central_rival() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
