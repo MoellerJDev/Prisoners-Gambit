@@ -415,19 +415,19 @@ function renderSnapshot(snapshot){
     roundResult.innerHTML = `
       <div class='kv'>
         <div>${escapeHtml(t('round_result.labels.round'))}</div><div>${round.round_index + 1}/${round.total_rounds}</div>
-        <div>${escapeHtml(t('round_result.labels.moves'))}</div><div>You ${moveLabel(round.player_move)} vs Opp ${moveLabel(round.opponent_move)}</div>
+        <div>${escapeHtml(t('round_result.labels.moves'))}</div><div>${escapeHtml(t('round_result.labels.you_short'))} ${moveLabel(round.player_move)} ${escapeHtml(t('round_result.labels.vs'))} ${escapeHtml(t('round_result.labels.opp_short'))} ${moveLabel(round.opponent_move)}</div>
         <div>${escapeHtml(t('round_result.labels.round_delta'))}</div><div><span class='good'>${round.player_delta >= 0 ? '+' : ''}${round.player_delta}</span> / <span class='danger'>${round.opponent_delta >= 0 ? '+' : ''}${round.opponent_delta}</span></div>
         <div>${escapeHtml(t('round_result.labels.match_total'))}</div><div class='scoreline'><span class='good'>${round.player_total}</span> : <span class='danger'>${round.opponent_total}</span></div>
       </div>`;
   } else {
     roundResult.className = 'muted';
-    roundResult.textContent = 'No rounds resolved yet.';
+    roundResult.textContent = t('fallbacks.no_rounds_resolved');
   }
   renderRoundEffects(round);
 
   const vote = snapshot.floor_vote_result;
   document.getElementById('voteResult').innerHTML = vote
-    ? `${effectToken(`Vote ${moveLabel(vote.player_vote)}`)} — cooperators ${vote.cooperators}, defectors ${vote.defectors}, reward <span class='good'>+${vote.player_reward}</span>`
+    ? `${effectToken(`${t('vote_result.labels.vote')} ${moveLabel(vote.player_vote)}`)} — ${t('vote_result.labels.cooperators')} ${vote.cooperators}, ${t('vote_result.labels.defectors')} ${vote.defectors}, ${t('vote_result.labels.reward')} <span class='good'>+${vote.player_reward}</span>`
     : t('vote_result.empty.no_vote_yet');
 
   const capLines = (items, limit=2) => (items || []).slice(0, limit);
@@ -476,29 +476,29 @@ function renderSnapshot(snapshot){
     : '';
   const floorSummaryFull = summary.length
     ? summary.slice(0, PANEL_LIMITS.floorLeaders).map(entry => {
-        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
+        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : t('fallbacks.new');
         const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
-        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · <span class='good'>${entry.score}</span> pts · ${movementGlyph(entry.score_delta || 0)}S ${movementGlyph(entry.wins_delta || 0)}W · ${continuity} · P${trend}</li>`;
+        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · <span class='good'>${entry.score}</span> ${escapeHtml(t('labels.points_short'))} · ${movementGlyph(entry.score_delta || 0)}S ${movementGlyph(entry.wins_delta || 0)}W · ${continuity} · P${trend}</li>`;
       }).join('') + `<li><strong>${escapeHtml(t('floor_summary.labels.featured_read'))}</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
-    : '<li>No summary yet.</li>';
+    : `<li>${escapeHtml(t('fallbacks.no_summary_yet'))}</li>`;
   const floorSummaryPrimary = summary.length
-    ? summary.slice(0, 2).map(entry => `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='good'>${entry.score}</span> pts · <span class='muted'>${escapeHtml(entry.descriptor)}</span></li>`).join('')
+    ? summary.slice(0, 2).map(entry => `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='good'>${entry.score}</span> ${escapeHtml(t('labels.points_short'))} · <span class='muted'>${escapeHtml(entry.descriptor)}</span></li>`).join('')
       + `<li class='context-note'>${escapeHtml(t('hints.summary_tab_context'))}</li>`
-    : '<li>No summary yet.</li>';
+    : `<li>${escapeHtml(t('fallbacks.no_summary_yet'))}</li>`;
   document.getElementById('floorSummaryFull').innerHTML = floorSummaryFull;
   document.getElementById('floorSummaryPrimary').innerHTML = floorSummaryPrimary;
 
   const successors = snapshot.successor_options?.candidates || [];
   const successorState = snapshot.successor_options;
   const successorContext = successorState
-    ? `<li><strong>${escapeHtml(t('successor_preview.labels.why_this_choice_matters'))}</strong>: ${escapeHtml(successorState.current_phase || t('successor_preview.empty.unknown'))} phase, pressure ${escapeHtml(successorState.civil_war_pressure || t('successor_preview.empty.unknown'))}</li>`
+    ? `<li><strong>${escapeHtml(t('successor_preview.labels.why_this_choice_matters'))}</strong>: ${escapeHtml(successorState.current_phase || t('successor_preview.empty.unknown'))} ${t('successor_preview.labels.phase')} ${t('successor_preview.labels.pressure')} ${escapeHtml(successorState.civil_war_pressure || t('successor_preview.empty.unknown'))}</li>`
       + `<li><strong>${escapeHtml(t('successor_preview.labels.main_threats'))}</strong>: ${escapeHtml(capLines(successorState.threat_profile || [], 2).join(', ') || t('fallbacks.none'))}</li>`
       + `<li><strong>${escapeHtml(t('successor_preview.labels.clue_memory'))}</strong>: ${escapeHtml((successorState.featured_inference_summary || [])[0] || t('successor_preview.empty.no_clue_memory'))}</li>`
     : '';
   const successorPrimary = successors.length
     ? successors.slice(0, PANEL_LIMITS.successorCards).map(candidate => {
         const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch;
-        return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${candidate.score} pts<br/><span class='muted'>${escapeHtml(topCause)}</span></li>`;
+        return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${candidate.score} ${escapeHtml(t('labels.points_short'))}<br/><span class='muted'>${escapeHtml(topCause)}</span></li>`;
       }).join('') + `<li class='context-note'>${t('successor_preview.hints.open_summary_successor_comparison')}</li>`
     : `${successorContext}<li>${escapeHtml(getNestedText('messages.no_successor_choice'))}</li>`;
   document.getElementById('successorsPrimary').innerHTML = successorPrimary;
@@ -539,8 +539,8 @@ function renderSnapshot(snapshot){
         ].filter(Boolean);
         const markerBlock = markerTokens.length
           ? `${markerTokens.join(' ')}${markerCauses.length ? `<br/><span class="muted">${markerCauses.slice(0, 2).join(' · ')}</span>` : ''}`
-          : '<span class="muted">No active lineage pressure markers.</span>';
-        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
+          : `<span class="muted">${escapeHtml(t('dynasty_board.empty.no_active_markers'))}</span>`;
+        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : t('fallbacks.new');
         const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
         const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '');
         const perkLine = perkPreview ? `<br/><span class='muted'>${escapeHtml(t('dynasty_board.labels.perks'))} ${perkPreview}</span>` : '';

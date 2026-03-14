@@ -161,7 +161,8 @@
     "commitment": "Commitment",
     "doctrine": "Doctrine",
     "heir_pressure": "Heir pressure",
-    "doctrine_drift": "Doctrine drift"
+    "doctrine_drift": "Doctrine drift",
+    "points_short": "pts"
   },
   "hints": {
     "summary_tab_context": "Open Summary tab for full floor context.",
@@ -199,7 +200,8 @@
     "not_available": "n/a",
     "no_direct_clue_fit": "No direct clue fit.",
     "effect_details_in_notes": "Effect details in card notes.",
-    "unknown_role": "unknown role"
+    "unknown_role": "unknown role",
+    "new": "new"
   },
   "prompts": {
     "copy_save_code": "Copy save code:",
@@ -240,7 +242,10 @@
       "round": "Round",
       "moves": "Moves",
       "round_delta": "Round Delta",
-      "match_total": "Match Total"
+      "match_total": "Match Total",
+      "you_short": "You",
+      "opp_short": "Opp",
+      "vs": "vs"
     },
     "empty": {
       "no_score_modifiers": "No score modifiers this round."
@@ -249,6 +254,12 @@
   "vote_result": {
     "empty": {
       "no_vote_yet": "No vote yet."
+    },
+    "labels": {
+      "vote": "Vote",
+      "cooperators": "cooperators",
+      "defectors": "defectors",
+      "reward": "reward"
     }
   },
   "strategic_snapshot": {
@@ -290,7 +301,9 @@
     "labels": {
       "why_this_choice_matters": "Why this choice matters",
       "main_threats": "Main threats",
-      "clue_memory": "Clue memory"
+      "clue_memory": "Clue memory",
+      "phase": "phase,",
+      "pressure": "pressure"
     },
     "empty": {
       "unknown": "unknown",
@@ -314,6 +327,9 @@
       "perks": "Perks",
       "score": "score",
       "depth": "depth"
+    },
+    "empty": {
+      "no_active_markers": "No active lineage pressure markers."
     }
   },
   "completion": {

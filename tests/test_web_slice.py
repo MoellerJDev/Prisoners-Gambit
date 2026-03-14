@@ -1380,6 +1380,8 @@ def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
     assert strings["successor_preview"]["labels"]["main_threats"] == "Main threats"
     assert strings["marker_labels"]["new_rival"] == "NEW RIVAL"
     assert strings["accessibility"]["secondary_information_tablist"] == "Secondary information"
+    assert strings["vote_result"]["labels"]["cooperators"] == "cooperators"
+    assert strings["dynasty_board"]["empty"]["no_active_markers"].startswith("No active lineage pressure")
     assert "controlled_vote" in strings["glossary"]
     assert "powerup_choice" in strings["decision_helpers"]
 
@@ -1447,6 +1449,8 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "Open Summary → Successor Comparison for full candidate breakdown." not in js_source
     assert "NEW RIVAL" not in js_source
     assert "Perks" not in js_source
+    assert "No active lineage pressure markers." not in js_source
+    assert "No summary yet." not in js_source
 
     rendered = render_web_app()
     assert "Start Run" in rendered
