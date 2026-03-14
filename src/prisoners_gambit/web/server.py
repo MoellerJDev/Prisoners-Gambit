@@ -250,6 +250,14 @@ HTML = """<!doctype html>
       grid-template-columns:repeat(2, minmax(0, 1fr));
     }
     .panel-mobile-low { opacity:.98; }
+    .tab-controls { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+    .tab-btn { padding:7px 10px; border-radius:999px; background:#121b2b; color:var(--muted); font-size:12px; }
+    .tab-btn.active { background:#223553; border-color:var(--accent); color:var(--text); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .contextual-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 65%); }
+    .contextual-title { margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+    .context-note { margin-top:8px; color:var(--muted); font-size:13px; }
     .raw-state-panel summary { cursor:pointer; color:var(--muted); margin-bottom:8px; }
     .btn:hover { transform:translateY(-1px); border-color:var(--accent); background:#24334d; }
     .btn:active { transform:translateY(0); }
@@ -325,16 +333,8 @@ HTML = """<!doctype html>
       .advanced-actions summary { font-size:11px; }
       .grid > .decision-actions-panel { order:1; }
       .grid > .decision-details-panel { order:2; }
-      .grid > .result-panel { order:3; }
-      .grid > .floor-identity-panel { order:4; }
-      .grid > .strategic-snapshot-panel { order:5; }
-      .grid > .summary-panel { order:6; }
-      .grid > .successor-panel { order:7; }
-      .grid > .vote-panel { order:8; }
-      .grid > .completion-panel { order:9; }
-      .grid > .dynasty-panel { order:10; }
-      .grid > .chronicle-panel { order:11; }
-      .grid > .panel-mobile-low { order:12; }
+      .grid > .contextual-panel { order:3; }
+      .grid > .secondary-info-panel { order:4; }
       .raw-state-panel details:not([open]) pre { display:none; }
       pre { max-height:180px; font-size:11px; }
     }
@@ -389,67 +389,73 @@ HTML = """<!doctype html>
       <div id='decisionView' class='kv muted'>Start run to begin.</div>
     </div>
 
-    <div class='panel panel-enter result-panel'>
-      <h3>Latest Round Result</h3>
-      <div id='roundResult' class='muted'>No rounds resolved yet.</div>
-      <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
+    <div class='panel panel-enter contextual-panel'>
+      <h3 id='contextualPanelTitle' class='contextual-title'>Latest Round Result</h3>
+      <div id='contextRoundPanel'>
+        <div id='roundResult' class='muted'>No rounds resolved yet.</div>
+        <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
+      </div>
+      <div id='contextSummaryPanel' style='display:none;'>
+        <ul id='floorSummaryPrimary' class='list muted'><li>No summary yet.</li></ul>
+      </div>
+      <div id='contextSuccessorPanel' style='display:none;'>
+        <ul id='successorsPrimary' class='list muted'><li>No successor choice active.</li></ul>
+      </div>
+      <div id='contextRewardPanel' style='display:none;'>
+        <div id='rewardContext' class='muted'>No reward choice active.</div>
+      </div>
+      <div id='contextCompletionPanel' style='display:none;'>
+        <div id='completion' class='muted'>Run in progress.</div>
+      </div>
     </div>
 
-    <div class='panel panel-enter strategic-snapshot-panel'>
-      <h3>Strategic Snapshot</h3>
-      <div id='strategicSnapshotHeadline' class='snapshot-headline muted'>No strategic snapshot yet.</div>
-      <div id='strategicSnapshotChips' class='row snapshot-chips'></div>
-      <ul id='strategicSnapshotDetails' class='list muted'><li>No strategic snapshot yet.</li></ul>
-    </div>
+    <div class='panel panel-enter secondary-info-panel panel-mobile-low'>
+      <h3>Secondary Info</h3>
+      <div class='tab-controls' role='tablist' aria-label='Secondary information'>
+        <button class='btn tab-btn active' id='tabSummaryBtn' data-tab='summary' onclick="setSecondaryTab('summary')" role='tab' aria-selected='true'>Summary</button>
+        <button class='btn tab-btn' id='tabBoardBtn' data-tab='board' onclick="setSecondaryTab('board')" role='tab' aria-selected='false'>Board</button>
+        <button class='btn tab-btn' id='tabChronicleBtn' data-tab='chronicle' onclick="setSecondaryTab('chronicle')" role='tab' aria-selected='false'>Chronicle</button>
+        <button class='btn tab-btn' id='tabDebugBtn' data-tab='debug' onclick="setSecondaryTab('debug')" role='tab' aria-selected='false'>Debug</button>
+      </div>
 
-    <div class='panel panel-enter floor-identity-panel'>
-      <h3>Floor Identity</h3>
-      <div id='floorIdentityHeadline' class='floor-headline muted'>No floor identity committed yet.</div>
-      <ul id='floorIdentity' class='list muted'><li>No floor identity committed yet.</li></ul>
-    </div>
+      <section id='secondaryTabSummary' class='tab-panel active' role='tabpanel'>
+        <h3>Strategic Snapshot</h3>
+        <div id='strategicSnapshotHeadline' class='snapshot-headline muted'>No strategic snapshot yet.</div>
+        <div id='strategicSnapshotChips' class='row snapshot-chips'></div>
+        <ul id='strategicSnapshotDetails' class='list muted'><li>No strategic snapshot yet.</li></ul>
+        <h3 style='margin-top:10px;'>Floor Identity</h3>
+        <div id='floorIdentityHeadline' class='floor-headline muted'>No floor identity committed yet.</div>
+        <ul id='floorIdentity' class='list muted'><li>No floor identity committed yet.</li></ul>
+        <h3 style='margin-top:10px;'>Floor Referendum</h3>
+        <div id='voteResult' class='muted'>No vote yet.</div>
+        <h3 style='margin-top:10px;'>Floor Summary</h3>
+        <ul id='floorSummaryFull' class='list muted'><li>No summary yet.</li></ul>
+      </section>
 
-    <div class='panel panel-enter vote-panel panel-mobile-low'>
-      <h3>Floor Referendum</h3>
-      <div id='voteResult' class='muted'>No vote yet.</div>
-    </div>
+      <section id='secondaryTabBoard' class='tab-panel' role='tabpanel'>
+        <h3>Dynasty Board</h3>
+        <ul id='dynastyBoard' class='list muted'><li>No lineage board yet.</li></ul>
+      </section>
 
-    <div class='panel panel-enter summary-panel'>
-      <h3>Floor Summary</h3>
-      <ul id='floorSummary' class='list muted'><li>No summary yet.</li></ul>
-    </div>
+      <section id='secondaryTabChronicle' class='tab-panel' role='tabpanel'>
+        <h3>Lineage Chronicle</h3>
+        <ul id='chronicle' class='list muted'><li>No lineage events yet.</li></ul>
+      </section>
 
-    <div class='panel panel-enter successor-panel'>
-      <h3>Successor Options</h3>
-      <ul id='successors' class='list muted'><li>No successor choice active.</li></ul>
+      <section id='secondaryTabDebug' class='tab-panel raw-state-panel' role='tabpanel'>
+        <h3>Raw State</h3>
+        <details>
+          <summary>Expand raw state/debug JSON</summary>
+          <pre id='stateJson'>{}</pre>
+        </details>
+      </section>
     </div>
-
-    <div class='panel panel-enter dynasty-panel panel-mobile-low'>
-      <h3>Dynasty Board</h3>
-      <ul id='dynastyBoard' class='list muted'><li>No lineage board yet.</li></ul>
-    </div>
-
-    <div class='panel panel-enter completion-panel'>
-      <h3>Run Completion</h3>
-      <div id='completion' class='muted'>Run in progress.</div>
-    </div>
-
-    <div class='panel panel-enter chronicle-panel panel-mobile-low'>
-      <h3>Lineage Chronicle</h3>
-      <ul id='chronicle' class='list muted'><li>No lineage events yet.</li></ul>
-    </div>
-  </div>
-
-  <div class='panel panel-enter panel-mobile-low raw-state-panel' style='margin-top:14px;'>
-    <h3>Raw State</h3>
-    <details open>
-      <summary>Expand raw state/debug JSON</summary>
-      <pre id='stateJson'>{}</pre>
-    </details>
   </div>
 </div>
 <script>
 let latest = null;
 let previousTotals = null;
+let activeSecondaryTab = 'summary';
 const SAVE_STORAGE_KEY = 'prisoners_gambit_web_save_v1';
 const PANEL_LIMITS = Object.freeze({
   floorLeaders: 4,
@@ -494,6 +500,58 @@ function shortDecisionLabel(type){
     SuccessorChoiceState: 'Successor choice',
   };
   return labels[type] || type || 'No active decision';
+}
+
+function setSecondaryTab(tab){
+  activeSecondaryTab = tab;
+  const tabs = ['summary', 'board', 'chronicle', 'debug'];
+  tabs.forEach(name => {
+    const btn = document.getElementById(`tab${name.charAt(0).toUpperCase()}${name.slice(1)}Btn`);
+    const panel = document.getElementById(`secondaryTab${name.charAt(0).toUpperCase()}${name.slice(1)}`);
+    const isActive = name === tab;
+    if (btn) {
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    }
+    if (panel) panel.classList.toggle('active', isActive);
+  });
+}
+
+function updateContextualPanel(decisionType, snapshot){
+  const panelTitle = document.getElementById('contextualPanelTitle');
+  const sections = {
+    round: document.getElementById('contextRoundPanel'),
+    summary: document.getElementById('contextSummaryPanel'),
+    successor: document.getElementById('contextSuccessorPanel'),
+    reward: document.getElementById('contextRewardPanel'),
+    completion: document.getElementById('contextCompletionPanel'),
+  };
+  Object.values(sections).forEach(section => {
+    section.style.display = 'none';
+  });
+
+  if (snapshot?.completion) {
+    panelTitle.textContent = 'Run Completion';
+    sections.completion.style.display = 'block';
+    return;
+  }
+  if (decisionType === 'SuccessorChoiceState') {
+    panelTitle.textContent = 'Successor Options';
+    sections.successor.style.display = 'block';
+    return;
+  }
+  if (decisionType === 'PowerupChoiceState' || decisionType === 'GenomeEditChoiceState') {
+    panelTitle.textContent = 'Reward Selection';
+    sections.reward.style.display = 'block';
+    return;
+  }
+  if (snapshot?.floor_summary?.entries?.length) {
+    panelTitle.textContent = 'Floor Summary';
+    sections.summary.style.display = 'block';
+    return;
+  }
+  panelTitle.textContent = 'Latest Round Result';
+  sections.round.style.display = 'block';
 }
 
 function renderDecision(data){
@@ -684,7 +742,7 @@ function renderSnapshot(snapshot){
     ? (strategic.chips || []).map(chip => effectToken(chip)).join('')
     : '';
   document.getElementById('strategicSnapshotDetails').innerHTML = strategic
-    ? (strategic.details || []).slice(0, 3).map(line => `<li>${escapeHtml(line)}</li>`).join('')
+    ? (strategic.details || []).slice(0, 2).map(line => `<li>${escapeHtml(line)}</li>`).join('')
     : '<li>No strategic snapshot yet.</li>';
 
   const floorIdentity = snapshot.floor_identity;
@@ -697,8 +755,7 @@ function renderSnapshot(snapshot){
       <li><strong>Why it matters</strong>: ${escapeHtml(floorIdentity.pressure_reason)}</li>
       <li><strong>Lineage direction</strong>: ${escapeHtml(floorIdentity.lineage_direction)}</li>
       <li><strong>Focus this floor</strong>: ${escapeHtml(floorIdentity.strategic_focus)}</li>
-      <li><strong>Host</strong>: ${branchToken(floorIdentity.host_name)} · F${escapeHtml(floorIdentity.target_floor)}</li>
-      ${floorIdentity.key_signal ? `<li><strong>Signal carryover</strong>: ${escapeHtml(floorIdentity.key_signal)}</li>` : ''}`
+      <li><strong>Host</strong>: ${branchToken(floorIdentity.host_name)} · F${escapeHtml(floorIdentity.target_floor)}</li>`
     : '<li>No floor identity committed yet.</li>';
 
   const summary = snapshot.floor_summary?.entries || [];
@@ -722,13 +779,19 @@ function renderSnapshot(snapshot){
       + `<li><strong>Key rules</strong><ul>${capLines(civilWar.scoring_rules || [], PANEL_LIMITS.rules).map(rule => `<li>${escapeHtml(rule)}</li>`).join('') || '<li class="muted">No active score rules.</li>'}</ul></li>`
       + `<li><strong>Main pressure</strong>: ${escapeHtml(capLines(civilWar.dangerous_branches || [], 1).join(' · ') || 'Unknown')}</li>`
     : '';
-  document.getElementById('floorSummary').innerHTML = summary.length
+  const floorSummaryFull = summary.length
     ? summary.slice(0, PANEL_LIMITS.floorLeaders).map(entry => {
         const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
         const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
         return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · <span class='good'>${entry.score}</span> pts · ${movementGlyph(entry.score_delta || 0)}S ${movementGlyph(entry.wins_delta || 0)}W · ${continuity} · P${trend}</li>`;
       }).join('') + `<li><strong>Featured read</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
     : '<li>No summary yet.</li>';
+  const floorSummaryPrimary = summary.length
+    ? summary.slice(0, 2).map(entry => `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='good'>${entry.score}</span> pts · <span class='muted'>${escapeHtml(entry.descriptor)}</span></li>`).join('')
+      + `<li class='context-note'>Open Summary tab for full floor context.</li>`
+    : '<li>No summary yet.</li>';
+  document.getElementById('floorSummaryFull').innerHTML = floorSummaryFull;
+  document.getElementById('floorSummaryPrimary').innerHTML = floorSummaryPrimary;
 
   const successors = snapshot.successor_options?.candidates || [];
   const successorState = snapshot.successor_options;
@@ -737,12 +800,22 @@ function renderSnapshot(snapshot){
       + `<li><strong>Main threats</strong>: ${escapeHtml(capLines(successorState.threat_profile || [], 2).join(', ') || 'none')}</li>`
       + `<li><strong>Clue memory</strong>: ${escapeHtml((successorState.featured_inference_summary || [])[0] || 'No clue memory this floor.')}</li>`
     : '';
-  document.getElementById('successors').innerHTML = successors.length
-    ? successorContext + successors.slice(0, PANEL_LIMITS.successorCards).map(candidate => {
+  const successorPrimary = successors.length
+    ? successors.slice(0, PANEL_LIMITS.successorCards).map(candidate => {
         const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch;
-        return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${candidate.score} pts<br/><span class='muted'>${escapeHtml(topCause)}</span><br/><strong>Good at:</strong> ${escapeHtml(candidate.attractive_now)}<br/><strong>Risk:</strong> ${escapeHtml(candidate.danger_later)}<br/><strong>Pick now:</strong> ${escapeHtml(candidate.succession_pitch)}<br/><strong>Clue fit:</strong> ${escapeHtml(candidate.featured_inference_context || 'No direct clue fit.')}</li>`;
+        return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${candidate.score} pts<br/><span class='muted'>${escapeHtml(topCause)}</span></li>`;
       }).join('')
-    : '<li>No successor choice active.</li>';
+    : `${successorContext}<li>No successor choice active.</li>`;
+  document.getElementById('successorsPrimary').innerHTML = successorPrimary;
+
+  const rewardContext = document.getElementById('rewardContext');
+  if (latest?.decision_type === 'PowerupChoiceState') {
+    rewardContext.innerHTML = `${effectToken('Powerup choice active')} Pick one offer in Current Decision. <div class='context-note'>Use Summary tab for floor-level context while choosing.</div>`;
+  } else if (latest?.decision_type === 'GenomeEditChoiceState') {
+    rewardContext.innerHTML = `${effectToken('Genome edit active')} Pick one genome edit in Current Decision. <div class='context-note'>Use Summary tab for floor-level context while choosing.</div>`;
+  } else {
+    rewardContext.textContent = 'No reward choice active.';
+  }
 
   const dynastyEntries = snapshot.dynasty_board?.entries || [];
   document.getElementById('dynastyBoard').innerHTML = dynastyEntries.length
@@ -794,6 +867,8 @@ function renderSnapshot(snapshot){
   const transitionVisible = Boolean(latest?.transition_action_visible && transitionLabel);
   advanceBtn.style.display = transitionVisible ? 'inline-flex' : 'none';
   advanceBtn.textContent = transitionLabel || 'Continue to next phase';
+
+  updateContextualPanel(latest?.decision_type || null, snapshot);
 }
 
 async function refresh(){
@@ -802,6 +877,7 @@ async function refresh(){
   document.getElementById('status').textContent = `status: ${latest.status}`;
   renderDecision(latest);
   renderSnapshot(latest.snapshot || {});
+  setSecondaryTab(activeSecondaryTab || 'summary');
   document.getElementById('stateJson').textContent = JSON.stringify(latest, null, 2);
   await autosaveFromServer();
 }

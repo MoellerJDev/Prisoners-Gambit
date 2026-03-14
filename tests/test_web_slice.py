@@ -1263,7 +1263,7 @@ def test_web_html_mobile_layout_prioritizes_decision_context_and_reduces_clutter
     assert ".decision-details-panel {" in web_server.HTML
     assert "<div class='row controls action-controls'>" in web_server.HTML
     assert "<div class='row controls status-controls'>" in web_server.HTML
-    assert "<details open>" in web_server.HTML
+    assert "<section id='secondaryTabDebug' class='tab-panel raw-state-panel' role='tabpanel'>" in web_server.HTML
     assert "Expand raw state/debug JSON" in web_server.HTML
 
 
@@ -1282,9 +1282,9 @@ def test_web_html_prioritizes_mobile_panel_ordering() -> None:
 
     assert "grid > .decision-actions-panel { order:1; }" in web_server.HTML
     assert "grid > .decision-details-panel { order:2; }" in web_server.HTML
-    assert "grid > .result-panel { order:3; }" in web_server.HTML
-    assert "grid > .floor-identity-panel { order:4; }" in web_server.HTML
-    assert "panel panel-enter vote-panel panel-mobile-low" in web_server.HTML
+    assert "grid > .contextual-panel { order:3; }" in web_server.HTML
+    assert "grid > .secondary-info-panel { order:4; }" in web_server.HTML
+    assert "panel panel-enter contextual-panel" in web_server.HTML
 
 
 def test_web_html_shows_floor_identity_headline_and_compact_fields() -> None:
@@ -1341,14 +1341,41 @@ def test_web_root_contains_full_run_panels() -> None:
         with urlopen(f"http://127.0.0.1:{port}/") as resp:
             html = resp.read().decode("utf-8")
         assert "Current Decision" in html
-        assert "Floor Identity" in html
-        assert "Floor Referendum" in html
-        assert "Floor Summary" in html
-        assert "Successor Options" in html
-        assert "Run Completion" in html
+        assert "Decision Details" in html
+        assert "Secondary Info" in html
+        assert "Summary" in html
+        assert "Board" in html
+        assert "Chronicle" in html
+        assert "Debug" in html
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_web_html_secondary_tabs_and_contextual_panel_structure() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "function setSecondaryTab(tab){" in web_server.HTML
+    assert "id='tabSummaryBtn'" in web_server.HTML
+    assert "id='tabBoardBtn'" in web_server.HTML
+    assert "id='tabChronicleBtn'" in web_server.HTML
+    assert "id='tabDebugBtn'" in web_server.HTML
+    assert "activeSecondaryTab = 'summary'" in web_server.HTML
+    assert "function updateContextualPanel(decisionType, snapshot){" in web_server.HTML
+    assert "id='contextualPanelTitle'" in web_server.HTML
+    assert "id='contextRoundPanel'" in web_server.HTML
+    assert "id='contextSummaryPanel'" in web_server.HTML
+    assert "id='contextSuccessorPanel'" in web_server.HTML
+    assert "id='contextRewardPanel'" in web_server.HTML
+    assert "id='contextCompletionPanel'" in web_server.HTML
+
+
+def test_web_html_debug_is_secondary_not_default_always_open_panel() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "<details open>" not in web_server.HTML
+    assert "id='secondaryTabDebug'" in web_server.HTML
+    assert "<div class='panel panel-enter panel-mobile-low raw-state-panel'" not in web_server.HTML
 
 
 def test_run_server_defaults_to_public_host(monkeypatch) -> None:
