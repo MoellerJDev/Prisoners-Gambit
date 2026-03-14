@@ -1,6 +1,7 @@
 let latest = null;
 let previousTotals = null;
 let activeSecondaryTab = 'summary';
+let pendingChoiceSelection = null;
 const SAVE_STORAGE_KEY = 'prisoners_gambit_web_save_v1';
 const ONBOARDING_DISMISSED_KEY = 'prisoners_gambit_onboarding_dismissed_v1';
 const PANEL_LIMITS = Object.freeze({
@@ -67,17 +68,12 @@ function renderPowerupChoiceCard(offer, idx){
   if (offer.tags && offer.tags.length) tagPool.push(...offer.tags);
   if (offer.phase_support) tagPool.push(`${getNestedText('labels.phase')} ${offer.phase_support}`);
   if (role) tagPool.push(role);
-  const secondary = [offer.lineage_commitment, offer.doctrine_vector, offer.tradeoff, offer.successor_pressure]
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(line => `<div class='choice-card-detail'>${escapeHtml(line)}</div>`)
-    .join('');
+  const compactTags = tagPool.slice(0, 3);
   return `
     <span class='action-tile-title'>${escapeHtml(label)}</span>
     <span class='choice-card-effect'>${escapeHtml(effectLine)}</span>
-    ${renderCardTags(tagPool, 4)}
+    ${renderCardTags(compactTags, 3)}
     ${fit ? `<span class='choice-card-fit'>${escapeHtml(getNestedText('labels.fit'))}: ${escapeHtml(fit)}</span>` : ''}
-    ${secondary}
   `;
 }
 
@@ -90,7 +86,96 @@ function renderGenomeChoiceCard(offer, idx){
     <span class='action-tile-title'>${escapeHtml(label)}</span>
     <span class='choice-card-effect'>${escapeHtml(beforeAfter)}</span>
     ${renderCardTags(tags, 3)}
-    ${offer.tradeoff ? `<div class='choice-card-detail'>${escapeHtml(getNestedText('labels.tradeoff'))}: ${escapeHtml(offer.tradeoff)}</div>` : ''}
+  `;
+}
+
+function choiceSignatureFor(decisionType, decision){
+  if (!decision) return `${decisionType}:none`;
+  if (decisionType === 'PowerupChoiceState' || decisionType === 'GenomeEditChoiceState') {
+    const offers = (decision.offers || []).map(offer => offer?.name || '').join('|');
+    return `${decisionType}:${decision.floor_number || '-'}:${offers}`;
+  }
+  if (decisionType === 'SuccessorChoiceState') {
+    const candidates = (decision.candidates || []).map(candidate => candidate?.name || '').join('|');
+    return `${decisionType}:${decision.floor_number || '-'}:${candidates}`;
+  }
+  return `${decisionType}:other`;
+}
+
+function setPendingChoiceSelection(decisionType, choiceSignature, selectedIndex){
+  pendingChoiceSelection = {decisionType, choiceSignature, selectedIndex};
+}
+
+function getPendingChoiceSelection(decisionType, choiceSignature, itemCount){
+  if (!pendingChoiceSelection || pendingChoiceSelection.decisionType !== decisionType) return null;
+  if (pendingChoiceSelection.choiceSignature !== choiceSignature) return null;
+  const idx = pendingChoiceSelection.selectedIndex;
+  if (!Number.isInteger(idx) || idx < 0 || idx >= itemCount) return null;
+  return idx;
+}
+
+function renderChoiceSelectionPrompt(){
+  return `<div class='muted decision-select-prompt'>${escapeHtml(t('messages.select_to_preview'))}</div>`;
+}
+
+function renderPowerupChoiceDetails(offer, idx){
+  const listItems = [
+    offer.effect ? `<li><strong>${escapeHtml(t('labels.effect'))}:</strong> ${escapeHtml(offer.effect)}</li>` : '',
+    offer.trigger ? `<li><strong>${escapeHtml(t('labels.trigger'))}:</strong> ${escapeHtml(offer.trigger)}</li>` : '',
+    offer.tradeoff ? `<li><strong>${escapeHtml(t('labels.tradeoff'))}:</strong> ${escapeHtml(offer.tradeoff)}</li>` : '',
+    offer.doctrine_vector ? `<li><strong>${escapeHtml(t('labels.doctrine'))}:</strong> ${escapeHtml(offer.doctrine_vector)}</li>` : '',
+    offer.successor_pressure ? `<li><strong>${escapeHtml(t('labels.heir_pressure'))}:</strong> ${escapeHtml(offer.successor_pressure)}</li>` : '',
+    offer.phase_support ? `<li><strong>${escapeHtml(t('labels.phase'))}:</strong> ${escapeHtml(offer.phase_support)}</li>` : '',
+  ].filter(Boolean).join('');
+  return `
+    <div class='choice-details-title'>${escapeHtml(`${idx + 1}. ${offer.name}`)}</div>
+    <ul class='list tight choice-details-list'>${listItems || `<li>${escapeHtml(t('fallbacks.not_available'))}</li>`}</ul>
+    <button class='btn primary-action choice-confirm-btn' onclick="sendAction({type:'choose_powerup', offer_index:${idx}})">${escapeHtml(t('buttons.confirm_choice'))}</button>
+  `;
+}
+
+function renderGenomeChoiceDetails(offer, idx){
+  const listItems = [
+    offer.lineage_commitment ? `<li><strong>${escapeHtml(t('labels.commitment'))}:</strong> ${escapeHtml(offer.lineage_commitment)}</li>` : '',
+    offer.doctrine_vector ? `<li><strong>${escapeHtml(t('labels.doctrine'))}:</strong> ${escapeHtml(offer.doctrine_vector)}</li>` : '',
+    offer.tradeoff ? `<li><strong>${escapeHtml(t('labels.tradeoff'))}:</strong> ${escapeHtml(offer.tradeoff)}</li>` : '',
+    offer.doctrine_drift ? `<li><strong>${escapeHtml(t('labels.doctrine_drift'))}:</strong> ${escapeHtml(offer.doctrine_drift)}</li>` : '',
+    offer.successor_pressure ? `<li><strong>${escapeHtml(t('labels.heir_pressure'))}:</strong> ${escapeHtml(offer.successor_pressure)}</li>` : '',
+    offer.phase_support ? `<li><strong>${escapeHtml(t('labels.phase'))}:</strong> ${escapeHtml(offer.phase_support)}</li>` : '',
+  ].filter(Boolean).join('');
+  return `
+    <div class='choice-details-title'>${escapeHtml(`${idx + 1}. ${offer.name}`)}</div>
+    <ul class='list tight choice-details-list'>${listItems || `<li>${escapeHtml(t('fallbacks.not_available'))}</li>`}</ul>
+    <button class='btn primary-action choice-confirm-btn' onclick="sendAction({type:'choose_genome_edit', offer_index:${idx}})">${escapeHtml(t('buttons.confirm_choice'))}</button>
+  `;
+}
+
+function renderSuccessorChoiceCard(candidate, idx){
+  const cause = (candidate.shaping_causes || [])[0] || t('fallbacks.no_shaping_cause');
+  const pickFor = candidate.attractive_now || t('fallbacks.not_available');
+  const tags = [candidate.branch_role || t('fallbacks.unknown_role'), `${t('labels.score')}: ${candidate.score ?? '-'}`, `${t('successor_comparison.labels.wins')}: ${candidate.wins ?? '-'}`];
+  return `
+    <span class='action-tile-title'>${escapeHtml(`${idx + 1}. ${candidate.name}`)}</span>
+    <span class='choice-card-effect'>${escapeHtml(`${t('successor_comparison.labels.pick_for')}: ${pickFor}`)}</span>
+    ${renderCardTags(tags, 3)}
+    <span class='choice-card-fit'>${escapeHtml(`${t('successor_comparison.labels.cause')}: ${cause}`)}</span>
+  `;
+}
+
+function renderSuccessorChoiceDetails(candidate, idx){
+  const topCause = (candidate.shaping_causes || [])[0] || t('fallbacks.no_shaping_cause');
+  const listItems = [
+    `<li><strong>${escapeHtml(t('successor_comparison.labels.cause'))}:</strong> ${escapeHtml(topCause)}</li>`,
+    `<li><strong>${escapeHtml(t('successor_comparison.labels.pick_for'))}:</strong> ${escapeHtml(candidate.attractive_now || t('fallbacks.not_available'))}</li>`,
+    `<li><strong>${escapeHtml(t('successor_comparison.labels.risk'))}:</strong> ${escapeHtml(candidate.danger_later || t('fallbacks.not_available'))}</li>`,
+    `<li><strong>${escapeHtml(t('successor_comparison.labels.pitch'))}:</strong> ${escapeHtml(candidate.succession_pitch || t('fallbacks.not_available'))}</li>`,
+    `<li><strong>${escapeHtml(t('successor_comparison.labels.clue'))}:</strong> ${escapeHtml(candidate.featured_inference_context || t('fallbacks.no_direct_clue_fit'))}</li>`,
+    `<li><strong>${escapeHtml(t('labels.score'))}:</strong> ${escapeHtml(candidate.score ?? '-')} · ${escapeHtml(t('successor_comparison.labels.wins'))}: ${escapeHtml(candidate.wins ?? '-')} · ${escapeHtml(candidate.branch_role || t('fallbacks.unknown_role'))}</li>`,
+  ].join('');
+  return `
+    <div class='choice-details-title'>${escapeHtml(`${idx + 1}. ${candidate.name}`)}</div>
+    <ul class='list tight choice-details-list'>${listItems}</ul>
+    <button class='btn primary-action choice-confirm-btn' onclick="sendAction({type:'choose_successor', candidate_index:${idx}})">${escapeHtml(t('buttons.confirm_choice'))}</button>
   `;
 }
 
@@ -284,7 +369,9 @@ function renderDecision(data){
   const advancedLabel = document.getElementById('advancedActionsLabel');
   const advancedGrid = document.getElementById('advancedActionsGrid');
   const phaseActionHelper = document.getElementById('phaseActionHelper');
+  const decisionView = document.getElementById('decisionView');
   actions.innerHTML = '';
+  decisionView.className = 'kv muted';
   actionsPrimaryLabel.textContent = getNestedText('fallbacks.main_choice_now');
   phaseActionHelper.textContent = getNestedText('decision_helpers.generic_phase_choice');
   advancedGrid.innerHTML = '';
@@ -297,13 +384,13 @@ function renderDecision(data){
       actionsPrimaryLabel.textContent = getNestedText('transition_decisions.primary_label');
       phaseActionHelper.textContent = transitionCopy.helper;
       document.getElementById('decisionType').textContent = `${getNestedText('labels.decision_prefix')} ${transitionCopy.decisionLabel}`;
-      document.getElementById('decisionView').innerHTML = escapeHtml(transitionCopy.explanation);
+    decisionView.innerHTML = escapeHtml(transitionCopy.explanation);
       actions.innerHTML = `<button class='btn primary-action' onclick='advanceFlow()'>${actionTile(data.transition_action_label, transitionCopy.actionMeta)}</button>`;
       return;
     }
     actionsPrimaryLabel.textContent = '';
     phaseActionHelper.textContent = '';
-    document.getElementById('decisionView').innerHTML = getNestedText('fallbacks.no_active_decision');
+    decisionView.innerHTML = getNestedText('fallbacks.no_active_decision');
     return;
   }
 
@@ -311,7 +398,7 @@ function renderDecision(data){
     const p = decision.prompt;
     const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || `<li class="muted">${escapeHtml(t('fallbacks.no_explicit_clues'))}</li>`;
     const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || `<li class="muted">${escapeHtml(t('fallbacks.no_prior_featured_clues'))}</li>`;
-    document.getElementById('decisionView').innerHTML = `
+    decisionView.innerHTML = `
       <div>${escapeHtml(t('labels.next_pick'))}</div><div>${effectToken(`${t('labels.autopilot')}: ${moveLabel(p.suggested_move)}`)}</div>
       <div>${escapeHtml(t('labels.round'))}</div><div>${p.round_index + 1}/${p.total_rounds}</div>
       <div>${escapeHtml(t('labels.score'))}</div><div class='scoreline'>${escapeHtml(t('labels.you'))} <span class='good'>${p.my_match_score}</span> : <span class='danger'>${p.opp_match_score}</span> ${escapeHtml(t('labels.opponent_short'))}</div>
@@ -338,7 +425,7 @@ function renderDecision(data){
     actionsPrimaryLabel.textContent = getNestedText('fallbacks.main_choice_now');
   phaseActionHelper.textContent = getNestedText('decision_helpers.floor_vote');
     const p = decision.prompt;
-    document.getElementById('decisionView').innerHTML = `
+    decisionView.innerHTML = `
       <div>${escapeHtml(t('labels.floor'))}</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
       <div>${escapeHtml(t('labels.next_pick'))}</div><div>${effectToken(`${t('labels.autopilot')}: ${moveLabel(p.suggested_vote)}`)}</div>
       <div>${escapeHtml(t('labels.floor_score'))}</div><div>${p.current_floor_score}</div>
@@ -353,20 +440,25 @@ function renderDecision(data){
   if (decisionType === 'PowerupChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.powerup_choice');
-    document.getElementById('decisionView').innerHTML = `
-      <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.powerup_card'))}</div>
-      <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
-      <div>${escapeHtml(t('labels.cards'))}</div><div>${decision.offers.length}</div>`;
+    const choiceSignature = choiceSignatureFor(decisionType, decision);
+    const selectedIdx = getPendingChoiceSelection(decisionType, choiceSignature, decision.offers.length);
+    decisionView.className = 'muted choice-details-surface';
+    decisionView.innerHTML = selectedIdx === null
+      ? renderChoiceSelectionPrompt()
+      : renderPowerupChoiceDetails(decision.offers[selectedIdx], selectedIdx);
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
-      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
+      btn.className = `btn action-tile-secondary choice-option ${selectedIdx === idx ? 'choice-option-selected' : ''}`;
       const commitment = offer.lineage_commitment ? `${t('labels.commitment')}: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `${t('labels.doctrine')}: ${offer.doctrine_vector}` : '';
       const tradeoff = offer.tradeoff ? `${t('labels.tradeoff')}: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `${t('labels.heir_pressure')}: ${offer.successor_pressure}` : '';
       btn.innerHTML = renderPowerupChoiceCard(offer, idx);
       btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `${t('labels.phase')}: ${offer.phase_support || t('fallbacks.both')}`, pressure].filter(Boolean).join(' | ');
-      btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
+      btn.onclick = () => {
+        setPendingChoiceSelection(decisionType, choiceSignature, idx);
+        renderDecision(data);
+      };
       actions.appendChild(btn);
     });
     return;
@@ -375,13 +467,15 @@ function renderDecision(data){
   if (decisionType === 'GenomeEditChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.genome_edit_choice');
-    document.getElementById('decisionView').innerHTML = `
-      <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.genome_edit'))}</div>
-      <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
-      <div>${escapeHtml(t('labels.current_build'))}</div><div>${genomeToken(decision.current_summary)}</div>`;
+    const choiceSignature = choiceSignatureFor(decisionType, decision);
+    const selectedIdx = getPendingChoiceSelection(decisionType, choiceSignature, decision.offers.length);
+    decisionView.className = 'muted choice-details-surface';
+    decisionView.innerHTML = selectedIdx === null
+      ? renderChoiceSelectionPrompt()
+      : renderGenomeChoiceDetails(decision.offers[selectedIdx], selectedIdx);
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
-      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
+      btn.className = `btn action-tile-secondary choice-option ${selectedIdx === idx ? 'choice-option-selected' : ''}`;
       const commitment = offer.lineage_commitment ? `${t('labels.commitment')}: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `${t('labels.doctrine')}: ${offer.doctrine_vector}` : '';
       const tradeoff = offer.tradeoff ? `${t('labels.tradeoff')}: ${offer.tradeoff}` : '';
@@ -389,7 +483,10 @@ function renderDecision(data){
       const drift = offer.doctrine_drift ? `${t('labels.doctrine_drift')}: ${offer.doctrine_drift}` : '';
       btn.innerHTML = renderGenomeChoiceCard(offer, idx);
       btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `${t('labels.phase')}: ${offer.phase_support || t('fallbacks.both')}`, pressure, drift].filter(Boolean).join(' | ');
-      btn.onclick = () => sendAction({type:'choose_genome_edit', offer_index: idx});
+      btn.onclick = () => {
+        setPendingChoiceSelection(decisionType, choiceSignature, idx);
+        renderDecision(data);
+      };
       actions.appendChild(btn);
     });
     return;
@@ -398,18 +495,24 @@ function renderDecision(data){
   if (decisionType === 'SuccessorChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_next_host');
     phaseActionHelper.textContent = getNestedText('decision_helpers.successor_choice');
-    document.getElementById('decisionView').innerHTML = `
-      <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.next_host'))}</div>
-      <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
-      <div>${escapeHtml(t('labels.candidates'))}</div><div>${decision.candidates.length}</div>`;
+    const choiceSignature = choiceSignatureFor(decisionType, decision);
+    const selectedIdx = getPendingChoiceSelection(decisionType, choiceSignature, decision.candidates.length);
+    decisionView.className = 'muted choice-details-surface';
+    decisionView.innerHTML = selectedIdx === null
+      ? renderChoiceSelectionPrompt()
+      : renderSuccessorChoiceDetails(decision.candidates[selectedIdx], selectedIdx);
     decision.candidates.forEach((candidate, idx) => {
       const btn = document.createElement('button');
-      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
-      btn.innerHTML = `${actionTile(`${idx + 1}. ${candidate.name}`, `${candidate.branch_role} · ${candidate.score}/${candidate.wins}`)}<span class='muted'>${branchToken(candidate.name)}</span>`;
+      btn.className = `btn action-tile-secondary choice-option ${selectedIdx === idx ? 'choice-option-selected' : ''}`;
+      btn.innerHTML = renderSuccessorChoiceCard(candidate, idx);
       btn.title = (candidate.shaping_causes || []).join('; ');
-      btn.onclick = () => sendAction({type:'choose_successor', candidate_index: idx});
+      btn.onclick = () => {
+        setPendingChoiceSelection(decisionType, choiceSignature, idx);
+        renderDecision(data);
+      };
       actions.appendChild(btn);
     });
+    return;
   }
 }
 

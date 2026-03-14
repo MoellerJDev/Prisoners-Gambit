@@ -111,6 +111,12 @@
     .action-tile-title { font-size:14px; font-weight:600; color:var(--text); line-height:1.25; }
     .action-tile-meta { font-size:12px; color:var(--muted); line-height:1.25; }
     .choice-card-effect { font-size:13px; font-weight:600; color:var(--text); line-height:1.3; }
+    .choice-option .choice-card-effect {
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
     .choice-card-tags { display:flex; flex-wrap:wrap; gap:5px; }
     .choice-mini-tag {
       display:inline-flex;
@@ -123,6 +129,13 @@
       background:#111b2c;
     }
     .choice-card-fit { font-size:11px; color:var(--accent); }
+    .choice-option .choice-card-fit {
+      display:block;
+      width:100%;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
     .choice-card-detail {
       margin:1px 0 0;
       font-size:11px;
@@ -174,6 +187,24 @@
       margin-right:4px;
     }
     .action-tile-secondary { border-color:color-mix(in oklab, var(--border), #000 35%); background:#172236; }
+    .choice-option { min-height:68px; }
+    .choice-option-selected {
+      border-color:var(--accent);
+      background:#223553;
+      box-shadow:0 0 0 1px color-mix(in oklab, var(--accent), #000 45%);
+    }
+    .choice-option .choice-card-tags { max-height:44px; overflow:hidden; }
+    .choice-option .choice-mini-tag {
+      white-space:nowrap;
+      max-width:100%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .choice-details-surface { display:grid; gap:8px; }
+    .choice-details-title { font-weight:700; font-size:14px; color:var(--text); }
+    .choice-details-list { margin:0; }
+    .choice-confirm-btn { width:100%; justify-content:center; align-items:center; }
+    .decision-select-prompt { margin:0; }
     .actions-primary-label {
       margin-top:8px;
       font-size:11px;
@@ -330,6 +361,7 @@
       .decision-actions-panel { position:sticky; top:8px; z-index:3; }
       .actions { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }
       .actions .btn { min-height:56px; padding:8px 9px; }
+      .choice-option { min-height:52px; }
       .actions-primary-label { margin-top:6px; font-size:10px; }
       .action-tile-title { font-size:13px; }
       .action-tile-meta { font-size:11px; }

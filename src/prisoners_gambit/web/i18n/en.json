@@ -6,6 +6,7 @@
   },
   "buttons": {
     "start_run": "Start Run",
+    "confirm_choice": "Confirm choice",
     "continue_next_phase": "Continue to next phase",
     "export_save_code": "Export Save Code",
     "import_save_code": "Import Save Code",
@@ -133,6 +134,7 @@
     "choose_one_offer": "Choose one offer",
     "choose_next_host": "Choose next host",
     "advanced_tactic_setup": "Advanced tactic setup (optional)",
+    "effect": "Effect",
     "trigger": "Trigger",
     "phase": "Phase",
     "fit": "Fit",
@@ -174,7 +176,8 @@
     "powerup_choice_active": "Powerup choice active",
     "genome_edit_active": "Genome edit active",
     "pick_one_offer": "Pick one offer in Current Decision.",
-    "pick_one_genome": "Pick one genome edit in Current Decision."
+    "pick_one_genome": "Pick one genome edit in Current Decision.",
+    "select_to_preview": "Select an option in Current Decision to inspect it and confirm."
   },
   "fallbacks": {
     "no_decision_yet": "No decision yet.",

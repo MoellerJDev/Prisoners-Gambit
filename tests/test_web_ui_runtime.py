@@ -131,8 +131,17 @@ def test_runtime_powerup_cards_render_compact_and_click_to_genome(web_server_run
 
     assert page.locator("#actions button details").count() == 0
     assert page.locator("#actions .choice-card-effect").count() >= 1
+    assert page.locator("#decisionView .choice-confirm-btn").count() == 0
+    assert "Select an option" in page.locator("#decisionView").inner_text()
+    assert page.locator("#actions button.choice-option-selected").count() == 0
 
-    page.locator("#actions button").first.click()
+    page.locator("#actions button").nth(1).click()
+    page.wait_for_timeout(150)
+    assert page.locator("#actions button.choice-option-selected").count() == 1
+    assert page.locator("#actions button").nth(1).get_attribute("class") is not None
+    assert "Confirm choice" in page.locator("#decisionView .choice-confirm-btn").inner_text()
+
+    page.locator("#decisionView .choice-confirm-btn").click()
     page.wait_for_timeout(150)
     decision_after = page.locator("#decisionType").inner_text()
     assert "Genome edit" in decision_after
@@ -234,9 +243,101 @@ def test_runtime_phase_helpers_show_for_reward_and_successor_choices(web_server_
     assert "Compare Cause, Pick for, Risk" in page.locator("#phaseActionHelper").inner_text()
 
     page.locator("#actions button").first.click()
+    page.locator("#decisionView .choice-confirm-btn").click()
     page.wait_for_timeout(150)
     assert "Powerup choice" in page.locator("#decisionType").inner_text()
     assert "Pick by the first-line effect" in page.locator("#phaseActionHelper").inner_text()
+
+
+def test_runtime_successor_choice_select_then_confirm_updates_decision_details(web_server_runtime, playwright_page) -> None:
+    _drive_to_successor_choice(web_server_runtime)
+
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+    page.evaluate("refresh()")
+    page.wait_for_timeout(150)
+
+    assert "Successor choice" in page.locator("#decisionType").inner_text()
+    assert page.locator("#actions button.choice-option-selected").count() == 0
+    assert page.locator("#decisionView .choice-confirm-btn").count() == 0
+    assert "Select an option" in page.locator("#decisionView").inner_text()
+
+    selected_name = page.locator("#actions button .action-tile-title").first.inner_text()
+    page.locator("#actions button").first.click()
+    page.wait_for_timeout(150)
+
+    assert page.locator("#actions button.choice-option-selected").count() == 1
+    assert page.locator("#decisionView .choice-details-title").inner_text() == selected_name
+    assert page.locator("#decisionView .choice-confirm-btn").count() == 1
+    assert page.locator("#decisionView").inner_text().count("No direct clue fit") == 0
+
+    page.locator("#decisionView .choice-confirm-btn").click()
+    page.wait_for_timeout(150)
+    assert "Powerup choice" in page.locator("#decisionType").inner_text()
+
+
+def test_runtime_choice_selection_does_not_carry_to_new_choice_payload_same_type(web_server_runtime, playwright_page) -> None:
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+
+    page.evaluate(
+        """
+        () => {
+          const firstDecision = {
+            decision_type: 'PowerupChoiceState',
+            decision: {
+              floor_number: 2,
+              offers: [
+                {name:'Alpha Card', effect:'Gain leverage now', trigger:'When pressure rises'},
+                {name:'Beta Card', effect:'Hold stability', trigger:'When ties form'},
+              ],
+            },
+          };
+          renderDecision(firstDecision);
+          document.querySelector('#actions button:nth-child(2)').click();
+
+          const secondDecision = {
+            decision_type: 'PowerupChoiceState',
+            decision: {
+              floor_number: 2,
+              offers: [
+                {name:'Gamma Card', effect:'Shift doctrine', trigger:'When outsider leads'},
+                {name:'Delta Card', effect:'Protect heir lane', trigger:'When host pressured'},
+              ],
+            },
+          };
+          renderDecision(secondDecision);
+        }
+        """
+    )
+
+    assert page.locator("#actions button.choice-option-selected").count() == 0
+    assert page.locator("#decisionView .choice-confirm-btn").count() == 0
+    assert "Select an option" in page.locator("#decisionView").inner_text()
+
+
+def test_runtime_mobile_choice_cards_and_detail_panel_are_separate_and_compact(web_server_runtime) -> None:
+    playwright = pytest.importorskip("playwright.sync_api")
+    _drive_to_powerup_choice(web_server_runtime)
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 390, "height": 844})
+        try:
+            page.goto(web_server_runtime, wait_until="networkidle")
+            page.evaluate("refresh()")
+            page.wait_for_timeout(150)
+
+            assert "Powerup choice" in page.locator("#decisionType").inner_text()
+            assert page.locator("#actions button").count() >= 2
+            assert page.locator("#decisionView .choice-confirm-btn").count() == 0
+
+            actions_height = page.locator("#actions").evaluate("el => el.getBoundingClientRect().height")
+            details_top = page.locator(".decision-details-panel").evaluate("el => el.getBoundingClientRect().top")
+            actions_top = page.locator("#actions").evaluate("el => el.getBoundingClientRect().top")
+            assert actions_height < 380
+            assert details_top >= actions_top
+        finally:
+            browser.close()
 
 
 def test_runtime_mobile_onboarding_non_blocking_and_controls_tappable(web_server_runtime) -> None:
