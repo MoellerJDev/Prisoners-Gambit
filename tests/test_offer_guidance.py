@@ -34,7 +34,6 @@ def test_doctrine_drift_tracks_phase_support_lane() -> None:
     assert doctrine_drift_text(civil_war).startswith("Favors heirs") and "branch-mirror conflict" in doctrine_drift_text(civil_war).lower()
 
 
-
 def test_guidance_lookup_fails_loudly_for_missing_catalog_entries() -> None:
     class _UnknownPowerup:
         name = "Unknown Powerup"

@@ -128,7 +128,7 @@ class EvolutionEngine:
 
                 doctrine_powerup = self._doctrine_powerup(branch_focus)
                 should_inject = doctrine_powerup is not None and self.rng.random() <= BRANCH_FOCUS_CONFIG[branch_focus].inherited_powerup_chance
-                if should_inject:
+                if should_inject and doctrine_powerup is not None and not any(type(existing) is type(doctrine_powerup) for existing in inherited_powerups):
                     inherited_powerups.append(doctrine_powerup)
 
                 logger.debug(
@@ -157,6 +157,11 @@ class EvolutionEngine:
         return next_population
 
     def _apply_branch_focus(self, genome: StrategyGenome, branch_focus: BranchFocus) -> StrategyGenome:
+        genome = StrategyGenome(
+            first_move=genome.first_move,
+            response_table=dict(genome.response_table),
+            noise=genome.noise,
+        )
         if branch_focus == BRANCH_FOCUS_SAFE:
             genome.first_move = COOPERATE
             genome.response_table[(COOPERATE, COOPERATE)] = COOPERATE

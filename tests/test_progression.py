@@ -156,3 +156,54 @@ def test_grant_ai_powerups_never_grants_to_player_even_with_certain_chance(monke
     engine.grant_ai_powerups(survivors=survivors, player=player, floor_config=FloorConfig())
 
     assert player.powerups == []
+
+
+def test_grant_ai_powerups_skips_duplicate_powerup_types(monkeypatch) -> None:
+    engine = ProgressionEngine(rng=random.Random(1), offers_per_floor=5, featured_matches_per_floor=3)
+
+    player = make_agent("You", is_player=True)
+    ai = make_agent("A")
+    ai.powerups.append(type("OtherPowerup", (), {"name": "Other"})())
+    from prisoners_gambit.core.powerups import TrustDividend
+
+    ai.powerups.append(TrustDividend(bonus=1))
+
+    class FloorConfig:
+        ai_powerup_chance = 1.0
+
+    monkeypatch.setattr(
+        "prisoners_gambit.systems.progression.generate_powerup_offers",
+        lambda count, rng: [TrustDividend(bonus=2)],
+    )
+
+    engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
+
+    trust_dividends = [powerup for powerup in ai.powerups if isinstance(powerup, TrustDividend)]
+    assert len(trust_dividends) == 1
+
+
+def test_grant_ai_powerups_respects_max_powerup_cap(monkeypatch) -> None:
+    engine = ProgressionEngine(rng=random.Random(1), offers_per_floor=5, featured_matches_per_floor=3)
+
+    player = make_agent("You", is_player=True)
+    ai = make_agent("A")
+    ai.powerups.extend(
+        [
+            type("P1", (), {"name": "P1"})(),
+            type("P2", (), {"name": "P2"})(),
+            type("P3", (), {"name": "P3"})(),
+        ]
+    )
+
+    class FloorConfig:
+        ai_powerup_chance = 1.0
+
+    monkeypatch.setattr(
+        "prisoners_gambit.systems.progression.generate_powerup_offers",
+        lambda count, rng: [type("P4", (), {"name": "P4"})()],
+    )
+
+    before = len(ai.powerups)
+    engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
+
+    assert len(ai.powerups) == before

@@ -908,7 +908,7 @@ class FeaturedMatchWebSession:
         chosen_cause = (chosen.shaping_causes[0] if chosen.shaping_causes else chosen.succession_pitch).strip().rstrip(".")
         focus_name = branch_focus.name if branch_focus is not None else chosen.name
         focus_role = branch_focus.branch_role.lower() if branch_focus is not None else chosen.branch_role.lower()
-        pressure_reason = f"{dominant_pressure} pressure via {focus_name} ({focus_role})."
+        pressure_reason = f"{dominant_pressure} pressure via {focus_name} ({focus_role}) under {chosen.name}."
 
         attractive_focus = chosen.attractive_now.lower()
         if len(attractive_focus) > 44:
@@ -916,7 +916,7 @@ class FeaturedMatchWebSession:
         danger_focus = chosen.danger_later.lower()
         if len(danger_focus) > 44:
             danger_focus = danger_focus[:41].rstrip() + "..."
-        strategic_focus = f"Push {attractive_focus}; hedge {danger_focus}."
+        strategic_focus = f"Push {chosen.name.lower()}: {attractive_focus}; hedge {danger_focus}."
         if clue_signal is not None:
             clue_focus = clue_signal.split("|", 1)[0].strip().rstrip(".")
             if len(clue_focus) > 44:
@@ -927,6 +927,9 @@ class FeaturedMatchWebSession:
             if len(cause_focus) > 44:
                 cause_focus = cause_focus[:41].rstrip() + "..."
             strategic_focus = f"{strategic_focus[:-1]} Cause: {cause_focus.lower()}."
+
+        if len(strategic_focus) > 160:
+            strategic_focus = strategic_focus[:157].rstrip() + "..."
 
         headline = f"{pressure_label}: {chosen.name} · {chosen.branch_role}"
         return FloorIdentityState(

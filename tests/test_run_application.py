@@ -478,3 +478,29 @@ def test_run_application_emits_doctrine_framing_in_offer_and_civil_war_events(mo
     pressure = civil_war_events[0]["civil_war_context"]["doctrine_pressure"]
     assert pressure
     assert any("doctrine" in line.lower() for line in pressure)
+
+
+def test_floor_cap_before_civil_war_marks_capped_outcome_not_victory(monkeypatch) -> None:
+    from prisoners_gambit.core.events import EventBus
+
+    player = _make_agent("You", score=10, wins=2, is_player=True, lineage_id=1, lineage_depth=0)
+    kin = _make_agent("You*", score=9, wins=1, is_player=False, lineage_id=1, lineage_depth=1)
+    outsider = _make_agent("Bot", score=8, wins=1, is_player=False, lineage_id=None, lineage_depth=0)
+
+    ranked_floor_1 = [player, kin, outsider]
+
+    app, renderer, tournament = _build_transfer_test_app(
+        monkeypatch=monkeypatch,
+        ranked_sequences=[ranked_floor_1],
+        initial_population=[player, kin, outsider],
+        survivor_count=3,
+    )
+
+    app.event_bus = EventBus()
+    result = app.run()
+
+    assert result is player
+    assert tournament.phases == ["ecosystem"]
+    assert renderer.victory is None
+    assert app.interaction_controller.snapshot.completion is not None
+    assert app.interaction_controller.snapshot.completion.outcome == "capped"

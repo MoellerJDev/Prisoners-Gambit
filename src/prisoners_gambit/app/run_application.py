@@ -339,14 +339,19 @@ class RunApplication:
                 self.event_bus.publish(
                     Event(
                         "run_completed",
-                        {"final_floor": floor_number, "player": player.name, "seed": self.settings.seed},
+                        {
+                            "final_floor": floor_number,
+                            "player": player.name,
+                            "seed": self.settings.seed,
+                            "outcome": "capped",
+                            "reason": "ecosystem_floor_cap_before_civil_war",
+                        },
                     )
                 )
                 self.interaction_controller.complete_run(
-                    outcome="victory",
+                    outcome="capped",
                     floor_number=floor_number,
                     player_name=player.name,
                     seed=self.settings.seed,
                 )
-                self.renderer.show_victory(floor_number, player, self.settings.seed)
                 return player
