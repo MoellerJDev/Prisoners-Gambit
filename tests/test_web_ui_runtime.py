@@ -137,3 +137,74 @@ def test_runtime_mobile_view_keeps_decision_panel_prominent_and_tabs_accessible(
             assert page.locator("#actions button").count() >= 1
         finally:
             browser.close()
+
+
+def test_runtime_onboarding_visible_then_dismissed_and_persisted(web_server_runtime, playwright_page) -> None:
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+
+    onboarding = page.locator("#onboardingPanel")
+    assert onboarding.evaluate("el => getComputedStyle(el).display") != "none"
+
+    page.click("#onboardingPanel .onboarding-dismiss")
+    page.wait_for_timeout(100)
+    assert onboarding.evaluate("el => getComputedStyle(el).display") == "none"
+
+    page.reload(wait_until="networkidle")
+    assert onboarding.evaluate("el => getComputedStyle(el).display") == "none"
+
+
+def test_runtime_glossary_toggle_and_tab_help_updates(web_server_runtime, playwright_page) -> None:
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+
+    glossary = page.locator("#glossaryPanel")
+    assert glossary.evaluate("el => getComputedStyle(el).display") == "none"
+
+    page.click("button:has-text('Doctrine ?')")
+    page.wait_for_timeout(50)
+    assert "strategic tendency" in glossary.inner_text()
+
+    page.click("#tabBoardBtn")
+    assert "gaining pressure" in page.locator("#tabHelpText").inner_text()
+    page.click("#tabChronicleBtn")
+    assert "changed across floors" in page.locator("#tabHelpText").inner_text()
+
+
+def test_runtime_phase_helpers_show_for_reward_and_successor_choices(web_server_runtime, playwright_page) -> None:
+    _drive_to_successor_choice(web_server_runtime)
+
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+    page.evaluate("refresh()")
+    page.wait_for_timeout(150)
+
+    assert "Comparison rows map to Cause" in page.locator("#phaseActionHelper").inner_text()
+
+    page.locator("#actions button").first.click()
+    page.wait_for_timeout(150)
+    assert "Powerup choice" in page.locator("#decisionType").inner_text()
+    assert "First line is the practical effect" in page.locator("#phaseActionHelper").inner_text()
+
+
+def test_runtime_mobile_onboarding_non_blocking_and_controls_tappable(web_server_runtime) -> None:
+    playwright = pytest.importorskip("playwright.sync_api")
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 390, "height": 844})
+        try:
+            page.goto(web_server_runtime, wait_until="networkidle")
+            onboarding_box = page.locator("#onboardingPanel").bounding_box()
+            viewport = page.viewport_size
+            assert onboarding_box is not None
+            assert viewport is not None
+            assert onboarding_box["height"] < viewport["height"]
+
+            page.click("#onboardingPanel .onboarding-dismiss")
+            page.click("text=Start Run")
+            page.wait_for_timeout(150)
+            assert page.locator("#actions button").count() >= 1
+            page.click("#tabBoardBtn")
+            assert page.locator("#secondaryTabBoard.active").count() == 1
+        finally:
+            browser.close()

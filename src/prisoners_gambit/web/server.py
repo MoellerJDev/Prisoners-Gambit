@@ -313,9 +313,55 @@ HTML = """<!doctype html>
       grid-template-columns:repeat(2, minmax(0, 1fr));
     }
     .panel-mobile-low { opacity:.98; }
+    .onboarding-panel {
+      margin:12px 0;
+      border-color:color-mix(in oklab, var(--accent), var(--border) 55%);
+      background:linear-gradient(180deg, #152238, #121b2c);
+    }
+    .onboarding-points { margin:0; padding-left:18px; color:var(--muted); }
+    .onboarding-dismiss {
+      margin-left:auto;
+      font-size:12px;
+      min-height:34px;
+      padding:6px 10px;
+    }
     .tab-controls { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
     .tab-btn { padding:7px 10px; border-radius:999px; background:#121b2b; color:var(--muted); font-size:12px; }
     .tab-btn.active { background:#223553; border-color:var(--accent); color:var(--text); }
+    .tab-help { margin:-2px 0 9px; font-size:12px; color:var(--muted); }
+    .glossary-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+    .help-chip {
+      border:1px solid color-mix(in oklab, var(--border), #000 25%);
+      border-radius:999px;
+      padding:4px 8px;
+      font-size:11px;
+      color:var(--muted);
+      background:#111a2a;
+      cursor:pointer;
+    }
+    .help-chip:hover { color:var(--text); border-color:var(--accent); }
+    .help-chip-inline {
+      margin-left:6px;
+      width:22px;
+      min-height:22px;
+      padding:0;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      font-size:11px;
+    }
+    .glossary-panel {
+      border:1px solid color-mix(in oklab, var(--border), #000 20%);
+      border-radius:8px;
+      background:#111b2d;
+      padding:8px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+      margin-bottom:8px;
+    }
+    .decision-helper { margin-top:8px; font-size:12px; color:var(--muted); }
     .tab-panel { display:none; }
     .tab-panel.active { display:block; }
     .contextual-panel { border-color:color-mix(in oklab, var(--accent), var(--border) 65%); }
@@ -434,11 +480,28 @@ HTML = """<!doctype html>
     <div id='saveNotice' class='muted' style='margin-top:8px;'></div>
   </div>
 
+  <div id='onboardingPanel' class='panel panel-enter onboarding-panel' style='display:none;'>
+    <div class='row' style='align-items:flex-start; gap:10px;'>
+      <div>
+        <h3>Quick start</h3>
+        <ul class='onboarding-points'>
+          <li><strong>Current Decision</strong> is where you act right now.</li>
+          <li><strong>Decision Details</strong> explains the active prompt in compact form.</li>
+          <li><strong>Summary</strong> explains why this floor matters; <strong>Board</strong> shows pressure shifts.</li>
+          <li><strong>Chronicle</strong> tracks what changed across hosts and floors.</li>
+          <li>Choice cards show <strong>effect first</strong>, with deeper tradeoffs below.</li>
+        </ul>
+      </div>
+      <button class='btn onboarding-dismiss' onclick='dismissOnboarding()'>Got it</button>
+    </div>
+  </div>
+
   <div class='grid'>
     <div class='panel panel-enter decision-actions-panel'>
       <h3>Current Decision</h3>
       <div id='decisionType' class='muted'>No decision yet.</div>
       <div id='actionsPrimaryLabel' class='actions-primary-label'>Main choice now</div>
+      <div id='phaseActionHelper' class='decision-helper'>Pick the highlighted action to keep pace.</div>
       <div id='actions' class='row actions'></div>
       <details id='advancedActions' class='advanced-actions' style='display:none;'>
         <summary id='advancedActionsLabel'>Advanced tactics</summary>
@@ -448,7 +511,7 @@ HTML = """<!doctype html>
     </div>
 
     <div class='panel panel-enter decision-details-panel'>
-      <h3>Decision Details</h3>
+      <h3>Decision Details <button class='btn help-chip-inline' onclick="toggleGlossaryTerm('controlled_vote')" title='What is controlled vote?'>?</button></h3>
       <div id='decisionView' class='kv muted'>Start run to begin.</div>
     </div>
 
@@ -480,6 +543,17 @@ HTML = """<!doctype html>
         <button class='btn tab-btn' id='tabChronicleBtn' data-tab='chronicle' onclick="setSecondaryTab('chronicle')" role='tab' aria-selected='false'>Chronicle</button>
         <button class='btn tab-btn' id='tabDebugBtn' data-tab='debug' onclick="setSecondaryTab('debug')" role='tab' aria-selected='false'>Debug</button>
       </div>
+      <div id='tabHelpText' class='tab-help'>Summary: why this floor matters and who is shaping it.</div>
+      <div class='glossary-row'>
+        <button class='help-chip' onclick="toggleGlossaryTerm('doctrine')">Doctrine ?</button>
+        <button class='help-chip' onclick="toggleGlossaryTerm('heir_pressure')">Heir Pressure ?</button>
+        <button class='help-chip' onclick="toggleGlossaryTerm('civil_war_danger')">Civil War Danger ?</button>
+        <button class='help-chip' onclick="toggleGlossaryTerm('central_rival')">Central Rival ?</button>
+        <button class='help-chip' onclick="toggleGlossaryTerm('controlled_vote')">Controlled Vote ?</button>
+        <button class='help-chip' onclick="toggleGlossaryTerm('clue_fit')">Clue Fit / Memory ?</button>
+        <button class='help-chip' onclick="toggleGlossaryTerm('lineage_direction')">Lineage Direction ?</button>
+      </div>
+      <div id='glossaryPanel' class='glossary-panel' style='display:none;'></div>
 
       <section id='secondaryTabSummary' class='tab-panel active' role='tabpanel'>
         <h3>Strategic Snapshot</h3>
@@ -524,6 +598,7 @@ let latest = null;
 let previousTotals = null;
 let activeSecondaryTab = 'summary';
 const SAVE_STORAGE_KEY = 'prisoners_gambit_web_save_v1';
+const ONBOARDING_DISMISSED_KEY = 'prisoners_gambit_onboarding_dismissed_v1';
 const PANEL_LIMITS = Object.freeze({
   floorLeaders: 4,
   floorHeirs: 1,
@@ -629,6 +704,50 @@ function renderSuccessorComparisonCard(candidate){
   </li>`;
 }
 
+const TAB_HELP_TEXT = Object.freeze({
+  summary: 'Summary: why this floor matters and who is shaping it.',
+  board: 'Board: who is gaining pressure, rivalry, or civil-war danger.',
+  chronicle: 'Chronicle: what changed across floors and hosts.',
+  debug: 'Debug: raw state for deep inspection; secondary during play.',
+});
+
+const GLOSSARY_TERMS = Object.freeze({
+  doctrine: "Doctrine is your branch's strategic tendency. It hints at what future offers and succession pressure will favor.",
+  heir_pressure: 'Heir Pressure means succession momentum is building around specific branches. It tells you who is likely to matter next floor.',
+  civil_war_danger: 'Civil War Danger signals that current pressure can spiral into costly conflict. Treat it as a warning about unstable succession paths.',
+  central_rival: 'Central Rival marks the branch currently shaping your hardest contest. Reading this rival well improves your immediate decisions.',
+  controlled_vote: 'Controlled Vote means your floor vote can be guided by your current plan, not just instincts. Use it to lock in floor-level direction.',
+  clue_fit: 'Clue Fit / Memory describes how well recent evidence matches a candidate or doctrine read. Better fit means your read has practical backing.',
+  lineage_direction: 'Lineage Direction summarizes where the dynasty is drifting if trends continue. It helps you decide whether to reinforce or pivot.',
+});
+
+function toggleGlossaryTerm(term){
+  const panel = document.getElementById('glossaryPanel');
+  if (!panel || !GLOSSARY_TERMS[term]) return;
+  if (panel.dataset.term === term && panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    panel.textContent = '';
+    panel.dataset.term = '';
+    return;
+  }
+  panel.dataset.term = term;
+  panel.style.display = 'block';
+  panel.textContent = GLOSSARY_TERMS[term];
+}
+
+function dismissOnboarding(){
+  localStorage.setItem(ONBOARDING_DISMISSED_KEY, '1');
+  const panel = document.getElementById('onboardingPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function maybeShowOnboarding(){
+  const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === '1';
+  const panel = document.getElementById('onboardingPanel');
+  if (!panel) return;
+  panel.style.display = dismissed ? 'none' : 'block';
+}
+
 function shortDecisionLabel(type){
   const labels = {
     FeaturedRoundDecisionState: 'Round move',
@@ -653,6 +772,8 @@ function setSecondaryTab(tab){
     }
     if (panel) panel.classList.toggle('active', isActive);
   });
+  const tabHelp = document.getElementById('tabHelpText');
+  if (tabHelp) tabHelp.textContent = TAB_HELP_TEXT[tab] || TAB_HELP_TEXT.summary;
 }
 
 function updateContextualPanel(decisionType, snapshot){
@@ -700,14 +821,17 @@ function renderDecision(data){
   const advanced = document.getElementById('advancedActions');
   const advancedLabel = document.getElementById('advancedActionsLabel');
   const advancedGrid = document.getElementById('advancedActionsGrid');
+  const phaseActionHelper = document.getElementById('phaseActionHelper');
   actions.innerHTML = '';
   actionsPrimaryLabel.textContent = 'Main choice now';
+  phaseActionHelper.textContent = 'Pick the highlighted action to keep pace.';
   advancedGrid.innerHTML = '';
   advanced.open = false;
   advanced.style.display = 'none';
   document.getElementById('decisionType').textContent = t ? `Decision: ${shortDecisionLabel(t)}` : 'No active decision.';
   if (!decision) {
     actionsPrimaryLabel.textContent = '';
+    phaseActionHelper.textContent = '';
     document.getElementById('decisionView').innerHTML = 'No active decision.';
     return;
   }
@@ -724,6 +848,7 @@ function renderDecision(data){
       <div>Read on rival</div><div>${escapeHtml(p.inference_focus || 'Pattern check')}</div>
       <div>Live clues</div><div><ul class='list tight'>${clues}</ul></div>
       <div>Recent floor notes</div><div><ul class='list tight'>${floorLog}</ul></div>`;
+    phaseActionHelper.textContent = 'Read clues and rival focus, then choose your move.';
     actions.innerHTML = `
       <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">${actionTile('Cooperate', 'Manual move · primary')}</button>
       <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile('Defect', 'Manual move · primary')}</button>
@@ -740,6 +865,7 @@ function renderDecision(data){
 
   if (t === 'FloorVoteDecisionState') {
     actionsPrimaryLabel.textContent = 'Main choice now';
+  phaseActionHelper.textContent = 'Controlled Vote lets you lock floor direction before rewards.';
     const p = decision.prompt;
     document.getElementById('decisionView').innerHTML = `
       <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
@@ -755,6 +881,7 @@ function renderDecision(data){
 
   if (t === 'PowerupChoiceState') {
     actionsPrimaryLabel.textContent = 'Choose one offer';
+    phaseActionHelper.textContent = 'First line is the practical effect; tags and notes are secondary tradeoffs.';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Powerup card</div>
       <div>Floor</div><div>${decision.floor_number}</div>
@@ -776,6 +903,7 @@ function renderDecision(data){
 
   if (t === 'GenomeEditChoiceState') {
     actionsPrimaryLabel.textContent = 'Choose one offer';
+    phaseActionHelper.textContent = 'First line is the practical effect; doctrine drift explains long-term tilt.';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Genome edit</div>
       <div>Floor</div><div>${decision.floor_number}</div>
@@ -798,6 +926,7 @@ function renderDecision(data){
 
   if (t === 'SuccessorChoiceState') {
     actionsPrimaryLabel.textContent = 'Choose next host';
+    phaseActionHelper.textContent = 'Comparison rows map to Cause, Pick for, Risk, Pitch, and Clue fit.';
     document.getElementById('decisionView').innerHTML = `
       <div>Choose now</div><div>Next host</div>
       <div>Floor</div><div>${decision.floor_number}</div>
@@ -1124,6 +1253,7 @@ async function sendStanceN(stance){
 }
 
 window.addEventListener('load', async () => {
+  maybeShowOnboarding();
   const saved = getSavedSaveCode();
   if (saved) {
     document.getElementById('resumePanel').style.display = 'block';
