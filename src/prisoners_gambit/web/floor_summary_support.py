@@ -94,16 +94,16 @@ def synthesize_floor_summary(
 
     summary = FloorSummaryState(
         floor_number=floor_number,
-        entries=entries,
+        entries=ordered_entries,
         heir_pressure=heir_pressure,
         featured_inference_summary=summarize_featured_inference_signals(normalize_featured_inference_signals(floor_clue_log)),
     )
     next_continuity = FloorContinuityContext(
-        previous_floor_names={entry.name for entry in entries},
-        branch_continuity_streaks={entry.name: entry.continuity_streak for entry in entries},
-        previous_branch_stats={entry.name: (entry.score, entry.wins) for entry in entries},
+        previous_floor_names={entry.name for entry in ordered_entries},
+        branch_continuity_streaks={entry.name: entry.continuity_streak for entry in ordered_entries},
+        previous_branch_stats={entry.name: (entry.score, entry.wins) for entry in ordered_entries},
         previous_pressure_levels={
-            entry.name: int(entry.name in successor_names) + int(entry.name in threat_names) for entry in entries
+            entry.name: int(entry.name in successor_names) + int(entry.name in threat_names) for entry in ordered_entries
         },
         previous_central_rival=central_rival_name,
     )

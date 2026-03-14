@@ -28,10 +28,34 @@ from prisoners_gambit.core.powerups import (
 )
 from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.systems.tournament import MatchResult
-from prisoners_gambit.web.server import Handler, _port_from_env, run_server
+from prisoners_gambit.web.server import Handler, _new_web_session, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
 TEST_PADDING_LENGTH = 20_000
+
+
+
+def test_new_web_session_honors_pg_seed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PG_SEED", "1234")
+    session = _new_web_session()
+
+    assert session.seed == 1234
+
+
+def test_new_web_session_uses_fresh_seed_without_pg_seed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PG_SEED", raising=False)
+
+    first = _new_web_session()
+    second = _new_web_session()
+
+    assert first.seed != second.seed
+
+def test_new_web_session_uses_configured_rounds_per_match(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PG_ROUNDS_PER_MATCH", "9")
+
+    session = _new_web_session()
+
+    assert session.rounds == 9
 
 
 def test_featured_match_web_session_round_trip_typed_action() -> None:
