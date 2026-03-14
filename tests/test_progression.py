@@ -234,3 +234,32 @@ def test_grant_ai_powerups_retries_when_first_roll_is_duplicate(monkeypatch) -> 
     engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
 
     assert any(isinstance(powerup, OpeningGambit) for powerup in ai.powerups)
+
+
+def test_grant_ai_powerups_can_miss_valid_later_offer_after_retry_budget(monkeypatch) -> None:
+    engine = ProgressionEngine(rng=random.Random(1), offers_per_floor=5, featured_matches_per_floor=3)
+
+    player = make_agent("You", is_player=True)
+    ai = make_agent("A")
+    from prisoners_gambit.core.powerups import BlocPolitics, OpeningGambit, TrustDividend
+
+    ai.powerups.extend([TrustDividend(bonus=1), OpeningGambit(bonus=1)])
+
+    class FloorConfig:
+        ai_powerup_chance = 1.0
+
+    roll_sequence = iter([
+        TrustDividend(bonus=2),
+        OpeningGambit(bonus=2),
+        TrustDividend(bonus=3),
+        BlocPolitics(bonus=2),
+    ])
+
+    monkeypatch.setattr(
+        "prisoners_gambit.systems.progression.generate_powerup_offers",
+        lambda count, rng: [next(roll_sequence)],
+    )
+
+    engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
+
+    assert all(not isinstance(powerup, BlocPolitics) for powerup in ai.powerups)

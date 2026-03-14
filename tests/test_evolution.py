@@ -2,7 +2,8 @@ import random
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
-from prisoners_gambit.core.powerups import TrustDividend
+from prisoners_gambit.core.powerups import TrustDividend, UnityTicket
+from prisoners_gambit.systems.offers import derive_doctrine_state
 from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.systems.evolution import EvolutionEngine
 
@@ -109,8 +110,8 @@ def test_offspring_inherit_up_to_three_powerups() -> None:
     next_population = engine.repopulate([parent], target_size=2)
     child = next_population[1]
 
-    assert len(child.powerups) == 3
-    assert [powerup.bonus for powerup in child.powerups[:2]] == [1, 2]
+    assert len(child.powerups) <= 4
+    assert [powerup.bonus for powerup in child.powerups[:3]] == [1, 2, 3]
 
 
 def test_player_lineage_offspring_gets_doctrine_pressure_powerup() -> None:
@@ -285,3 +286,51 @@ def test_repopulate_does_not_duplicate_injected_doctrine_powerup_types() -> None
 
     trust_dividends = [powerup for powerup in child.powerups if isinstance(powerup, TrustDividend)]
     assert len(trust_dividends) == 1
+
+
+def test_repopulate_inherits_same_powerup_count_as_default_offspring_contract() -> None:
+    parent = make_agent("Parent", lineage_id=None)
+    parent.powerups.extend([
+        TrustDividend(bonus=1),
+        TrustDividend(bonus=2),
+        UnityTicket(),
+    ])
+
+    engine = EvolutionEngine(
+        survivor_count=1,
+        mutation_rate=0.15,
+        descendant_mutation_bonus=1.75,
+        rng=random.Random(3),
+    )
+
+    next_population = engine.repopulate([parent], target_size=2)
+    child = next_population[1]
+
+    assert len(child.powerups) == 3
+
+
+def test_repopulate_preserves_third_powerup_doctrine_signal_for_descendants() -> None:
+    parent = make_agent("Parent", lineage_id=None)
+    parent.powerups.extend([
+        TrustDividend(bonus=1),
+        TrustDividend(bonus=2),
+        UnityTicket(),
+    ])
+
+    engine = EvolutionEngine(
+        survivor_count=1,
+        mutation_rate=0.15,
+        descendant_mutation_bonus=1.75,
+        rng=random.Random(4),
+    )
+
+    next_population = engine.repopulate([parent], target_size=2)
+    child = next_population[1]
+
+    doctrine = derive_doctrine_state(
+        owned_powerups=tuple(child.powerups),
+        genome=child.genome,
+        house_doctrine_family="trust",
+    )
+
+    assert doctrine.secondary_doctrine_family == "referendum"

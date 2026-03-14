@@ -120,7 +120,7 @@ class EvolutionEngine:
                     depth=parent.lineage_depth + 1,
                 )
 
-            inherited_powerups = [powerup.clone() for powerup in parent.powerups[:2]]
+            inherited_powerups = [powerup.clone() for powerup in parent.powerups[:3]]
 
             if is_player_lineage(parent.lineage_id, player_lineage_id):
                 branch_focus = self.rng.choice(ALL_BRANCH_FOCI)
