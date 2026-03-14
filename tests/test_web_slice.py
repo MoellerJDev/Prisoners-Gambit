@@ -991,11 +991,13 @@ def test_web_session_transition_action_hidden_when_decision_is_active() -> None:
     assert session.view()["transition_action_label"] is None
 
 
-def test_web_html_powerup_cards_render_trigger_effect_role_as_visible_content() -> None:
+def test_web_html_powerup_cards_use_effect_first_compact_structure() -> None:
     from prisoners_gambit.web import server as web_server
 
-    assert "const functional = [trigger, effect, role]" in web_server.HTML
-    assert "`${actionTile(label, subtitle)}${functional}<span class='muted'>${powerupToken(offer.name)}</span>`" in web_server.HTML
+    assert "function renderPowerupChoiceCard(offer, idx){" in web_server.HTML
+    assert "<span class='choice-card-effect'>" in web_server.HTML
+    assert "renderCardTags(tagPool, 4)" in web_server.HTML
+    assert "<summary class='choice-card-more'>Details</summary>" in web_server.HTML
 
 
 def test_web_html_uses_contextual_transition_action_button() -> None:
@@ -1015,6 +1017,23 @@ def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
     assert "effectToken('RISK')" in web_server.HTML
     assert "NEW RIVAL" in web_server.HTML
     assert "relationToken" in web_server.HTML
+
+
+def test_web_html_genome_cards_use_before_after_and_compact_tags() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "function renderGenomeChoiceCard(offer, idx){" in web_server.HTML
+    assert "const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff" in web_server.HTML
+    assert "renderCardTags(tags, 3)" in web_server.HTML
+    assert "Doctrine drift" in web_server.HTML
+
+
+def test_web_html_perk_lists_use_compact_preview_with_more_count() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "function compactTokenPreview(items, renderer, limit=3, emptyLabel='none'){" in web_server.HTML
+    assert "<span class='choice-card-more'>+${extra} more</span>" in web_server.HTML
+    assert "const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '')" in web_server.HTML
 
 def test_web_api_drives_session_without_terminal_formatting() -> None:
     from http.server import ThreadingHTTPServer
@@ -1369,7 +1388,7 @@ def test_web_html_secondary_tabs_and_contextual_panel_structure() -> None:
     assert "id='contextRewardPanel'" in web_server.HTML
     assert "id='contextCompletionPanel'" in web_server.HTML
     assert "id='successorComparisonSection'" in web_server.HTML
-    assert "id='successorComparison'" in web_server.HTML
+    assert "id='successorComparison' class='comparison-cards muted'" in web_server.HTML
 
 
 def test_web_html_debug_is_secondary_not_default_always_open_panel() -> None:
@@ -1389,11 +1408,11 @@ def test_web_html_successor_choice_has_compact_primary_preview_with_secondary_fu
     assert "<h3>Successor Comparison</h3>" in web_server.HTML
     assert "latest?.decision_type === 'SuccessorChoiceState'" in web_server.HTML
     assert "successorComparisonSection.style.display = 'block';" in web_server.HTML
-    assert "<strong>Top shaping cause:</strong>" in web_server.HTML
-    assert "<strong>Attractive now:</strong>" in web_server.HTML
-    assert "<strong>Danger later:</strong>" in web_server.HTML
-    assert "<strong>Succession pitch:</strong>" in web_server.HTML
-    assert "<strong>Clue fit:</strong>" in web_server.HTML
+    assert "function renderSuccessorComparisonCard(candidate){" in web_server.HTML
+    assert "<span class='muted-label'>Pick for</span>" in web_server.HTML
+    assert "<span class='muted-label'>Risk</span>" in web_server.HTML
+    assert "<span class='muted-label'>Pitch</span>" in web_server.HTML
+    assert "<span class='muted-label'>Clue</span>" in web_server.HTML
 
 
 def test_run_server_defaults_to_public_host(monkeypatch) -> None:
