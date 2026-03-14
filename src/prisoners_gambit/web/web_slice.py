@@ -618,20 +618,21 @@ class FeaturedMatchWebSession:
 
         floor_config = self._current_floor_config()
         player_reward = floor_config.referendum_reward if cooperation_prevailed and final_vote == COOPERATE else 0
-        reward_context = ReferendumContext(
-            floor_number=self.floor_number,
-            total_agents=cooperators + defectors,
-            current_floor_score=self.player_score,
-            combo_events=combo_events,
-        )
-        for powerup in self.player.powerups:
-            player_reward = powerup.on_referendum_reward(
-                owner=self.player,
-                my_vote=final_vote,
-                cooperation_prevailed=cooperation_prevailed,
-                current_reward=player_reward,
-                context=reward_context,
+        if cooperation_prevailed and final_vote == COOPERATE:
+            reward_context = ReferendumContext(
+                floor_number=self.floor_number,
+                total_agents=cooperators + defectors,
+                current_floor_score=self.player_score,
+                combo_events=combo_events,
             )
+            for powerup in self.player.powerups:
+                player_reward = powerup.on_referendum_reward(
+                    owner=self.player,
+                    my_vote=final_vote,
+                    cooperation_prevailed=True,
+                    current_reward=player_reward,
+                    context=reward_context,
+                )
 
         result = FloorVoteResult(
             floor_number=self.floor_number,
