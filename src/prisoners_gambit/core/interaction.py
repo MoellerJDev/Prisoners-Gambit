@@ -409,7 +409,7 @@ SessionStatus = Literal["running", "awaiting_decision", "completed"]
 
 @dataclass(slots=True)
 class RunCompletion:
-    outcome: Literal["victory", "eliminated"]
+    outcome: Literal["victory", "eliminated", "capped"]
     floor_number: int
     player_name: str
     seed: int | None

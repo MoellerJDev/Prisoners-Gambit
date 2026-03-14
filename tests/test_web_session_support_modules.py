@@ -1,5 +1,19 @@
 from prisoners_gambit.core.constants import COOPERATE
-from prisoners_gambit.core.interaction import CivilWarContext, ChooseFloorVoteAction, ChooseRoundMoveAction, ChooseSuccessorAction, DynastyBoardState
+from prisoners_gambit.core.interaction import (
+    CivilWarContext,
+    ChooseFloorVoteAction,
+    ChooseRoundMoveAction,
+    ChooseSuccessorAction,
+    DynastyBoardEntryView,
+    DynastyBoardState,
+    FloorSummaryEntryView,
+    FloorSummaryHeirPressureView,
+    FloorSummaryPressureEntryView,
+    FloorSummaryState,
+    RunSnapshot,
+    SuccessorCandidateView,
+    SuccessorChoiceState,
+)
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
 from prisoners_gambit.web.session_snapshot_support import (
     DynastyBoardBuildContext,
@@ -118,3 +132,126 @@ def test_refresh_strategic_snapshot_surfaces_civil_war_buildup_signal_determinis
     buildup_a = [line for line in strategic_a.details if line.startswith("Civil-war buildup: ")]
     buildup_b = [line for line in strategic_b.details if line.startswith("Civil-war buildup: ")]
     assert buildup_a == buildup_b == ["Civil-war buildup: retaliation risk is compounding"]
+
+
+def test_dynasty_board_uses_floor_summary_entries_even_during_successor_choice() -> None:
+    floor_entries = [
+        FloorSummaryEntryView(1, "You", True, 15, 4, 0, ["host"], "Host", "g", []),
+        FloorSummaryEntryView(2, "Kin", False, 12, 3, 1, ["kin"], "Kin branch", "g", [], lineage_relation="kin"),
+        FloorSummaryEntryView(3, "Outsider", False, 13, 3, 0, ["outsider"], "Outsider", "g", []),
+    ]
+    snapshot = RunSnapshot(
+        current_phase="ecosystem",
+        floor_summary=FloorSummaryState(
+            floor_number=2,
+            entries=floor_entries,
+            heir_pressure=FloorSummaryHeirPressureView(
+                branch_doctrine="continuity",
+                successor_candidates=[FloorSummaryPressureEntryView(name="Kin", branch_role="heir", shaping_causes=["tested"], score=12, wins=3, tags=["kin"], descriptor="Kin branch", rationale="stable")],
+                future_threats=[FloorSummaryPressureEntryView(name="Outsider", branch_role="threat", shaping_causes=["volatile"], score=13, wins=3, tags=["outsider"], descriptor="Outsider", rationale="aggressive")],
+            ),
+        ),
+        successor_options=SuccessorChoiceState(
+            floor_number=2,
+            candidates=[
+                SuccessorCandidateView(
+                    name="You",
+                    lineage_depth=0,
+                    score=15,
+                    wins=4,
+                    branch_role="host",
+                    branch_doctrine="continuity",
+                    shaping_causes=[],
+                    tags=["host"],
+                    descriptor="Host",
+                    tradeoffs=[],
+                    strengths=[],
+                    liabilities=[],
+                    attractive_now="",
+                    danger_later="",
+                    lineage_future="",
+                    succession_pitch="",
+                    succession_risk="",
+                    anti_score_note="",
+                    genome_summary="g",
+                    powerups=[],
+                ),
+                SuccessorCandidateView(
+                    name="Kin",
+                    lineage_depth=1,
+                    score=12,
+                    wins=3,
+                    branch_role="heir",
+                    branch_doctrine="continuity",
+                    shaping_causes=[],
+                    tags=["kin"],
+                    descriptor="Kin branch",
+                    tradeoffs=[],
+                    strengths=[],
+                    liabilities=[],
+                    attractive_now="",
+                    danger_later="",
+                    lineage_future="",
+                    succession_pitch="",
+                    succession_risk="",
+                    anti_score_note="",
+                    genome_summary="g",
+                    powerups=[],
+                ),
+            ],
+        ),
+    )
+
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    board = rebuild_dynasty_board(
+        DynastyBoardBuildContext(
+            snapshot=snapshot,
+            player=session.player,
+            opponent=session.opponent,
+            successor_candidates=session._successor_candidates,
+            current_floor_central_rival="Outsider",
+            current_floor_new_central_rival="Outsider",
+        )
+    )
+
+    assert {entry.name for entry in board.entries} == {"You", "Kin", "Outsider"}
+    assert any(entry.name == "Outsider" and entry.is_central_rival for entry in board.entries)
+
+
+def test_refresh_strategic_snapshot_keeps_rival_and_pressure_coherent_with_stable_board() -> None:
+    snapshot = RunSnapshot(
+        current_phase="ecosystem",
+        dynasty_board=DynastyBoardState(
+            phase="ecosystem",
+            entries=[
+                DynastyBoardEntryView(
+                    name="Outsider",
+                    role="outsider",
+                    doctrine_signal="outsider",
+                    score=9,
+                    wins=2,
+                    lineage_depth=0,
+                    is_current_host=False,
+                    has_successor_pressure=True,
+                    has_civil_war_danger=False,
+                    successor_pressure_cause="because succession pressure",
+                    is_central_rival=True,
+                )
+            ],
+        ),
+        successor_options=SuccessorChoiceState(
+            floor_number=1,
+            candidates=[],
+            threat_profile=["threat lane"],
+            lineage_doctrine="continuity",
+            civil_war_pressure="contested",
+        ),
+    )
+
+    strategic = refresh_strategic_snapshot(snapshot, player_name="You", floor_number=1)
+
+    assert "Rival: Outsider" in strategic.chips
+    assert "Pressure: threat lane" in strategic.chips
+    assert any(detail.startswith("Central rival signal: outsider") for detail in strategic.details)
+    assert any(detail.startswith("Why dangerous now: because succession pressure") for detail in strategic.details)

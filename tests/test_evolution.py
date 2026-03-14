@@ -229,3 +229,59 @@ def test_repopulate_with_target_equal_survivors_returns_no_new_children() -> Non
 
     assert next_population == survivors
     assert all(not agent.name.endswith("*") for agent in next_population)
+
+
+def test_apply_branch_focus_returns_new_genome_without_mutating_input() -> None:
+    engine = EvolutionEngine(
+        survivor_count=1,
+        mutation_rate=0.15,
+        descendant_mutation_bonus=1.75,
+        rng=random.Random(1),
+    )
+    original = StrategyGenome(
+        first_move=DEFECT,
+        response_table={
+            (COOPERATE, COOPERATE): DEFECT,
+            (COOPERATE, DEFECT): COOPERATE,
+            (DEFECT, COOPERATE): COOPERATE,
+            (DEFECT, DEFECT): DEFECT,
+        },
+        noise=0.2,
+    )
+
+    transformed = engine._apply_branch_focus(original, "safe")
+
+    assert transformed is not original
+    assert original.first_move == DEFECT
+    assert original.response_table[(COOPERATE, COOPERATE)] == DEFECT
+    assert transformed.first_move == COOPERATE
+
+
+def test_repopulate_does_not_duplicate_injected_doctrine_powerup_types() -> None:
+    class FakeRng(random.Random):
+        def choice(self, seq):
+            return seq[0]
+
+        def random(self) -> float:
+            return 0.0
+
+        def uniform(self, a, b):
+            return a
+
+    parent = make_agent("Parent", lineage_id=1)
+    parent.is_player = True
+    parent.powerups.append(TrustDividend(bonus=2))
+
+    engine = EvolutionEngine(
+        survivor_count=1,
+        mutation_rate=0.15,
+        descendant_mutation_bonus=1.75,
+        rng=FakeRng(),
+    )
+    engine._doctrine_powerup = lambda _branch_focus: TrustDividend(bonus=1)
+
+    next_population = engine.repopulate([parent], target_size=2)
+    child = next_population[1]
+
+    trust_dividends = [powerup for powerup in child.powerups if isinstance(powerup, TrustDividend)]
+    assert len(trust_dividends) == 1

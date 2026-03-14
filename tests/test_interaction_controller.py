@@ -502,7 +502,7 @@ def test_complete_run_rejects_unknown_outcome() -> None:
         controller.complete_run(outcome="draw", floor_number=2, player_name="You", seed=7)
 
 
-@pytest.mark.parametrize("outcome", ["victory", "eliminated"])
+@pytest.mark.parametrize("outcome", ["victory", "eliminated", "capped"])
 def test_complete_run_accepts_supported_outcomes(outcome: str) -> None:
     controller = InteractionController(renderer=NewRendererStub())
 

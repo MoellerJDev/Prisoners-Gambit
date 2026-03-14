@@ -205,8 +205,8 @@ class InteractionController:
         self._sync_session_snapshot()
 
     def complete_run(self, outcome: str, floor_number: int, player_name: str, seed: int | None) -> None:
-        if outcome not in {"victory", "eliminated"}:
-            raise ValueError(f"Invalid outcome: {outcome}. Must be 'victory' or 'eliminated'.")
+        if outcome not in {"victory", "eliminated", "capped"}:
+            raise ValueError(f"Invalid outcome: {outcome}. Must be 'victory', 'eliminated', or 'capped'.")
         completion = RunCompletion(
             outcome=outcome,
             floor_number=floor_number,

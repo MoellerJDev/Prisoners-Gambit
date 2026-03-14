@@ -142,7 +142,33 @@ def rebuild_dynasty_board(context: DynastyBoardBuildContext) -> DynastyBoardStat
 
     entries: list[DynastyBoardEntryView] = []
     floor_entry_by_name = {entry.name: entry for entry in floor_summary.entries} if floor_summary else {}
-    if snapshot.successor_options and successor_candidates:
+    if floor_summary and floor_summary.entries:
+        for entry in floor_summary.entries:
+            doctrine_signal = ", ".join(entry.tags[:2]) if entry.tags else entry.descriptor
+            entries.append(
+                DynastyBoardEntryView(
+                    name=entry.name,
+                    role=entry.descriptor,
+                    doctrine_signal=doctrine_signal,
+                    score=entry.score,
+                    wins=entry.wins,
+                    lineage_depth=entry.lineage_depth,
+                    is_current_host=entry.is_player,
+                    has_successor_pressure=entry.name in pressure_names,
+                    has_civil_war_danger=entry.name in danger_names,
+                    successor_pressure_cause=pressure_causes.get(entry.name),
+                    civil_war_danger_cause=danger_causes.get(entry.name),
+                    lineage_relation=entry.lineage_relation,
+                    survived_previous_floor=entry.survived_previous_floor,
+                    continuity_streak=entry.continuity_streak,
+                    score_delta=entry.score_delta,
+                    wins_delta=entry.wins_delta,
+                    pressure_trend=entry.pressure_trend,
+                    is_central_rival=entry.name == context.current_floor_central_rival,
+                    is_new_central_rival=entry.name == context.current_floor_new_central_rival,
+                )
+            )
+    elif snapshot.successor_options and successor_candidates:
         branch_pool = list(successor_candidates)
         if all(agent.name != player.name for agent in branch_pool):
             branch_pool.append(player)
@@ -178,32 +204,6 @@ def rebuild_dynasty_board(context: DynastyBoardBuildContext) -> DynastyBoardStat
                     pressure_trend=(floor_entry_by_name[agent.name].pressure_trend if agent.name in floor_entry_by_name else "steady"),
                     is_central_rival=agent.name == context.current_floor_central_rival,
                     is_new_central_rival=agent.name == context.current_floor_new_central_rival,
-                )
-            )
-    elif floor_summary and floor_summary.entries:
-        for entry in floor_summary.entries:
-            doctrine_signal = ", ".join(entry.tags[:2]) if entry.tags else entry.descriptor
-            entries.append(
-                DynastyBoardEntryView(
-                    name=entry.name,
-                    role=entry.descriptor,
-                    doctrine_signal=doctrine_signal,
-                    score=entry.score,
-                    wins=entry.wins,
-                    lineage_depth=entry.lineage_depth,
-                    is_current_host=entry.is_player,
-                    has_successor_pressure=entry.name in pressure_names,
-                    has_civil_war_danger=entry.name in danger_names,
-                    successor_pressure_cause=pressure_causes.get(entry.name),
-                    civil_war_danger_cause=danger_causes.get(entry.name),
-                    lineage_relation=entry.lineage_relation,
-                    survived_previous_floor=entry.survived_previous_floor,
-                    continuity_streak=entry.continuity_streak,
-                    score_delta=entry.score_delta,
-                    wins_delta=entry.wins_delta,
-                    pressure_trend=entry.pressure_trend,
-                    is_central_rival=entry.name == context.current_floor_central_rival,
-                    is_new_central_rival=entry.name == context.current_floor_new_central_rival,
                 )
             )
     else:
