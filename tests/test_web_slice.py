@@ -1402,6 +1402,7 @@ def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> Non
     assert "Summary [test]" in html
     assert "Start Run [test]" in html
     assert "Next pick [test]" in html
+    assert "Round [test]" in html
 
 
 def test_server_module_no_longer_embeds_full_html_document() -> None:
@@ -1451,6 +1452,19 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "Perks" not in js_source
     assert "No active lineage pressure markers." not in js_source
     assert "No summary yet." not in js_source
+    assert "HOST" not in js_source
+    assert "KIN" not in js_source
+    assert "OUT" not in js_source
+    assert "unknown role" not in js_source
+    assert "score / wins" not in js_source
+    assert "No vote yet." not in js_source
+    assert "No strategic snapshot yet." not in js_source
+    assert "No floor identity committed yet." not in js_source
+    assert "No solid clue read this floor." not in js_source
+    assert "No clear heir yet." not in js_source
+    assert "No outside pressure spotted." not in js_source
+    assert "No active score rules." not in js_source
+    assert "No clue memory this floor." not in js_source
 
     rendered = render_web_app()
     assert "Start Run" in rendered
