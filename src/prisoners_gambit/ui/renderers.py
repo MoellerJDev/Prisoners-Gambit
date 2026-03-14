@@ -89,3 +89,6 @@ class Renderer(Protocol):
 
     def show_victory(self, floor_number: int, player: Agent, seed: int) -> None:
         ...
+
+    def show_capped(self, floor_number: int, player: Agent, seed: int | None) -> None:
+        ...

@@ -291,3 +291,8 @@ class TerminalRenderer(Renderer):
     def show_victory(self, floor_number: int, player: Agent, seed: int) -> None:
         print(f"\nFinal survivor after floor {floor_number}: {player.name}")
         print(f"Run seed: {seed}")
+
+    def show_capped(self, floor_number: int, player: Agent, seed: int | None) -> None:
+        print(f"\nRun reached the configured cap on floor {floor_number} before final resolution.")
+        print(f"Current host at cap: {player.name}")
+        print(f"Run seed: {seed}")

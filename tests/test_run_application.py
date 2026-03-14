@@ -32,6 +32,7 @@ class StubRenderer:
         self.phase_transitions: list[tuple[str, str]] = []
         self.eliminated_floor: int | None = None
         self.victory: tuple[int, str] | None = None
+        self.capped: tuple[int, int | None] | None = None
 
     def show_run_header(self, seed: int | None) -> None:
         self.headers.append(seed)
@@ -89,6 +90,9 @@ class StubRenderer:
 
     def show_victory(self, floor_number: int, player: Agent, seed: int) -> None:
         self.victory = (floor_number, player.name)
+
+    def show_capped(self, floor_number: int, player: Agent, seed: int | None) -> None:
+        self.capped = (floor_number, seed)
 
 
 def test_run_application_smoke() -> None:
@@ -503,4 +507,5 @@ def test_floor_cap_before_civil_war_marks_capped_outcome_not_victory(monkeypatch
     assert renderer.victory is None
     assert app.interaction_controller.snapshot.completion is not None
     assert app.interaction_controller.snapshot.completion.outcome == "capped"
-    assert any("Cap" in title for title, _ in renderer.phase_transitions)
+    assert renderer.capped == (1, app.settings.seed)
+    assert renderer.phase_transitions == []

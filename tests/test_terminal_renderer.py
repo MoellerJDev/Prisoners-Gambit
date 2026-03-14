@@ -223,3 +223,15 @@ def test_terminal_floor_end_featured_inference_summary_is_printed(capsys) -> Non
     assert "[Featured inference summary]" in out
     assert "Observed featured signals:" in out
     assert "Branch doctrine signals surfaced this floor" in out
+
+
+def test_show_capped_prints_distinct_capped_run_summary(capsys) -> None:
+    renderer = TerminalRenderer()
+    player = _agent("You", score=10, wins=3, lineage_id=1, is_player=True)
+
+    renderer.show_capped(floor_number=4, player=player, seed=17)
+
+    out = capsys.readouterr().out
+    assert "configured cap" in out
+    assert "Current host at cap: You" in out
+    assert "Run seed: 17" in out
