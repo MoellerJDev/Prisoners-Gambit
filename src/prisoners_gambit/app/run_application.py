@@ -354,4 +354,8 @@ class RunApplication:
                     player_name=player.name,
                     seed=self.settings.seed,
                 )
+                self.renderer.show_phase_transition(
+                    "Floor Cap Reached",
+                    "The configured ecosystem floor cap ended the run before civil-war resolution.",
+                )
                 return player

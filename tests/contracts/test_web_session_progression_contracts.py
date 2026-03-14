@@ -79,7 +79,7 @@ def test_contract_completion_flow_semantics() -> None:
     assert view["status"] == "completed"
     assert session_milestone(session) == "completed"
     assert completion is not None
-    assert completion["outcome"] in {"victory", "eliminated"}
+    assert completion["outcome"] in {"victory", "eliminated", "capped"}
     assert completion["floor_number"] == view["snapshot"]["current_floor"]
 
 

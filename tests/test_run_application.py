@@ -29,6 +29,7 @@ class StubRenderer:
         self.round_prompts: int = 0
         self.vote_prompts: int = 0
         self.successor_choices: list[str] = []
+        self.phase_transitions: list[tuple[str, str]] = []
         self.eliminated_floor: int | None = None
         self.victory: tuple[int, str] | None = None
 
@@ -72,7 +73,7 @@ class StubRenderer:
         pass
 
     def show_phase_transition(self, title: str, message: str) -> None:
-        pass
+        self.phase_transitions.append((title, message))
 
     def show_successor_selected(self, successor: Agent) -> None:
         pass
@@ -82,8 +83,6 @@ class StubRenderer:
         self.successor_choices.append(chosen.name)
         return chosen
 
-    def show_phase_transition(self, title: str, message: str) -> None:
-        pass
 
     def show_elimination(self, floor_number: int, seed: int) -> None:
         self.eliminated_floor = floor_number
@@ -504,3 +503,4 @@ def test_floor_cap_before_civil_war_marks_capped_outcome_not_victory(monkeypatch
     assert renderer.victory is None
     assert app.interaction_controller.snapshot.completion is not None
     assert app.interaction_controller.snapshot.completion.outcome == "capped"
+    assert any("Cap" in title for title, _ in renderer.phase_transitions)

@@ -15,6 +15,7 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundMoveAction,
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
+    RunCompletion,
 )
 from prisoners_gambit.core.powerups import (
     BlocPolitics,
@@ -664,6 +665,20 @@ def test_web_session_save_code_export_import_round_trip() -> None:
 
     assert restored.view() == session.view()
 
+
+
+
+def test_web_session_save_code_round_trip_preserves_capped_completion() -> None:
+    session = FeaturedMatchWebSession(seed=11, rounds=2)
+    session.start()
+    session.snapshot.completion = RunCompletion(outcome="capped", floor_number=2, player_name="You", seed=11)
+    session.snapshot.session_status = "completed"
+    session.session.complete(session.snapshot.completion, session.snapshot)
+
+    save_code = session.export_save_code(b"test-shared-secret")
+    restored = FeaturedMatchWebSession.import_save_code(save_code, b"test-shared-secret")
+
+    assert restored.view()["snapshot"]["completion"]["outcome"] == "capped"
 
 def test_web_session_rejects_tampered_save_code() -> None:
     session = FeaturedMatchWebSession(seed=13, rounds=2)
