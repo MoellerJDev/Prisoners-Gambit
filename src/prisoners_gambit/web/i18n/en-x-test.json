@@ -1,0 +1,20 @@
+{
+  "tabs": {
+    "summary": {
+      "label": "Summary [test]",
+      "help": "Summary: floor stakes, pressure leaders, and why this turn matters."
+    },
+    "board": {
+      "label": "Board",
+      "help": "Board: live pressure markers, rival status, and civil-war risk."
+    },
+    "chronicle": {
+      "label": "Chronicle",
+      "help": "Chronicle: concise timeline of dynasty shifts across floors."
+    },
+    "debug": {
+      "label": "Debug",
+      "help": "Debug: raw state for troubleshooting only; ignore during normal play."
+    }
+  }
+}

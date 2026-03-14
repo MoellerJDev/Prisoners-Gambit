@@ -1,0 +1,710 @@
+let latest = null;
+let previousTotals = null;
+let activeSecondaryTab = 'summary';
+const SAVE_STORAGE_KEY = 'prisoners_gambit_web_save_v1';
+const ONBOARDING_DISMISSED_KEY = 'prisoners_gambit_onboarding_dismissed_v1';
+const PANEL_LIMITS = Object.freeze({
+  floorLeaders: 4,
+  floorHeirs: 1,
+  floorThreats: 1,
+  successorCards: 2,
+  chronicleEntries: 4,
+  rules: 2,
+});
+
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+function cleanCauseLine(text){
+  if (!text) return '';
+  return String(text).replace(/^because\s+/i, '').trim();
+}
+function moveLabel(v){ return v === 0 ? 'C' : 'D'; }
+function effectToken(label){ return `<span class='token effect'>✦ ${escapeHtml(label)}</span>`; }
+function relationToken(relation){
+  const labels = {host:'HOST', kin:'KIN', outsider:'OUT'};
+  return `<span class='token branch'>${escapeHtml(labels[relation] || 'OUT')}</span>`;
+}
+function movementGlyph(delta){
+  if (delta > 0) return `↑${delta}`;
+  if (delta < 0) return `↓${Math.abs(delta)}`;
+  return '→0';
+}
+function branchToken(label){ return `<span class='token branch'>⎇ ${escapeHtml(label)}</span>`; }
+function powerupToken(label){ return `<span class='token powerup'>⚡ ${escapeHtml(label)}</span>`; }
+function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtml(label)}</span>`; }
+
+function actionTile(label, meta){
+  const metaText = meta ? `<span class='action-tile-meta'>${escapeHtml(meta)}</span>` : '';
+  return `<span class='action-tile-title'>${escapeHtml(label)}</span>${metaText}`;
+}
+
+function compactTokenPreview(items, renderer, limit=3, emptyLabel='none'){
+  const values = items || [];
+  if (!values.length) return emptyLabel;
+  const shown = values.slice(0, limit).map(renderer).join(' ');
+  const extra = values.length - limit;
+  return extra > 0 ? `${shown} <span class='choice-card-more'>+${extra} more</span>` : shown;
+}
+
+function compactEffectLine(parts){
+  return (parts || []).find(part => Boolean(part && String(part).trim())) || 'Effect details in card notes.';
+}
+
+function renderCardTags(tags, limit=4){
+  const values = (tags || []).filter(Boolean).slice(0, limit);
+  return values.length ? `<div class='choice-card-tags'>${values.map(tag => `<span class='choice-mini-tag'>${escapeHtml(tag)}</span>`).join('')}</div>` : '';
+}
+
+function renderPowerupChoiceCard(offer, idx){
+  const label = `${idx + 1}. ${offer.name}`;
+  const trigger = cleanCauseLine(offer.trigger || '').replace(/^Trigger:\s*/i, '');
+  const effect = cleanCauseLine(offer.effect || '').replace(/^Effect:\s*/i, '');
+  const role = cleanCauseLine(offer.role || '').replace(/^Role:\s*/i, '');
+  const effectLine = compactEffectLine([effect, trigger, role]);
+  const fit = offer.relevance_hint || offer.crown_hint || '';
+  const tagPool = [];
+  if (trigger) tagPool.push(`Trigger ${trigger}`);
+  if (offer.tags && offer.tags.length) tagPool.push(...offer.tags);
+  if (offer.phase_support) tagPool.push(`Phase ${offer.phase_support}`);
+  if (role) tagPool.push(role);
+  const secondary = [offer.lineage_commitment, offer.doctrine_vector, offer.tradeoff, offer.successor_pressure]
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(line => `<div class='choice-card-detail'>${escapeHtml(line)}</div>`)
+    .join('');
+  return `
+    <span class='action-tile-title'>${escapeHtml(label)}</span>
+    <span class='choice-card-effect'>${escapeHtml(effectLine)}</span>
+    ${renderCardTags(tagPool, 4)}
+    ${fit ? `<span class='choice-card-fit'>Fit: ${escapeHtml(fit)}</span>` : ''}
+    ${secondary}
+  `;
+}
+
+function renderGenomeChoiceCard(offer, idx){
+  const label = `${idx + 1}. ${offer.name}`;
+  const drift = offer.doctrine_drift ? `Drift: ${offer.doctrine_drift}` : '';
+  const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff || 'Tuning lineage behavior toward this doctrine.';
+  const tags = [offer.phase_support ? `Phase ${offer.phase_support}` : '', drift, offer.successor_pressure ? 'Heir pressure' : ''].filter(Boolean);
+  return `
+    <span class='action-tile-title'>${escapeHtml(label)}</span>
+    <span class='choice-card-effect'>${escapeHtml(beforeAfter)}</span>
+    ${renderCardTags(tags, 3)}
+    ${offer.tradeoff ? `<div class='choice-card-detail'>Tradeoff: ${escapeHtml(offer.tradeoff)}</div>` : ''}
+  `;
+}
+
+function renderSuccessorComparisonCard(candidate){
+  const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch || 'No shaping cause available.';
+  return `<li class='comparison-card'>
+    <div class='comparison-top'>
+      <span class='comparison-name'>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.branch_role || 'unknown role')}</span>
+      <span class='comparison-score'>${escapeHtml(candidate.score ?? '-')} score / ${escapeHtml(candidate.wins ?? '-')} wins</span>
+    </div>
+    <div class='comparison-row'><span class='muted-label'>Cause</span>${escapeHtml(topCause)}</div>
+    <div class='comparison-row'><span class='muted-label'>Pick for</span>${escapeHtml(candidate.attractive_now || 'n/a')}</div>
+    <div class='comparison-row'><span class='muted-label'>Risk</span>${escapeHtml(candidate.danger_later || 'n/a')}</div>
+    <div class='comparison-row'><span class='muted-label'>Pitch</span>${escapeHtml(candidate.succession_pitch || 'n/a')}</div>
+    <div class='comparison-row'><span class='muted-label'>Clue</span>${escapeHtml(candidate.featured_inference_context || 'No direct clue fit.')}</div>
+  </li>`;
+}
+
+
+function getNestedText(path, fallback=''){
+  return String(path.split('.').reduce((acc, part) => (acc && Object.prototype.hasOwnProperty.call(acc, part) ? acc[part] : undefined), UI_STRINGS) ?? fallback);
+}
+
+const TAB_HELP_TEXT = Object.freeze({
+  summary: getNestedText('tabs.summary.help', 'Summary: floor stakes, pressure leaders, and why this turn matters.'),
+  board: getNestedText('tabs.board.help', 'Board: live pressure markers, rival status, and civil-war risk.'),
+  chronicle: getNestedText('tabs.chronicle.help', 'Chronicle: concise timeline of dynasty shifts across floors.'),
+  debug: getNestedText('tabs.debug.help', 'Debug: raw state for troubleshooting only; ignore during normal play.'),
+});
+
+const GLOSSARY_TERMS = Object.freeze({
+  doctrine: getNestedText('glossary.doctrine', 'Doctrine reflects your current strategic identity and bias for resolving pressure.'),
+  heir_pressure: getNestedText('glossary.heir_pressure', 'Heir Pressure marks branches currently poised to seize succession if momentum continues.'),
+  civil_war_danger: getNestedText('glossary.civil_war_danger', 'Civil War Danger means current pressure patterns can trigger a costly conflict state. High danger is a signal to reduce instability before it snowballs.'),
+  central_rival: getNestedText('glossary.central_rival', 'Central Rival is the branch currently best positioned to oppose your line over upcoming floors.'),
+  controlled_vote: getNestedText('glossary.controlled_vote', 'Controlled Vote means this floor referendum is being shaped or forced by your active effects and commitments, not a free pick.'),
+  clue_fit: getNestedText('glossary.clue_fit', 'Clue Fit / Memory indicates how strongly this option aligns with recent featured-round reads and floor clue history.'),
+  lineage_direction: getNestedText('glossary.lineage_direction', 'Lineage Direction summarizes where your dynasty composition is drifting: hosts, kin support, and outsider pressure.'),
+});
+
+function applyLocalizedStaticCopy(){
+  const mappings = [
+    ['tabSummaryBtn', 'tabs.summary.label'],
+    ['tabBoardBtn', 'tabs.board.label'],
+    ['tabChronicleBtn', 'tabs.chronicle.label'],
+    ['tabDebugBtn', 'tabs.debug.label'],
+    ['tabHelpText', 'tabs.summary.help'],
+    ['onboardingTitle', 'onboarding.quick_start_title'],
+    ['onboardingDismissBtn', 'onboarding.dismiss_button'],
+    ['onboardingPoint1', 'onboarding.points.current_decision'],
+    ['onboardingPoint2', 'onboarding.points.decision_details'],
+    ['onboardingPoint3', 'onboarding.points.summary_board'],
+    ['onboardingPoint4', 'onboarding.points.chronicle'],
+    ['onboardingPoint5', 'onboarding.points.choice_cards'],
+    ['glossaryBtnDoctrine', 'glossary_labels.doctrine'],
+    ['glossaryBtnHeirPressure', 'glossary_labels.heir_pressure'],
+    ['glossaryBtnCivilWarDanger', 'glossary_labels.civil_war_danger'],
+    ['glossaryBtnCentralRival', 'glossary_labels.central_rival'],
+    ['glossaryBtnControlledVote', 'glossary_labels.controlled_vote'],
+    ['glossaryBtnClueFit', 'glossary_labels.clue_fit'],
+    ['glossaryBtnLineageDirection', 'glossary_labels.lineage_direction'],
+  ];
+  const htmlValueTargets = new Set(['onboardingPoint1', 'onboardingPoint2', 'onboardingPoint3', 'onboardingPoint4', 'onboardingPoint5']);
+  mappings.forEach(([id, key]) => {
+    const node = document.getElementById(id);
+    if (!node) return;
+    const value = getNestedText(key, '');
+    if (!value) return;
+    if (htmlValueTargets.has(id)) {
+      node.innerHTML = value;
+      return;
+    }
+    node.textContent = value;
+  });
+}
+
+function toggleGlossaryTerm(term){
+  const panel = document.getElementById('glossaryPanel');
+  if (!panel || !GLOSSARY_TERMS[term]) return;
+  if (panel.dataset.term === term && panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    panel.textContent = '';
+    panel.dataset.term = '';
+    return;
+  }
+  panel.dataset.term = term;
+  panel.style.display = 'block';
+  panel.textContent = GLOSSARY_TERMS[term];
+}
+
+function dismissOnboarding(){
+  localStorage.setItem(ONBOARDING_DISMISSED_KEY, '1');
+  const panel = document.getElementById('onboardingPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function maybeShowOnboarding(){
+  const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === '1';
+  const panel = document.getElementById('onboardingPanel');
+  if (!panel) return;
+  panel.style.display = dismissed ? 'none' : 'block';
+}
+
+function shortDecisionLabel(type){
+  const labels = {
+    FeaturedRoundDecisionState: 'Round move',
+    FloorVoteDecisionState: 'Floor vote',
+    PowerupChoiceState: 'Powerup choice',
+    GenomeEditChoiceState: 'Genome edit',
+    SuccessorChoiceState: 'Successor choice',
+  };
+  return labels[type] || type || 'No active decision';
+}
+
+function setSecondaryTab(tab){
+  activeSecondaryTab = tab;
+  const tabs = ['summary', 'board', 'chronicle', 'debug'];
+  tabs.forEach(name => {
+    const btn = document.getElementById(`tab${name.charAt(0).toUpperCase()}${name.slice(1)}Btn`);
+    const panel = document.getElementById(`secondaryTab${name.charAt(0).toUpperCase()}${name.slice(1)}`);
+    const isActive = name === tab;
+    if (btn) {
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    }
+    if (panel) panel.classList.toggle('active', isActive);
+  });
+  const tabHelp = document.getElementById('tabHelpText');
+  if (tabHelp) tabHelp.textContent = TAB_HELP_TEXT[tab] || TAB_HELP_TEXT.summary;
+}
+
+function updateContextualPanel(decisionType, snapshot){
+  const panelTitle = document.getElementById('contextualPanelTitle');
+  const sections = {
+    round: document.getElementById('contextRoundPanel'),
+    summary: document.getElementById('contextSummaryPanel'),
+    successor: document.getElementById('contextSuccessorPanel'),
+    reward: document.getElementById('contextRewardPanel'),
+    completion: document.getElementById('contextCompletionPanel'),
+  };
+  Object.values(sections).forEach(section => {
+    section.style.display = 'none';
+  });
+
+  if (snapshot?.completion) {
+    panelTitle.textContent = 'Run Completion';
+    sections.completion.style.display = 'block';
+    return;
+  }
+  if (decisionType === 'SuccessorChoiceState') {
+    panelTitle.textContent = 'Successor Options';
+    sections.successor.style.display = 'block';
+    return;
+  }
+  if (decisionType === 'PowerupChoiceState' || decisionType === 'GenomeEditChoiceState') {
+    panelTitle.textContent = 'Reward Selection';
+    sections.reward.style.display = 'block';
+    return;
+  }
+  if (snapshot?.floor_summary?.entries?.length) {
+    panelTitle.textContent = 'Floor Summary';
+    sections.summary.style.display = 'block';
+    return;
+  }
+  panelTitle.textContent = 'Latest Round Result';
+  sections.round.style.display = 'block';
+}
+
+function renderDecision(data){
+  const decision = data.decision;
+  const t = data.decision_type;
+  const actions = document.getElementById('actions');
+  const actionsPrimaryLabel = document.getElementById('actionsPrimaryLabel');
+  const advanced = document.getElementById('advancedActions');
+  const advancedLabel = document.getElementById('advancedActionsLabel');
+  const advancedGrid = document.getElementById('advancedActionsGrid');
+  const phaseActionHelper = document.getElementById('phaseActionHelper');
+  actions.innerHTML = '';
+  actionsPrimaryLabel.textContent = 'Main choice now';
+  phaseActionHelper.textContent = 'Choose the action for the active phase; details explain the tradeoff.';
+  advancedGrid.innerHTML = '';
+  advanced.open = false;
+  advanced.style.display = 'none';
+  document.getElementById('decisionType').textContent = t ? `Decision: ${shortDecisionLabel(t)}` : 'No active decision.';
+  if (!decision) {
+    actionsPrimaryLabel.textContent = '';
+    phaseActionHelper.textContent = '';
+    document.getElementById('decisionView').innerHTML = 'No active decision.';
+    return;
+  }
+
+  if (t === 'FeaturedRoundDecisionState') {
+    const p = decision.prompt;
+    const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No explicit clues.</li>';
+    const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || '<li class="muted">No prior featured clues this floor.</li>';
+    document.getElementById('decisionView').innerHTML = `
+      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_move)}`)}</div>
+      <div>Round</div><div>${p.round_index + 1}/${p.total_rounds}</div>
+      <div>Score</div><div class='scoreline'>You <span class='good'>${p.my_match_score}</span> : <span class='danger'>${p.opp_match_score}</span> Opp</div>
+      <div>Rival</div><div>${branchToken(p.masked_opponent_label)}</div>
+      <div>Read on rival</div><div>${escapeHtml(p.inference_focus || 'Pattern check')}</div>
+      <div>Live clues</div><div><ul class='list tight'>${clues}</ul></div>
+      <div>Recent floor notes</div><div><ul class='list tight'>${floorLog}</ul></div>`;
+    phaseActionHelper.textContent = 'Use clue channels and rival read to decide C, D, or autopilot.';
+    actions.innerHTML = `
+      <button class='btn ${p.suggested_move === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'C'})">${actionTile('Cooperate', 'Manual move · primary')}</button>
+      <button class='btn ${p.suggested_move === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_move', move:'D'})">${actionTile('Defect', 'Manual move · primary')}</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_round'})">${actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)}</button>`;
+    advanced.style.display = 'block';
+    advancedLabel.textContent = 'Advanced tactic setup (optional)';
+    advancedGrid.innerHTML = `
+      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'cooperate_until_betrayed'})">${actionTile('C until betrayed', 'Stance')}</button>
+      <button class='btn action-tile-secondary' onclick="sendAction({type:'set_round_stance', stance:'defect_until_punished'})">${actionTile('D until punished', 'Stance')}</button>
+      <button class='btn action-tile-secondary' onclick="sendStanceN('follow_autopilot_for_n_rounds')">${actionTile('Autopilot N', 'Stance with duration')}</button>
+      <button class='btn action-tile-secondary' onclick="sendStanceN('lock_last_manual_move_for_n_rounds')">${actionTile('Lock last N', 'Stance with duration')}</button>`;
+    return;
+  }
+
+  if (t === 'FloorVoteDecisionState') {
+    actionsPrimaryLabel.textContent = 'Main choice now';
+  phaseActionHelper.textContent = 'Vote is shaped by active effects and commitments; confirm before locking floor outcome.';
+    const p = decision.prompt;
+    document.getElementById('decisionView').innerHTML = `
+      <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
+      <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_vote)}`)}</div>
+      <div>Floor Score</div><div>${p.current_floor_score}</div>
+      <div>Powerups</div><div>${compactTokenPreview(p.powerups || [], powerupToken, 3, 'none')}</div>`;
+    actions.innerHTML = `
+      <button class='btn ${p.suggested_vote === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'C'})">${actionTile('Vote Cooperate', 'Manual vote · primary')}</button>
+      <button class='btn ${p.suggested_vote === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'D'})">${actionTile('Vote Defect', 'Manual vote · primary')}</button>
+      <button class='btn primary-action' onclick="sendAction({type:'autopilot_vote'})">${actionTile('Autopilot Vote', `Recommended · ${moveLabel(p.suggested_vote)}`)}</button>`;
+    return;
+  }
+
+  if (t === 'PowerupChoiceState') {
+    actionsPrimaryLabel.textContent = 'Choose one offer';
+    phaseActionHelper.textContent = getNestedText('decision_helpers.powerup_choice', 'Pick by the first-line effect; use tags and notes only as tie-breakers.');
+    document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Powerup card</div>
+      <div>Floor</div><div>${decision.floor_number}</div>
+      <div>Cards</div><div>${decision.offers.length}</div>`;
+    decision.offers.forEach((offer, idx) => {
+      const btn = document.createElement('button');
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
+      const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
+      const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
+      const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
+      const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
+      btn.innerHTML = renderPowerupChoiceCard(offer, idx);
+      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
+      btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
+      actions.appendChild(btn);
+    });
+    return;
+  }
+
+  if (t === 'GenomeEditChoiceState') {
+    actionsPrimaryLabel.textContent = 'Choose one offer';
+    phaseActionHelper.textContent = 'First line is immediate impact; doctrine drift shows long-term direction change.';
+    document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Genome edit</div>
+      <div>Floor</div><div>${decision.floor_number}</div>
+      <div>Current build</div><div>${genomeToken(decision.current_summary)}</div>`;
+    decision.offers.forEach((offer, idx) => {
+      const btn = document.createElement('button');
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
+      const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
+      const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
+      const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
+      const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
+      const drift = offer.doctrine_drift ? `Doctrine drift: ${offer.doctrine_drift}` : '';
+      btn.innerHTML = renderGenomeChoiceCard(offer, idx);
+      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure, drift].filter(Boolean).join(' | ');
+      btn.onclick = () => sendAction({type:'choose_genome_edit', offer_index: idx});
+      actions.appendChild(btn);
+    });
+    return;
+  }
+
+  if (t === 'SuccessorChoiceState') {
+    actionsPrimaryLabel.textContent = 'Choose next host';
+    phaseActionHelper.textContent = getNestedText('decision_helpers.successor_choice', 'Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host.');
+    document.getElementById('decisionView').innerHTML = `
+      <div>Choose now</div><div>Next host</div>
+      <div>Floor</div><div>${decision.floor_number}</div>
+      <div>Candidates</div><div>${decision.candidates.length}</div>`;
+    decision.candidates.forEach((candidate, idx) => {
+      const btn = document.createElement('button');
+      btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
+      btn.innerHTML = `${actionTile(`${idx + 1}. ${candidate.name}`, `${candidate.branch_role} · ${candidate.score}/${candidate.wins}`)}<span class='muted'>${branchToken(candidate.name)}</span>`;
+      btn.title = (candidate.shaping_causes || []).join('; ');
+      btn.onclick = () => sendAction({type:'choose_successor', candidate_index: idx});
+      actions.appendChild(btn);
+    });
+  }
+}
+
+function renderRoundEffects(round) {
+  const root = document.getElementById('roundEffects');
+  if (!round) {
+    root.innerHTML = '';
+    return;
+  }
+  const modifiers = round.breakdown?.score_adjustments || [];
+  const modifierLines = modifiers.length
+    ? modifiers.map(entry => `<div class='fx-item'>${powerupToken(entry.source)} → You ${entry.player_delta >= 0 ? '+' : ''}${entry.player_delta}, Opp ${entry.opponent_delta >= 0 ? '+' : ''}${entry.opponent_delta}</div>`).join('')
+    : `<div class='fx-item muted'>No score modifiers this round.</div>`;
+  root.innerHTML = `
+    <div class='fx-item'>${effectToken(`Directive: You ${round.player_reason}`)}</div>
+    <div class='fx-item'>${effectToken(`Directive: Opp ${round.opponent_reason}`)}</div>
+    ${modifierLines}`;
+}
+
+function renderSnapshot(snapshot){
+  document.getElementById('phase').textContent = `phase: ${snapshot.current_phase || '-'}`;
+  document.getElementById('floor').textContent = `floor: ${snapshot.current_floor || '-'}`;
+
+  const stance = snapshot.active_featured_stance;
+  document.getElementById('activeStance').textContent = stance
+    ? `stance: ${stance.stance} (${stance.rounds_remaining ?? '∞'})`
+    : 'stance: none';
+
+  const round = snapshot.latest_featured_round;
+  const roundResult = document.getElementById('roundResult');
+  if (round) {
+    const totals = `${round.player_total}:${round.opponent_total}`;
+    const deltaClass = previousTotals && previousTotals !== totals ? 'score-pop' : '';
+    roundResult.className = deltaClass;
+    previousTotals = totals;
+    roundResult.innerHTML = `
+      <div class='kv'>
+        <div>Round</div><div>${round.round_index + 1}/${round.total_rounds}</div>
+        <div>Moves</div><div>You ${moveLabel(round.player_move)} vs Opp ${moveLabel(round.opponent_move)}</div>
+        <div>Round Delta</div><div><span class='good'>${round.player_delta >= 0 ? '+' : ''}${round.player_delta}</span> / <span class='danger'>${round.opponent_delta >= 0 ? '+' : ''}${round.opponent_delta}</span></div>
+        <div>Match Total</div><div class='scoreline'><span class='good'>${round.player_total}</span> : <span class='danger'>${round.opponent_total}</span></div>
+      </div>`;
+  } else {
+    roundResult.className = 'muted';
+    roundResult.textContent = 'No rounds resolved yet.';
+  }
+  renderRoundEffects(round);
+
+  const vote = snapshot.floor_vote_result;
+  document.getElementById('voteResult').innerHTML = vote
+    ? `${effectToken(`Vote ${moveLabel(vote.player_vote)}`)} — cooperators ${vote.cooperators}, defectors ${vote.defectors}, reward <span class='good'>+${vote.player_reward}</span>`
+    : 'No vote yet.';
+
+  const capLines = (items, limit=2) => (items || []).slice(0, limit);
+  const strategic = snapshot.strategic_snapshot;
+  document.getElementById('strategicSnapshotHeadline').textContent = strategic?.headline || 'No strategic snapshot yet.';
+  document.getElementById('strategicSnapshotChips').innerHTML = strategic
+    ? (strategic.chips || []).map(chip => effectToken(chip)).join('')
+    : '';
+  document.getElementById('strategicSnapshotDetails').innerHTML = strategic
+    ? (strategic.details || []).slice(0, 2).map(line => `<li>${escapeHtml(line)}</li>`).join('')
+    : '<li>No strategic snapshot yet.</li>';
+
+  const floorIdentity = snapshot.floor_identity;
+  document.getElementById('floorIdentityHeadline').textContent = floorIdentity
+    ? floorIdentity.headline
+    : 'No floor identity committed yet.';
+  document.getElementById('floorIdentity').innerHTML = floorIdentity
+    ? `
+      <li><strong>Dominant pressure</strong>: ${escapeHtml(floorIdentity.dominant_pressure)}</li>
+      <li><strong>Why it matters</strong>: ${escapeHtml(floorIdentity.pressure_reason)}</li>
+      <li><strong>Lineage direction</strong>: ${escapeHtml(floorIdentity.lineage_direction)}</li>
+      <li><strong>Focus this floor</strong>: ${escapeHtml(floorIdentity.strategic_focus)}</li>
+      <li><strong>Host</strong>: ${branchToken(floorIdentity.host_name)} · F${escapeHtml(floorIdentity.target_floor)}</li>`
+    : '<li>No floor identity committed yet.</li>';
+
+  const summary = snapshot.floor_summary?.entries || [];
+  const pressure = snapshot.floor_summary?.heir_pressure;
+  const featuredInference = snapshot.floor_summary?.featured_inference_summary || [];
+  const civilWar = snapshot.civil_war_context;
+  const successorPreview = capLines(pressure?.successor_candidates || [], PANEL_LIMITS.floorHeirs).map(entry =>
+    `<li>${branchToken(entry.name)} ${escapeHtml(entry.branch_role)} · <span class='muted'>${escapeHtml((entry.shaping_causes || [entry.rationale])[0] || entry.rationale)}</span></li>`
+  ).join('');
+  const threatPreview = capLines(pressure?.future_threats || [], PANEL_LIMITS.floorThreats).map(entry =>
+    `<li>${branchToken(entry.name)} ${escapeHtml(entry.branch_role)} · <span class='muted'>${escapeHtml((entry.shaping_causes || [entry.rationale])[0] || entry.rationale)}</span></li>`
+  ).join('');
+  const featuredLead = capLines(featuredInference, 1).map(line => `<li>${escapeHtml(line)}</li>`).join('') || '<li class="muted">No solid clue read this floor.</li>';
+  const pressureBlock = pressure
+    ? `<li><strong>Succession trend</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`
+      + `<li><strong>Best heir lead</strong><ul>${successorPreview || '<li class="muted">No clear heir yet.</li>'}</ul></li>`
+      + `<li><strong>Main threat</strong><ul>${threatPreview || '<li class="muted">No outside pressure spotted.</li>'}</ul></li>`
+    : '';
+  const civilWarBlock = civilWar
+    ? `<li><strong>Conflict</strong>: ${escapeHtml(civilWar.thesis)}</li>`
+      + `<li><strong>Key rules</strong><ul>${capLines(civilWar.scoring_rules || [], PANEL_LIMITS.rules).map(rule => `<li>${escapeHtml(rule)}</li>`).join('') || '<li class="muted">No active score rules.</li>'}</ul></li>`
+      + `<li><strong>Main pressure</strong>: ${escapeHtml(capLines(civilWar.dangerous_branches || [], 1).join(' · ') || 'Unknown')}</li>`
+    : '';
+  const floorSummaryFull = summary.length
+    ? summary.slice(0, PANEL_LIMITS.floorLeaders).map(entry => {
+        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
+        const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
+        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · <span class='good'>${entry.score}</span> pts · ${movementGlyph(entry.score_delta || 0)}S ${movementGlyph(entry.wins_delta || 0)}W · ${continuity} · P${trend}</li>`;
+      }).join('') + `<li><strong>Featured read</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
+    : '<li>No summary yet.</li>';
+  const floorSummaryPrimary = summary.length
+    ? summary.slice(0, 2).map(entry => `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='good'>${entry.score}</span> pts · <span class='muted'>${escapeHtml(entry.descriptor)}</span></li>`).join('')
+      + `<li class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_context', 'Open Summary tab for full floor context.'))}</li>`
+    : '<li>No summary yet.</li>';
+  document.getElementById('floorSummaryFull').innerHTML = floorSummaryFull;
+  document.getElementById('floorSummaryPrimary').innerHTML = floorSummaryPrimary;
+
+  const successors = snapshot.successor_options?.candidates || [];
+  const successorState = snapshot.successor_options;
+  const successorContext = successorState
+    ? `<li><strong>Why this choice matters</strong>: ${escapeHtml(successorState.current_phase || 'unknown')} phase, pressure ${escapeHtml(successorState.civil_war_pressure || 'unknown')}</li>`
+      + `<li><strong>Main threats</strong>: ${escapeHtml(capLines(successorState.threat_profile || [], 2).join(', ') || 'none')}</li>`
+      + `<li><strong>Clue memory</strong>: ${escapeHtml((successorState.featured_inference_summary || [])[0] || 'No clue memory this floor.')}</li>`
+    : '';
+  const successorPrimary = successors.length
+    ? successors.slice(0, PANEL_LIMITS.successorCards).map(candidate => {
+        const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch;
+        return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${candidate.score} pts<br/><span class='muted'>${escapeHtml(topCause)}</span></li>`;
+      }).join('') + `<li class='context-note'>Open Summary → Successor Comparison for full candidate breakdown.</li>`
+    : `${successorContext}<li>${escapeHtml(getNestedText('messages.no_successor_choice', 'No successor choice active.'))}</li>`;
+  document.getElementById('successorsPrimary').innerHTML = successorPrimary;
+
+  const successorComparisonSection = document.getElementById('successorComparisonSection');
+  const successorComparison = document.getElementById('successorComparison');
+  const activeSuccessorDecision = latest?.decision_type === 'SuccessorChoiceState' ? latest?.decision : null;
+  const comparisonCandidates = activeSuccessorDecision?.candidates || successors;
+  if (latest?.decision_type === 'SuccessorChoiceState' && comparisonCandidates.length) {
+    successorComparisonSection.style.display = 'block';
+    successorComparison.innerHTML = comparisonCandidates.map(renderSuccessorComparisonCard).join('');
+  } else {
+    successorComparisonSection.style.display = 'none';
+    successorComparison.innerHTML = `<li>${escapeHtml(getNestedText('messages.no_successor_choice', 'No successor choice active.'))}</li>`;
+  }
+
+  const rewardContext = document.getElementById('rewardContext');
+  if (latest?.decision_type === 'PowerupChoiceState') {
+    rewardContext.innerHTML = `${effectToken(getNestedText('messages.powerup_choice_active', 'Powerup choice active'))} ${escapeHtml(getNestedText('messages.pick_one_offer', 'Pick one offer in Current Decision.'))} <div class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_choose', 'Use Summary tab for floor-level context while choosing.'))}</div>`;
+  } else if (latest?.decision_type === 'GenomeEditChoiceState') {
+    rewardContext.innerHTML = `${effectToken(getNestedText('messages.genome_edit_active', 'Genome edit active'))} ${escapeHtml(getNestedText('messages.pick_one_genome', 'Pick one genome edit in Current Decision.'))} <div class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_choose', 'Use Summary tab for floor-level context while choosing.'))}</div>`;
+  } else {
+    rewardContext.textContent = 'No reward choice active.';
+  }
+
+  const dynastyEntries = snapshot.dynasty_board?.entries || [];
+  document.getElementById('dynastyBoard').innerHTML = dynastyEntries.length
+    ? dynastyEntries.map(entry => {
+        const markerTokens = [
+          entry.is_current_host ? effectToken('YOU') : '',
+          entry.has_successor_pressure ? effectToken('HEIR') : '',
+          entry.has_civil_war_danger ? effectToken('RISK') : '',
+          entry.is_central_rival ? effectToken(entry.is_new_central_rival ? 'NEW RIVAL' : 'RIVAL') : '',
+        ].filter(Boolean);
+        const markerCauses = [
+          entry.has_successor_pressure && entry.successor_pressure_cause ? `Heir: ${escapeHtml(cleanCauseLine(entry.successor_pressure_cause))}` : '',
+          entry.has_civil_war_danger && entry.civil_war_danger_cause ? `Risk: ${escapeHtml(cleanCauseLine(entry.civil_war_danger_cause))}` : '',
+        ].filter(Boolean);
+        const markerBlock = markerTokens.length
+          ? `${markerTokens.join(' ')}${markerCauses.length ? `<br/><span class="muted">${markerCauses.slice(0, 2).join(' · ')}</span>` : ''}`
+          : '<span class="muted">No active lineage pressure markers.</span>';
+        const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
+        const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
+        const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '');
+        const perkLine = perkPreview ? `<br/><span class='muted'>Perks ${perkPreview}</span>` : '';
+        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} · ${escapeHtml(entry.role)} · score ${entry.score} (${movementGlyph(entry.score_delta || 0)}S, ${movementGlyph(entry.wins_delta || 0)}W) · ${continuity} · P${trend} · depth ${entry.lineage_depth}<br/>${markerBlock}${perkLine}</li>`;
+      }).join('')
+    : '<li>No lineage board yet.</li>';
+
+  const completion = snapshot.completion;
+  document.getElementById('completion').innerHTML = completion
+    ? `${effectToken(completion.outcome.toUpperCase())} on floor ${completion.floor_number} as ${branchToken(completion.player_name)}`
+    : 'Run in progress.';
+
+  const chronicle = snapshot.lineage_chronicle || [];
+  const chronicleLabels = {
+    run_start: getNestedText('chronicle_labels.run_start', 'Run start'),
+    floor_complete: getNestedText('chronicle_labels.floor_complete', 'Floor end'),
+    doctrine_pivot: getNestedText('chronicle_labels.doctrine_pivot', 'Doctrine shift'),
+    successor_pressure: getNestedText('chronicle_labels.successor_pressure', 'Succession pressure'),
+    successor_choice: getNestedText('chronicle_labels.successor_choice', 'New host'),
+    phase_transition: getNestedText('chronicle_labels.phase_transition', 'Phase change'),
+    civil_war_round_start: getNestedText('chronicle_labels.civil_war_round_start', 'Civil-war round'),
+    run_outcome: getNestedText('chronicle_labels.run_outcome', 'Run result'),
+  };
+  document.getElementById('chronicle').innerHTML = chronicle.length
+    ? chronicle.slice(-PANEL_LIMITS.chronicleEntries).reverse().map(entry => `<li><strong>${escapeHtml(chronicleLabels[entry.event_type] || entry.event_type.replaceAll('_', ' '))}</strong> · F${escapeHtml(entry.floor_number ?? '-')} · ${escapeHtml(entry.summary)}${entry.cause ? `<br/><span class='muted'>${escapeHtml(cleanCauseLine(entry.cause))}</span>` : ''}</li>`).join('')
+    : '<li>No lineage events yet.</li>';
+
+  const pending = latest?.pending_message ? `Next action: ${latest.pending_message}` : '';
+  document.getElementById('pending').textContent = pending;
+
+  const advanceBtn = document.getElementById('advanceBtn');
+  const transitionLabel = latest?.transition_action_label || '';
+  const transitionVisible = Boolean(latest?.transition_action_visible && transitionLabel);
+  advanceBtn.style.display = transitionVisible ? 'inline-flex' : 'none';
+  advanceBtn.textContent = transitionLabel || 'Continue to next phase';
+
+  updateContextualPanel(latest?.decision_type || null, snapshot);
+}
+
+async function refresh(){
+  const response = await fetch('/api/state');
+  latest = await response.json();
+  document.getElementById('status').textContent = `status: ${latest.status}`;
+  renderDecision(latest);
+  renderSnapshot(latest.snapshot || {});
+  setSecondaryTab(activeSecondaryTab || 'summary');
+  document.getElementById('stateJson').textContent = JSON.stringify(latest, null, 2);
+  await autosaveFromServer();
+}
+
+function setSaveNotice(message){
+  const notice = document.getElementById('saveNotice');
+  if (notice) notice.textContent = message;
+}
+
+function getSavedSaveCode(){
+  const raw = localStorage.getItem(SAVE_STORAGE_KEY);
+  if (!raw) return null;
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function setSavedSaveCode(saveCode){
+  localStorage.setItem(SAVE_STORAGE_KEY, saveCode);
+}
+
+function clearSavedRun(){
+  localStorage.removeItem(SAVE_STORAGE_KEY);
+  document.getElementById('resumePanel').style.display = 'none';
+  setSaveNotice('Saved run cleared.');
+}
+
+async function autosaveFromServer(){
+  if (!latest || latest.status === 'not_started') return;
+  const response = await fetch('/api/run/export', {method:'POST'});
+  if (!response.ok) return;
+  const payload = await response.json();
+  if (payload && payload.save_code) {
+    setSavedSaveCode(payload.save_code);
+    setSaveNotice('Autosaved.');
+  }
+}
+
+async function restoreSavedCode(saveCode){
+  await fetch('/api/run/import', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({save_code: saveCode}),
+  });
+  await refresh();
+}
+
+async function resumeSavedRun(){
+  const saveCode = getSavedSaveCode();
+  if (!saveCode) {
+    setSaveNotice('No saved run found.');
+    return;
+  }
+  await restoreSavedCode(saveCode);
+  document.getElementById('resumePanel').style.display = 'none';
+  setSaveNotice('Run resumed.');
+}
+
+async function startNewRunFromPrompt(){
+  await startRun();
+  setSaveNotice('Started new run; previous save overwritten.');
+  document.getElementById('resumePanel').style.display = 'none';
+}
+
+async function startRun(){ await fetch('/api/run/start', {method:'POST'}); await refresh(); }
+async function clearRun(){
+  await fetch('/api/run/clear', {method:'POST'});
+  clearSavedRun();
+  latest = null;
+  previousTotals = null;
+  await refresh();
+}
+async function advanceFlow(){ await fetch('/api/advance', {method:'POST'}); await refresh(); }
+async function sendAction(payload){
+  await fetch('/api/action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  await refresh();
+}
+async function exportSaveCode(){
+  const response = await fetch('/api/run/export', {method:'POST'});
+  if (!response.ok) return;
+  const payload = await response.json();
+  if (!payload.save_code) return;
+  prompt('Copy save code:', payload.save_code);
+}
+async function importSaveCode(){
+  const code = prompt('Paste save code:');
+  if (!code) return;
+  const response = await fetch('/api/run/import', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({save_code: code.trim()}),
+  });
+  if (!response.ok) {
+    setSaveNotice('Invalid save code.');
+    return;
+  }
+  await refresh();
+}
+async function sendStanceN(stance){
+  const raw = prompt('Rounds (N):', '2');
+  const rounds = Number.parseInt(raw || '0', 10);
+  if (!Number.isFinite(rounds) || rounds <= 0) return;
+  await sendAction({type:'set_round_stance', stance, rounds});
+}
+
+window.addEventListener('load', async () => {
+  applyLocalizedStaticCopy();
+  maybeShowOnboarding();
+  const saved = getSavedSaveCode();
+  if (saved) {
+    document.getElementById('resumePanel').style.display = 'block';
+    setSaveNotice('A local autosave is available.');
+    return;
+  }
+  await refresh();
+});

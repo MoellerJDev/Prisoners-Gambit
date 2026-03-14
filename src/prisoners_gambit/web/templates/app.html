@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'/>
+  <title>Prisoner's Gambit Web Prototype</title>
+  <style>
+{{INLINE_CSS}}
+  </style>
+</head>
+<body>
+<div class='wrap'>
+  <h1 class='header-title'>Prisoner's Gambit</h1>
+  <div class='sub'>Full-run web prototype with typed decisions and atmospheric table-style UI.</div>
+
+  <div class='panel panel-enter'>
+    <div class='row controls action-controls'>
+      <button class='btn' onclick='startRun()'>Start Run</button>
+      <button id='advanceBtn' class='btn primary-action' onclick='advanceFlow()' style='display:none;'>Continue to next phase</button>
+      <button class='btn' onclick='exportSaveCode()'>Export Save Code</button>
+      <button class='btn' onclick='importSaveCode()'>Import Save Code</button>
+      <button class='btn' onclick='clearRun()'>Clear Run</button>
+    </div>
+    <div class='row controls status-controls'>
+      <span id='status' class='pill'>status: not_started</span>
+      <span id='phase' class='pill'>phase: -</span>
+      <span id='floor' class='pill'>floor: -</span>
+      <span id='activeStance' class='pill'>stance: none</span>
+    </div>
+  </div>
+
+  <div id='resumePanel' class='panel panel-enter' style='display:none; margin-top:12px;'>
+    <h3>Saved Run Found</h3>
+    <div class='row'>
+      <button class='btn' onclick='resumeSavedRun()'>Resume Run</button>
+      <button class='btn' onclick='startNewRunFromPrompt()'>Start New Run</button>
+      <button class='btn' onclick='clearSavedRun()'>Clear Saved Run</button>
+    </div>
+    <div id='saveNotice' class='muted' style='margin-top:8px;'></div>
+  </div>
+
+  <div id='onboardingPanel' class='panel panel-enter onboarding-panel' style='display:none;'>
+    <div class='row' style='align-items:flex-start; gap:10px;'>
+      <div>
+        <h3 id='onboardingTitle'>Quick start</h3>
+        <ul class='onboarding-points'>
+          <li id='onboardingPoint1'>Act in <strong>Current Decision</strong>; that is the only required move right now.</li>
+          <li id='onboardingPoint2'>Use <strong>Decision Details</strong> to confirm what this phase is asking and what your options do.</li>
+          <li id='onboardingPoint3'><strong>Summary</strong> explains this floor; <strong>Board</strong> shows who is gaining pressure.</li>
+          <li id='onboardingPoint4'><strong>Chronicle</strong> is your short history of what changed across floors and hosts.</li>
+          <li id='onboardingPoint5'>On choice cards, read the <strong>first line</strong> first for immediate effect.</li>
+        </ul>
+      </div>
+      <button id='onboardingDismissBtn' class='btn onboarding-dismiss' onclick='dismissOnboarding()'>Got it</button>
+    </div>
+  </div>
+
+  <div class='grid'>
+    <div class='panel panel-enter decision-actions-panel'>
+      <h3>Current Decision</h3>
+      <div id='decisionType' class='muted'>No decision yet.</div>
+      <div id='actionsPrimaryLabel' class='actions-primary-label'>Main choice now</div>
+      <div id='phaseActionHelper' class='decision-helper'>Pick the highlighted action to keep pace.</div>
+      <div id='actions' class='row actions'></div>
+      <details id='advancedActions' class='advanced-actions' style='display:none;'>
+        <summary id='advancedActionsLabel'>Advanced tactics</summary>
+        <div id='advancedActionsGrid' class='row actions actions-secondary'></div>
+      </details>
+      <div id='pending' class='warn' style='margin-top:8px;'></div>
+    </div>
+
+    <div class='panel panel-enter decision-details-panel'>
+      <h3>Decision Details <button class='btn help-chip-inline' onclick="toggleGlossaryTerm('controlled_vote')" title='What is controlled vote?'>?</button></h3>
+      <div id='decisionView' class='kv muted'>Start run to begin.</div>
+    </div>
+
+    <div class='panel panel-enter contextual-panel'>
+      <h3 id='contextualPanelTitle' class='contextual-title'>Latest Round Result</h3>
+      <div id='contextRoundPanel'>
+        <div id='roundResult' class='muted'>No rounds resolved yet.</div>
+        <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
+      </div>
+      <div id='contextSummaryPanel' style='display:none;'>
+        <ul id='floorSummaryPrimary' class='list muted'><li>No summary yet.</li></ul>
+      </div>
+      <div id='contextSuccessorPanel' style='display:none;'>
+        <ul id='successorsPrimary' class='list muted'><li>No successor choice active.</li></ul>
+      </div>
+      <div id='contextRewardPanel' style='display:none;'>
+        <div id='rewardContext' class='muted'>No reward choice active.</div>
+      </div>
+      <div id='contextCompletionPanel' style='display:none;'>
+        <div id='completion' class='muted'>Run in progress.</div>
+      </div>
+    </div>
+
+    <div class='panel panel-enter secondary-info-panel panel-mobile-low'>
+      <h3>Secondary Info</h3>
+      <div class='tab-controls' role='tablist' aria-label='Secondary information'>
+        <button class='btn tab-btn active' id='tabSummaryBtn' data-tab='summary' onclick="setSecondaryTab('summary')" role='tab' aria-selected='true'>Summary</button>
+        <button class='btn tab-btn' id='tabBoardBtn' data-tab='board' onclick="setSecondaryTab('board')" role='tab' aria-selected='false'>Board</button>
+        <button class='btn tab-btn' id='tabChronicleBtn' data-tab='chronicle' onclick="setSecondaryTab('chronicle')" role='tab' aria-selected='false'>Chronicle</button>
+        <button class='btn tab-btn' id='tabDebugBtn' data-tab='debug' onclick="setSecondaryTab('debug')" role='tab' aria-selected='false'>Debug</button>
+      </div>
+      <div id='tabHelpText' class='tab-help'>Summary: floor stakes, pressure leaders, and why this turn matters.</div>
+      <div class='glossary-row'>
+        <button id='glossaryBtnDoctrine' class='help-chip' onclick="toggleGlossaryTerm('doctrine')">Doctrine ?</button>
+        <button id='glossaryBtnHeirPressure' class='help-chip' onclick="toggleGlossaryTerm('heir_pressure')">Heir Pressure ?</button>
+        <button id='glossaryBtnCivilWarDanger' class='help-chip' onclick="toggleGlossaryTerm('civil_war_danger')">Civil War Danger ?</button>
+        <button id='glossaryBtnCentralRival' class='help-chip' onclick="toggleGlossaryTerm('central_rival')">Central Rival ?</button>
+        <button id='glossaryBtnControlledVote' class='help-chip' onclick="toggleGlossaryTerm('controlled_vote')">Controlled Vote ?</button>
+        <button id='glossaryBtnClueFit' class='help-chip' onclick="toggleGlossaryTerm('clue_fit')">Clue Fit / Memory ?</button>
+        <button id='glossaryBtnLineageDirection' class='help-chip' onclick="toggleGlossaryTerm('lineage_direction')">Lineage Direction ?</button>
+      </div>
+      <div id='glossaryPanel' class='glossary-panel' style='display:none;'></div>
+
+      <section id='secondaryTabSummary' class='tab-panel active' role='tabpanel'>
+        <h3>Strategic Snapshot</h3>
+        <div id='strategicSnapshotHeadline' class='snapshot-headline muted'>No strategic snapshot yet.</div>
+        <div id='strategicSnapshotChips' class='row snapshot-chips'></div>
+        <ul id='strategicSnapshotDetails' class='list muted'><li>No strategic snapshot yet.</li></ul>
+        <h3 style='margin-top:10px;'>Floor Identity</h3>
+        <div id='floorIdentityHeadline' class='floor-headline muted'>No floor identity committed yet.</div>
+        <ul id='floorIdentity' class='list muted'><li>No floor identity committed yet.</li></ul>
+        <h3 style='margin-top:10px;'>Floor Referendum</h3>
+        <div id='voteResult' class='muted'>No vote yet.</div>
+        <h3 style='margin-top:10px;'>Floor Summary</h3>
+        <ul id='floorSummaryFull' class='list muted'><li>No summary yet.</li></ul>
+        <div id='successorComparisonSection' style='display:none; margin-top:10px;'>
+          <h3>Successor Comparison</h3>
+          <ul id='successorComparison' class='comparison-cards muted'><li>No successor choice active.</li></ul>
+        </div>
+      </section>
+
+      <section id='secondaryTabBoard' class='tab-panel' role='tabpanel'>
+        <h3>Dynasty Board</h3>
+        <ul id='dynastyBoard' class='list muted'><li>No lineage board yet.</li></ul>
+      </section>
+
+      <section id='secondaryTabChronicle' class='tab-panel' role='tabpanel'>
+        <h3>Lineage Chronicle</h3>
+        <ul id='chronicle' class='list muted'><li>No lineage events yet.</li></ul>
+      </section>
+
+      <section id='secondaryTabDebug' class='tab-panel raw-state-panel' role='tabpanel'>
+        <h3>Raw State</h3>
+        <details>
+          <summary>Expand raw state/debug JSON</summary>
+          <pre id='stateJson'>{}</pre>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+<script>
+const UI_STRINGS = {{UI_STRINGS_JSON}};
+{{INLINE_JS}}
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+{
+  "tabs": {
+    "summary": {
+      "label": "Summary",
+      "help": "Summary: floor stakes, pressure leaders, and why this turn matters."
+    },
+    "board": {
+      "label": "Board",
+      "help": "Board: live pressure markers, rival status, and civil-war risk."
+    },
+    "chronicle": {
+      "label": "Chronicle",
+      "help": "Chronicle: concise timeline of dynasty shifts across floors."
+    },
+    "debug": {
+      "label": "Debug",
+      "help": "Debug: raw state for troubleshooting only; ignore during normal play."
+    }
+  },
+  "onboarding": {
+    "quick_start_title": "Quick start",
+    "dismiss_button": "Got it",
+    "points": {
+      "current_decision": "Act in <strong>Current Decision</strong>; that is the only required move right now.",
+      "decision_details": "Use <strong>Decision Details</strong> to confirm what this phase is asking and what your options do.",
+      "summary_board": "<strong>Summary</strong> explains this floor; <strong>Board</strong> shows who is gaining pressure.",
+      "chronicle": "<strong>Chronicle</strong> is your short history of what changed across floors and hosts.",
+      "choice_cards": "On choice cards, read the <strong>first line</strong> first for immediate effect."
+    }
+  },
+  "glossary_labels": {
+    "doctrine": "Doctrine ?",
+    "heir_pressure": "Heir Pressure ?",
+    "civil_war_danger": "Civil War Danger ?",
+    "central_rival": "Central Rival ?",
+    "controlled_vote": "Controlled Vote ?",
+    "clue_fit": "Clue Fit / Memory ?",
+    "lineage_direction": "Lineage Direction ?"
+  },
+  "glossary": {
+    "doctrine": "Doctrine reflects your current strategic identity and bias for resolving pressure.",
+    "heir_pressure": "Heir Pressure marks branches currently poised to seize succession if momentum continues.",
+    "civil_war_danger": "Civil War Danger means current pressure patterns can trigger a costly conflict state. High danger is a signal to reduce instability before it snowballs.",
+    "central_rival": "Central Rival is the branch currently best positioned to oppose your line over upcoming floors.",
+    "controlled_vote": "Controlled Vote means this floor referendum is being shaped or forced by your active effects and commitments, not a free pick.",
+    "clue_fit": "Clue Fit / Memory indicates how strongly this option aligns with recent featured-round reads and floor clue history.",
+    "lineage_direction": "Lineage Direction summarizes where your dynasty composition is drifting: hosts, kin support, and outsider pressure."
+  },
+  "decision_helpers": {
+    "powerup_choice": "Pick by the first-line effect; use tags and notes only as tie-breakers.",
+    "successor_choice": "Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host."
+  },
+  "hints": {
+    "summary_tab_context": "Open Summary tab for full floor context.",
+    "summary_tab_choose": "Use Summary tab for floor-level context while choosing."
+  },
+  "messages": {
+    "no_successor_choice": "No successor choice active.",
+    "powerup_choice_active": "Powerup choice active",
+    "genome_edit_active": "Genome edit active",
+    "pick_one_offer": "Pick one offer in Current Decision.",
+    "pick_one_genome": "Pick one genome edit in Current Decision."
+  },
+  "chronicle_labels": {
+    "run_start": "Run start",
+    "floor_complete": "Floor end",
+    "doctrine_pivot": "Doctrine shift",
+    "successor_pressure": "Succession pressure",
+    "successor_choice": "New host",
+    "phase_transition": "Phase change",
+    "civil_war_round_start": "Civil-war round",
+    "run_outcome": "Run result"
+  }
+}

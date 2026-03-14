@@ -1,3 +1,4 @@
+from pathlib import Path
 import json
 import http.client
 import threading
@@ -1328,129 +1329,60 @@ def test_web_html_splits_decision_actions_from_details_panel() -> None:
     assert "<div id='decisionView' class='kv muted'>" in web_server.HTML
 
 
-def test_web_html_decision_details_copy_is_short_and_scannable() -> None:
-    from prisoners_gambit.web import server as web_server
+def test_web_html_and_assets_render_from_resource_templates() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "<div>Next pick</div>" in web_server.HTML
-    assert "<div>Read on rival</div>" in web_server.HTML
-    assert "<div>Recent floor notes</div>" in web_server.HTML
-    assert "<ul class='list tight'>" in web_server.HTML
+    html = render_web_app()
 
-
-def test_web_html_round_decision_separates_core_actions_from_advanced_tactics() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "actionTile('Cooperate', 'Manual move · primary')" in web_server.HTML
-    assert "actionTile('Defect', 'Manual move · primary')" in web_server.HTML
-    assert "actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)" in web_server.HTML
-    assert "advancedLabel.textContent = 'Advanced tactic setup (optional)';" in web_server.HTML
-    assert "actionTile('C until betrayed', 'Stance')" in web_server.HTML
-    assert "actionTile('Autopilot N', 'Stance with duration')" in web_server.HTML
-    assert "actionsPrimaryLabel.textContent = 'Main choice now';" in web_server.HTML
+    assert "<style>" in html
+    assert "{{INLINE_CSS}}" not in html
+    assert "const UI_STRINGS = {" in html
+    assert "{{INLINE_JS}}" not in html
+    assert "id='onboardingPanel'" in html
 
 
-def test_web_root_contains_full_run_panels() -> None:
-    from http.server import ThreadingHTTPServer
+def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
+    from prisoners_gambit.web.ui_resources import load_ui_strings
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
+    strings = load_ui_strings()
 
-    try:
-        with urlopen(f"http://127.0.0.1:{port}/") as resp:
-            html = resp.read().decode("utf-8")
-        assert "Current Decision" in html
-        assert "Decision Details" in html
-        assert "Secondary Info" in html
-        assert "Summary" in html
-        assert "Board" in html
-        assert "Chronicle" in html
-        assert "Debug" in html
-    finally:
-        server.shutdown()
-        server.server_close()
+    assert strings["tabs"]["summary"]["label"] == "Summary"
+    assert strings["tabs"]["summary"]["help"].startswith("Summary:")
+    assert strings["onboarding"]["quick_start_title"] == "Quick start"
+    assert "controlled_vote" in strings["glossary"]
+    assert "powerup_choice" in strings["decision_helpers"]
 
 
-def test_web_html_secondary_tabs_and_contextual_panel_structure() -> None:
-    from prisoners_gambit.web import server as web_server
+def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> None:
+    from prisoners_gambit.web.ui_resources import load_ui_strings, render_web_app
 
-    assert "function setSecondaryTab(tab){" in web_server.HTML
-    assert "id='tabSummaryBtn'" in web_server.HTML
-    assert "id='tabBoardBtn'" in web_server.HTML
-    assert "id='tabChronicleBtn'" in web_server.HTML
-    assert "id='tabDebugBtn'" in web_server.HTML
-    assert "activeSecondaryTab = 'summary'" in web_server.HTML
-    assert "function updateContextualPanel(decisionType, snapshot){" in web_server.HTML
-    assert "id='contextualPanelTitle'" in web_server.HTML
-    assert "id='contextRoundPanel'" in web_server.HTML
-    assert "id='contextSummaryPanel'" in web_server.HTML
-    assert "id='contextSuccessorPanel'" in web_server.HTML
-    assert "id='contextRewardPanel'" in web_server.HTML
-    assert "id='contextCompletionPanel'" in web_server.HTML
-    assert "id='successorComparisonSection'" in web_server.HTML
-    assert "id='successorComparison' class='comparison-cards muted'" in web_server.HTML
+    fallback = load_ui_strings("does-not-exist")
+    assert fallback["tabs"]["summary"]["label"] == "Summary"
+
+    test_bundle = load_ui_strings("en-x-test")
+    assert test_bundle["tabs"]["summary"]["label"] == "Summary [test]"
+
+    html = render_web_app(language="en-x-test")
+    assert "Summary [test]" in html
 
 
-def test_web_html_debug_is_secondary_not_default_always_open_panel() -> None:
-    from prisoners_gambit.web import server as web_server
+def test_server_module_no_longer_embeds_full_html_document() -> None:
+    import prisoners_gambit.web.server as web_server
 
-    assert "<details open>" not in web_server.HTML
-    assert "id='secondaryTabDebug'" in web_server.HTML
-    assert "<div class='panel panel-enter panel-mobile-low raw-state-panel'" not in web_server.HTML
-
-
-def test_web_html_successor_choice_has_compact_primary_preview_with_secondary_full_comparison() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "id='successorsPrimary'" in web_server.HTML
-    assert "Open Summary → Successor Comparison for full candidate breakdown." in web_server.HTML
-    assert "id='successorComparisonSection' style='display:none; margin-top:10px;'" in web_server.HTML
-    assert "<h3>Successor Comparison</h3>" in web_server.HTML
-    assert "latest?.decision_type === 'SuccessorChoiceState'" in web_server.HTML
-    assert "successorComparisonSection.style.display = 'block';" in web_server.HTML
-    assert "function renderSuccessorComparisonCard(candidate){" in web_server.HTML
-    assert "<span class='muted-label'>Cause</span>" in web_server.HTML
-    assert "<span class='muted-label'>Pick for</span>" in web_server.HTML
-    assert "<span class='muted-label'>Risk</span>" in web_server.HTML
-    assert "<span class='muted-label'>Pitch</span>" in web_server.HTML
-    assert "<span class='muted-label'>Clue</span>" in web_server.HTML
+    source = Path(web_server.__file__).read_text(encoding="utf-8")
+    assert "<!doctype html>" not in source
+    assert "const UI_STRINGS =" not in source
 
 
+def test_web_ui_text_is_driven_by_injected_bundle_not_inline_literals() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
 
+    html = render_web_app()
 
-def test_web_html_onboarding_glossary_and_phase_helpers_present() -> None:
-    from prisoners_gambit.web import server as web_server
+    assert "applyLocalizedStaticCopy();" in html
+    assert "['tabSummaryBtn', 'tabs.summary.label']" in html
+    assert "getNestedText('glossary.controlled_vote'" in html
 
-    assert "id='onboardingPanel'" in web_server.HTML
-    assert "Quick start" in web_server.HTML
-    assert "ONBOARDING_DISMISSED_KEY" in web_server.HTML
-    assert "dismissOnboarding()" in web_server.HTML
-    assert "maybeShowOnboarding()" in web_server.HTML
-    assert "id='glossaryPanel'" in web_server.HTML
-    assert "function toggleGlossaryTerm(term){" in web_server.HTML
-    assert "Doctrine ?" in web_server.HTML
-    assert "Heir Pressure ?" in web_server.HTML
-    assert "Civil War Danger ?" in web_server.HTML
-    assert "Central Rival ?" in web_server.HTML
-    assert "Controlled Vote ?" in web_server.HTML
-    assert "shaped or forced by your active effects and commitments" in web_server.HTML
-    assert "Clue Fit / Memory ?" in web_server.HTML
-    assert "Lineage Direction ?" in web_server.HTML
-    assert "id='phaseActionHelper'" in web_server.HTML
-    assert "Pick by the first-line effect; use tags and notes only as tie-breakers." in web_server.HTML
-    assert "Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host." in web_server.HTML
-
-
-def test_web_html_tab_discoverability_copy_exists() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "id='tabHelpText'" in web_server.HTML
-    assert "const TAB_HELP_TEXT = Object.freeze({" in web_server.HTML
-    assert "Summary: floor stakes, pressure leaders, and why this turn matters." in web_server.HTML
-    assert "Board: live pressure markers, rival status, and civil-war risk." in web_server.HTML
-    assert "Chronicle: concise timeline of dynasty shifts across floors." in web_server.HTML
-    assert "Debug: raw state for troubleshooting only; ignore during normal play." in web_server.HTML
 
 def test_run_server_defaults_to_public_host(monkeypatch) -> None:
     captured = {}
