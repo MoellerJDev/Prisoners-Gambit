@@ -5,6 +5,7 @@ import logging
 import random
 from typing import TYPE_CHECKING
 
+from prisoners_gambit.content.powerup_templates import build_powerup_pool
 from prisoners_gambit.systems.offers import generate_powerup_offers
 
 if TYPE_CHECKING:
@@ -78,9 +79,16 @@ class ProgressionEngine:
                 if len(survivor.powerups) >= MAX_AI_POWERUPS:
                     continue
 
-                for _ in range(MAX_AI_POWERUP_ROLL_ATTEMPTS):
+                owned_types = {type(existing) for existing in survivor.powerups}
+                available_types = {type(powerup) for powerup in build_powerup_pool()}
+                unowned_type_count = len(available_types - owned_types)
+                if unowned_type_count == 0:
+                    continue
+
+                attempt_budget = max(MAX_AI_POWERUP_ROLL_ATTEMPTS, unowned_type_count)
+                for _ in range(attempt_budget):
                     powerup = generate_powerup_offers(1, self.rng)[0]
-                    if any(type(existing) is type(powerup) for existing in survivor.powerups):
+                    if type(powerup) in owned_types:
                         continue
                     survivor.powerups.append(powerup)
                     logger.debug(
