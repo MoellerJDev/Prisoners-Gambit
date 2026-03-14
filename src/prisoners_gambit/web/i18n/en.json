@@ -1,0 +1,370 @@
+{
+  "app": {
+    "page_title": "Prisoner's Gambit Web Prototype",
+    "title": "Prisoner's Gambit",
+    "subtitle": "Full-run web prototype with typed decisions and atmospheric table-style UI."
+  },
+  "buttons": {
+    "start_run": "Start Run",
+    "continue_next_phase": "Continue to next phase",
+    "export_save_code": "Export Save Code",
+    "import_save_code": "Import Save Code",
+    "clear_run": "Clear Run",
+    "resume_run": "Resume Run",
+    "start_new_run": "Start New Run",
+    "clear_saved_run": "Clear Saved Run"
+  },
+  "status": {
+    "not_started": "status: not_started",
+    "phase_unknown": "phase: -",
+    "floor_unknown": "floor: -",
+    "stance_none": "stance: none"
+  },
+  "saved_run": {
+    "title": "Saved Run Found",
+    "messages": {
+      "cleared": "Saved run cleared.",
+      "autosaved": "Autosaved.",
+      "not_found": "No saved run found.",
+      "resumed": "Run resumed.",
+      "new_run_started": "Started new run; previous save overwritten.",
+      "invalid_code": "Invalid save code.",
+      "local_autosave_available": "A local autosave is available."
+    }
+  },
+  "panels": {
+    "current_decision": "Current Decision",
+    "advanced_tactics": "Advanced tactics",
+    "decision_details": "Decision Details",
+    "secondary_info": "Secondary Info",
+    "strategic_snapshot": "Strategic Snapshot",
+    "floor_identity": "Floor Identity",
+    "floor_referendum": "Floor Referendum",
+    "floor_summary": "Floor Summary",
+    "successor_comparison": "Successor Comparison",
+    "dynasty_board": "Dynasty Board",
+    "lineage_chronicle": "Lineage Chronicle",
+    "raw_state": "Raw State",
+    "expand_raw_state": "Expand raw state/debug JSON"
+  },
+  "tabs": {
+    "summary": {
+      "label": "Summary",
+      "help": "Summary: floor stakes, pressure leaders, and why this turn matters."
+    },
+    "board": {
+      "label": "Board",
+      "help": "Board: live pressure markers, rival status, and civil-war risk."
+    },
+    "chronicle": {
+      "label": "Chronicle",
+      "help": "Chronicle: concise timeline of dynasty shifts across floors."
+    },
+    "debug": {
+      "label": "Debug",
+      "help": "Debug: raw state for troubleshooting only; ignore during normal play."
+    }
+  },
+  "onboarding": {
+    "quick_start_title": "Quick start",
+    "dismiss_button": "Got it",
+    "points": {
+      "current_decision": "Act in <strong>Current Decision</strong>; that is the only required move right now.",
+      "decision_details": "Use <strong>Decision Details</strong> to confirm what this phase is asking and what your options do.",
+      "summary_board": "<strong>Summary</strong> explains this floor; <strong>Board</strong> shows who is gaining pressure.",
+      "chronicle": "<strong>Chronicle</strong> is your short history of what changed across floors and hosts.",
+      "choice_cards": "On choice cards, read the <strong>first line</strong> first for immediate effect."
+    }
+  },
+  "glossary_labels": {
+    "doctrine": "Doctrine ?",
+    "heir_pressure": "Heir Pressure ?",
+    "civil_war_danger": "Civil War Danger ?",
+    "central_rival": "Central Rival ?",
+    "controlled_vote": "Controlled Vote ?",
+    "clue_fit": "Clue Fit / Memory ?",
+    "lineage_direction": "Lineage Direction ?"
+  },
+  "glossary": {
+    "doctrine": "Doctrine reflects your current strategic identity and bias for resolving pressure.",
+    "heir_pressure": "Heir Pressure marks branches currently poised to seize succession if momentum continues.",
+    "civil_war_danger": "Civil War Danger means current pressure patterns can trigger a costly conflict state. High danger is a signal to reduce instability before it snowballs.",
+    "central_rival": "Central Rival is the branch currently best positioned to oppose your line over upcoming floors.",
+    "controlled_vote": "Controlled Vote means this floor referendum is being shaped or forced by your active effects and commitments, not a free pick.",
+    "clue_fit": "Clue Fit / Memory indicates how strongly this option aligns with recent featured-round reads and floor clue history.",
+    "lineage_direction": "Lineage Direction summarizes where your dynasty composition is drifting: hosts, kin support, and outsider pressure."
+  },
+  "decision_types": {
+    "featured_round": "Round move",
+    "floor_vote": "Floor vote",
+    "powerup_choice": "Powerup choice",
+    "genome_edit": "Genome edit",
+    "successor_choice": "Successor choice"
+  },
+  "decision_helpers": {
+    "generic_phase_choice": "Choose the action for the active phase; details explain the tradeoff.",
+    "featured_round": "Use clue channels and rival read to decide C, D, or autopilot.",
+    "floor_vote": "Vote is shaped by active effects and commitments; confirm before locking floor outcome.",
+    "powerup_choice": "Pick by the first-line effect; use tags and notes only as tie-breakers.",
+    "genome_edit_choice": "First line is immediate impact; doctrine drift shows long-term direction change.",
+    "successor_choice": "Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host."
+  },
+  "context_panel": {
+    "latest_round_result": "Latest Round Result",
+    "run_completion": "Run Completion",
+    "successor_options": "Successor Options",
+    "reward_selection": "Reward Selection",
+    "floor_summary": "Floor Summary"
+  },
+  "successor_comparison": {
+    "labels": {
+      "cause": "Cause",
+      "pick_for": "Pick for",
+      "risk": "Risk",
+      "pitch": "Pitch",
+      "clue": "Clue",
+      "score": "score",
+      "wins": "wins"
+    }
+  },
+  "labels": {
+    "decision_prefix": "Decision:",
+    "main_choice_now": "Main choice now",
+    "choose_one_offer": "Choose one offer",
+    "choose_next_host": "Choose next host",
+    "advanced_tactic_setup": "Advanced tactic setup (optional)",
+    "trigger": "Trigger",
+    "phase": "Phase",
+    "fit": "Fit",
+    "tradeoff": "Tradeoff",
+    "next_pick": "Next pick",
+    "round": "Round",
+    "score": "Score",
+    "you": "You",
+    "opponent_short": "Opp",
+    "rival": "Rival",
+    "read_on_rival": "Read on rival",
+    "live_clues": "Live clues",
+    "recent_floor_notes": "Recent floor notes",
+    "autopilot": "Autopilot",
+    "floor": "Floor",
+    "floor_score": "Floor Score",
+    "powerups": "Powerups",
+    "choose_now": "Choose now",
+    "cards": "Cards",
+    "powerup_card": "Powerup card",
+    "genome_edit": "Genome edit",
+    "current_build": "Current build",
+    "next_host": "Next host",
+    "candidates": "Candidates",
+    "next_action": "Next action",
+    "commitment": "Commitment",
+    "doctrine": "Doctrine",
+    "heir_pressure": "Heir pressure",
+    "doctrine_drift": "Doctrine drift",
+    "points_short": "pts",
+    "drift": "Drift"
+  },
+  "hints": {
+    "summary_tab_context": "Open Summary tab for full floor context.",
+    "summary_tab_choose": "Use Summary tab for floor-level context while choosing."
+  },
+  "messages": {
+    "no_successor_choice": "No successor choice active.",
+    "powerup_choice_active": "Powerup choice active",
+    "genome_edit_active": "Genome edit active",
+    "pick_one_offer": "Pick one offer in Current Decision.",
+    "pick_one_genome": "Pick one genome edit in Current Decision."
+  },
+  "fallbacks": {
+    "no_decision_yet": "No decision yet.",
+    "pick_highlighted_action": "Pick the highlighted action to keep pace.",
+    "start_run_to_begin": "Start run to begin.",
+    "no_rounds_resolved": "No rounds resolved yet.",
+    "no_summary_yet": "No summary yet.",
+    "no_strategic_snapshot": "No strategic snapshot yet.",
+    "no_floor_identity": "No floor identity committed yet.",
+    "no_vote_yet": "No vote yet.",
+    "no_lineage_board": "No lineage board yet.",
+    "no_lineage_events": "No lineage events yet.",
+    "run_in_progress": "Run in progress.",
+    "no_reward_choice_active": "No reward choice active.",
+    "no_active_decision": "No active decision.",
+    "main_choice_now": "Main choice now",
+    "no_explicit_clues": "No explicit clues.",
+    "no_prior_featured_clues": "No prior featured clues this floor.",
+    "pattern_check": "Pattern check",
+    "none": "none",
+    "both": "both",
+    "tuning_lineage_behavior": "Tuning lineage behavior toward this doctrine.",
+    "no_shaping_cause": "No shaping cause available.",
+    "not_available": "n/a",
+    "no_direct_clue_fit": "No direct clue fit.",
+    "effect_details_in_notes": "Effect details in card notes.",
+    "unknown_role": "unknown role",
+    "new": "new"
+  },
+  "prompts": {
+    "copy_save_code": "Copy save code:",
+    "paste_save_code": "Paste save code:",
+    "rounds_n": "Rounds (N):"
+  },
+  "chronicle_labels": {
+    "run_start": "Run start",
+    "floor_complete": "Floor end",
+    "doctrine_pivot": "Doctrine shift",
+    "successor_pressure": "Succession pressure",
+    "successor_choice": "New host",
+    "phase_transition": "Phase change",
+    "civil_war_round_start": "Civil-war round",
+    "run_outcome": "Run result"
+  },
+  "actions": {
+    "cooperate": "Cooperate",
+    "defect": "Defect",
+    "autopilot": "Autopilot",
+    "manual_move_primary": "Manual move \u00b7 primary",
+    "recommended": "Recommended",
+    "c_until_betrayed": "C until betrayed",
+    "d_until_punished": "D until punished",
+    "autopilot_n": "Autopilot N",
+    "lock_last_n": "Lock last N",
+    "stance": "Stance",
+    "stance_with_duration": "Stance with duration",
+    "vote_cooperate": "Vote Cooperate",
+    "vote_defect": "Vote Defect",
+    "autopilot_vote": "Autopilot Vote",
+    "manual_vote_primary": "Manual vote \u00b7 primary"
+  },
+  "round_result": {
+    "labels": {
+      "directive_you": "Directive: You",
+      "directive_opp": "Directive: Opp",
+      "round": "Round",
+      "moves": "Moves",
+      "round_delta": "Round Delta",
+      "match_total": "Match Total",
+      "you_short": "You",
+      "opp_short": "Opp",
+      "vs": "vs"
+    },
+    "empty": {
+      "no_score_modifiers": "No score modifiers this round."
+    }
+  },
+  "vote_result": {
+    "empty": {
+      "no_vote_yet": "No vote yet."
+    },
+    "labels": {
+      "vote": "Vote",
+      "cooperators": "cooperators",
+      "defectors": "defectors",
+      "reward": "reward"
+    }
+  },
+  "strategic_snapshot": {
+    "empty": {
+      "no_snapshot": "No strategic snapshot yet."
+    }
+  },
+  "floor_identity": {
+    "empty": {
+      "no_identity": "No floor identity committed yet."
+    },
+    "labels": {
+      "dominant_pressure": "Dominant pressure",
+      "why_it_matters": "Why it matters",
+      "lineage_direction": "Lineage direction",
+      "focus_this_floor": "Focus this floor",
+      "host": "Host"
+    }
+  },
+  "floor_summary": {
+    "labels": {
+      "featured_read": "Featured read",
+      "succession_trend": "Succession trend",
+      "best_heir_lead": "Best heir lead",
+      "main_threat": "Main threat",
+      "conflict": "Conflict",
+      "key_rules": "Key rules",
+      "main_pressure": "Main pressure"
+    },
+    "empty": {
+      "no_clear_heir": "No clear heir yet.",
+      "no_outside_pressure": "No outside pressure spotted.",
+      "no_active_score_rules": "No active score rules.",
+      "unknown": "Unknown",
+      "no_solid_clue_read": "No solid clue read this floor."
+    }
+  },
+  "successor_preview": {
+    "labels": {
+      "why_this_choice_matters": "Why this choice matters",
+      "main_threats": "Main threats",
+      "clue_memory": "Clue memory",
+      "phase": "phase,",
+      "pressure": "pressure"
+    },
+    "empty": {
+      "unknown": "unknown",
+      "no_clue_memory": "No clue memory this floor."
+    },
+    "hints": {
+      "open_summary_successor_comparison": "Open Summary \u2192 Successor Comparison for full candidate breakdown."
+    }
+  },
+  "marker_labels": {
+    "you": "YOU",
+    "heir": "HEIR",
+    "risk": "RISK",
+    "new_rival": "NEW RIVAL",
+    "rival": "RIVAL",
+    "heir_prefix": "Heir:",
+    "risk_prefix": "Risk:"
+  },
+  "dynasty_board": {
+    "labels": {
+      "perks": "Perks",
+      "score": "score",
+      "depth": "depth"
+    },
+    "empty": {
+      "no_active_markers": "No active lineage pressure markers."
+    }
+  },
+  "completion": {
+    "labels": {
+      "on_floor": "on floor",
+      "as": "as"
+    }
+  },
+  "relation_tokens": {
+    "host": "HOST",
+    "kin": "KIN",
+    "outsider": "OUT"
+  },
+  "accessibility": {
+    "controlled_vote_help_title": "What is controlled vote?",
+    "secondary_information_tablist": "Secondary information"
+  },
+  "status_labels": {
+    "status": "status",
+    "phase": "phase",
+    "floor": "floor",
+    "stance": "stance"
+  },
+  "status_formats": {
+    "status": "{label}: {value}",
+    "phase": "{label}: {value}",
+    "floor": "{label}: {value}",
+    "stance_active": "{label}: {stance} ({rounds})",
+    "stance_none": "{label}: none"
+  },
+  "round_effects": {
+    "labels": {
+      "you": "You",
+      "opp": "Opp"
+    }
+  }
+}

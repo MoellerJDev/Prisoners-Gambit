@@ -62,6 +62,24 @@ def playwright_page():
             browser.close()
 
 
+
+
+def test_runtime_non_default_language_changes_multiple_visible_areas_and_runtime_label(web_server_runtime, playwright_page) -> None:
+    page = playwright_page
+    page.goto(f"{web_server_runtime}/?lang=en-x-test", wait_until="networkidle")
+
+    assert "Prisoner's Gambit [test]" in page.locator("#appTitle").inner_text()
+    assert "Start Run [test]" in page.locator("#startRunBtn").inner_text()
+    assert "Current Decision [test]" in page.locator("#currentDecisionHeading").inner_text()
+    assert "Summary [test]" in page.locator("#tabSummaryBtn").inner_text()
+
+    page.click("#startRunBtn")
+    page.wait_for_timeout(150)
+    assert "Next pick [test]" in page.locator("#decisionView").inner_text()
+    assert "status[test]: awaiting_decision" in page.locator("#status").inner_text()
+    assert page.locator("#actions button", has_text="Cooperate").count() >= 1
+    assert page.locator("#actions button", has_text="Defect").count() >= 1
+
 def test_runtime_tabs_switch_and_debug_not_default(web_server_runtime, playwright_page) -> None:
     page = playwright_page
     page.goto(web_server_runtime, wait_until="networkidle")

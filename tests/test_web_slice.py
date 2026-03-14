@@ -1,3 +1,4 @@
+from pathlib import Path
 import json
 import http.client
 import threading
@@ -992,49 +993,59 @@ def test_web_session_transition_action_hidden_when_decision_is_active() -> None:
 
 
 def test_web_html_powerup_cards_use_effect_first_compact_structure() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "function renderPowerupChoiceCard(offer, idx){" in web_server.HTML
-    assert "<span class='choice-card-effect'>" in web_server.HTML
-    assert "renderCardTags(tagPool, 4)" in web_server.HTML
-    assert "<summary class='choice-card-more'>Details</summary>" not in web_server.HTML
-    assert "<details><summary class='choice-card-more'>Details</summary>" not in web_server.HTML
+    html = render_web_app()
+
+    assert "function renderPowerupChoiceCard(offer, idx){" in html
+    assert "<span class='choice-card-effect'>" in html
+    assert "renderCardTags(tagPool, 4)" in html
+    assert "<summary class='choice-card-more'>Details</summary>" not in html
+    assert "<details><summary class='choice-card-more'>Details</summary>" not in html
 
 
 def test_web_html_uses_contextual_transition_action_button() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "id='advanceBtn'" in web_server.HTML
-    assert "transition_action_label" in web_server.HTML
-    assert "Continue Screen" not in web_server.HTML
+    html = render_web_app()
+
+    assert "id='advanceBtn'" in html
+    assert "transition_action_label" in html
+    assert "Continue Screen" not in html
 
 
 def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "markerTokens.join(' ')" in web_server.HTML
-    assert "effectToken('YOU')" in web_server.HTML
-    assert "effectToken('HEIR')" in web_server.HTML
-    assert "effectToken('RISK')" in web_server.HTML
-    assert "NEW RIVAL" in web_server.HTML
-    assert "relationToken" in web_server.HTML
+    html = render_web_app()
+
+    assert "markerTokens.join(' ')" in html
+    assert "effectToken(t('marker_labels.you'))" in html
+    assert "effectToken(t('marker_labels.heir'))" in html
+    assert "effectToken(t('marker_labels.risk'))" in html
+    assert "marker_labels.new_rival" in html
+    assert "relationToken" in html
 
 
 def test_web_html_genome_cards_use_before_after_and_compact_tags() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "function renderGenomeChoiceCard(offer, idx){" in web_server.HTML
-    assert "const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff" in web_server.HTML
-    assert "renderCardTags(tags, 3)" in web_server.HTML
-    assert "Doctrine drift" in web_server.HTML
+    html = render_web_app()
+
+    assert "function renderGenomeChoiceCard(offer, idx){" in html
+    assert "const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff" in html
+    assert "renderCardTags(tags, 3)" in html
+    assert "Doctrine drift" in html
 
 
 def test_web_html_perk_lists_use_compact_preview_with_more_count() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "function compactTokenPreview(items, renderer, limit=3, emptyLabel='none'){" in web_server.HTML
-    assert "<span class='choice-card-more'>+${extra} more</span>" in web_server.HTML
-    assert "const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '')" in web_server.HTML
+    html = render_web_app()
+
+    assert "function compactTokenPreview(items, renderer, limit=3, emptyLabel='none'){" in html
+    assert "<span class='choice-card-more'>+${extra} more</span>" in html
+    assert "const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '')" in html
 
 def test_web_api_drives_session_without_terminal_formatting() -> None:
     from http.server import ThreadingHTTPServer
@@ -1268,88 +1279,214 @@ def test_web_root_and_json_responses_include_content_length_for_http11() -> None
 
 
 def test_web_html_adds_mobile_viewport_and_touch_targets() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "name='viewport'" in web_server.HTML
-    assert ".actions { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }" in web_server.HTML
-    assert ".actions .btn { min-height:56px; padding:8px 9px; }" in web_server.HTML
-    assert ".controls .btn { flex:1 1 calc(50% - 10px); min-height:50px; }" in web_server.HTML
+    html = render_web_app()
+
+    assert "name='viewport'" in html
+    assert ".actions { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; }" in html
+    assert ".actions .btn { min-height:56px; padding:8px 9px; }" in html
+    assert ".controls .btn { flex:1 1 calc(50% - 10px); min-height:50px; }" in html
 
 
 def test_web_html_mobile_layout_prioritizes_decision_context_and_reduces_clutter() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert ".decision-actions-panel { position:sticky; top:8px; z-index:3; }" in web_server.HTML
-    assert ".decision-details-panel {" in web_server.HTML
-    assert "<div class='row controls action-controls'>" in web_server.HTML
-    assert "<div class='row controls status-controls'>" in web_server.HTML
-    assert "<section id='secondaryTabDebug' class='tab-panel raw-state-panel' role='tabpanel'>" in web_server.HTML
-    assert "Expand raw state/debug JSON" in web_server.HTML
+    html = render_web_app()
+
+    assert ".decision-actions-panel { position:sticky; top:8px; z-index:3; }" in html
+    assert ".decision-details-panel {" in html
+    assert "<div class='row controls action-controls'>" in html
+    assert "<div class='row controls status-controls'>" in html
+    assert "<section id='secondaryTabDebug' class='tab-panel raw-state-panel' role='tabpanel'>" in html
+    assert "Expand raw state/debug JSON" in html
 
 
 def test_web_html_marks_primary_actions_for_mobile_tap_focus() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "p.suggested_move === 0 ? 'primary-action' : ''" in web_server.HTML
-    assert "p.suggested_vote === 0 ? 'primary-action' : ''" in web_server.HTML
-    assert "btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';" in web_server.HTML
-    assert "function actionTile(label, meta){" in web_server.HTML
-    assert "action-tile-title" in web_server.HTML
+    html = render_web_app()
+
+    assert "p.suggested_move === 0 ? 'primary-action' : ''" in html
+    assert "p.suggested_vote === 0 ? 'primary-action' : ''" in html
+    assert "btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';" in html
+    assert "function actionTile(label, meta){" in html
+    assert "action-tile-title" in html
 
 
 def test_web_html_prioritizes_mobile_panel_ordering() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "grid > .decision-actions-panel { order:1; }" in web_server.HTML
-    assert "grid > .decision-details-panel { order:2; }" in web_server.HTML
-    assert "grid > .contextual-panel { order:3; }" in web_server.HTML
-    assert "grid > .secondary-info-panel { order:4; }" in web_server.HTML
-    assert "panel panel-enter contextual-panel" in web_server.HTML
+    html = render_web_app()
+
+    assert "grid > .decision-actions-panel { order:1; }" in html
+    assert "grid > .decision-details-panel { order:2; }" in html
+    assert "grid > .contextual-panel { order:3; }" in html
+    assert "grid > .secondary-info-panel { order:4; }" in html
+    assert "panel panel-enter contextual-panel" in html
 
 
 def test_web_html_shows_floor_identity_headline_and_compact_fields() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "id='floorIdentityHeadline'" in web_server.HTML
-    assert "<strong>Dominant pressure</strong>" in web_server.HTML
-    assert "<strong>Why it matters</strong>" in web_server.HTML
+    html = render_web_app()
+
+    assert "id='floorIdentityHeadline'" in html
+    assert "floor_identity.labels.dominant_pressure" in html
+    assert "floor_identity.labels.why_it_matters" in html
 
 
 def test_web_html_splits_decision_actions_from_details_panel() -> None:
-    from prisoners_gambit.web import server as web_server
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "<div class='panel panel-enter decision-actions-panel'>" in web_server.HTML
-    assert "id='actionsPrimaryLabel' class='actions-primary-label'" in web_server.HTML
-    assert "<div id='actions' class='row actions'>" in web_server.HTML
-    assert "<details id='advancedActions' class='advanced-actions'" in web_server.HTML
-    assert "<div id='advancedActionsGrid' class='row actions actions-secondary'>" in web_server.HTML
-    assert "<div class='panel panel-enter decision-details-panel'>" in web_server.HTML
-    assert "Decision Details <button class='btn help-chip-inline'" in web_server.HTML
-    assert "<div id='decisionView' class='kv muted'>" in web_server.HTML
+    html = render_web_app()
 
-
-def test_web_html_decision_details_copy_is_short_and_scannable() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "<div>Next pick</div>" in web_server.HTML
-    assert "<div>Read on rival</div>" in web_server.HTML
-    assert "<div>Recent floor notes</div>" in web_server.HTML
-    assert "<ul class='list tight'>" in web_server.HTML
+    assert "<div class='panel panel-enter decision-actions-panel'>" in html
+    assert "id='actionsPrimaryLabel' class='actions-primary-label'" in html
+    assert "<div id='actions' class='row actions'>" in html
+    assert "<details id='advancedActions' class='advanced-actions'" in html
+    assert "<div id='advancedActionsGrid' class='row actions actions-secondary'>" in html
+    assert "<div class='panel panel-enter decision-details-panel'>" in html
+    assert "id='decisionDetailsHeading' data-i18n='panels.decision_details'" in html
+    assert "id='decisionView' class='kv muted' data-i18n='fallbacks.start_run_to_begin'" in html
 
 
-def test_web_html_round_decision_separates_core_actions_from_advanced_tactics() -> None:
-    from prisoners_gambit.web import server as web_server
+def test_web_html_and_assets_render_from_resource_templates() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
 
-    assert "actionTile('Cooperate', 'Manual move · primary')" in web_server.HTML
-    assert "actionTile('Defect', 'Manual move · primary')" in web_server.HTML
-    assert "actionTile('Autopilot', `Recommended · ${moveLabel(p.suggested_move)}`)" in web_server.HTML
-    assert "advancedLabel.textContent = 'Advanced tactic setup (optional)';" in web_server.HTML
-    assert "actionTile('C until betrayed', 'Stance')" in web_server.HTML
-    assert "actionTile('Autopilot N', 'Stance with duration')" in web_server.HTML
-    assert "actionsPrimaryLabel.textContent = 'Main choice now';" in web_server.HTML
+    html = render_web_app()
+
+    assert "<style>" in html
+    assert "{{INLINE_CSS}}" not in html
+    assert "const UI_STRINGS = {" in html
+    assert "{{INLINE_JS}}" not in html
+    assert "id='onboardingPanel'" in html
 
 
-def test_web_root_contains_full_run_panels() -> None:
+def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
+    from prisoners_gambit.web.ui_resources import load_ui_strings
+
+    strings = load_ui_strings()
+
+    assert strings["app"]["title"] == "Prisoner's Gambit"
+    assert strings["buttons"]["start_run"] == "Start Run"
+    assert strings["panels"]["decision_details"] == "Decision Details"
+    assert strings["tabs"]["summary"]["label"] == "Summary"
+    assert strings["decision_types"]["featured_round"] == "Round move"
+    assert strings["successor_comparison"]["labels"]["cause"] == "Cause"
+    assert strings["round_result"]["labels"]["match_total"] == "Match Total"
+    assert strings["floor_identity"]["labels"]["dominant_pressure"] == "Dominant pressure"
+    assert strings["floor_summary"]["labels"]["featured_read"] == "Featured read"
+    assert strings["successor_preview"]["labels"]["main_threats"] == "Main threats"
+    assert strings["marker_labels"]["new_rival"] == "NEW RIVAL"
+    assert strings["accessibility"]["secondary_information_tablist"] == "Secondary information"
+    assert strings["status_labels"]["status"] == "status"
+    assert strings["status_formats"]["stance_active"].startswith("{label}:")
+    assert strings["round_effects"]["labels"]["you"] == "You"
+    assert strings["round_effects"]["labels"]["opp"] == "Opp"
+    assert strings["status_formats"]["phase"] == "{label}: {value}"
+    assert strings["labels"]["drift"] == "Drift"
+    assert strings["vote_result"]["labels"]["cooperators"] == "cooperators"
+    assert strings["dynasty_board"]["empty"]["no_active_markers"].startswith("No active lineage pressure")
+    assert "controlled_vote" in strings["glossary"]
+    assert "powerup_choice" in strings["decision_helpers"]
+
+
+def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> None:
+    from prisoners_gambit.web.ui_resources import load_ui_strings, render_web_app
+
+    fallback = load_ui_strings("does-not-exist")
+    assert fallback["tabs"]["summary"]["label"] == "Summary"
+
+    test_bundle = load_ui_strings("en-x-test")
+    assert test_bundle["tabs"]["summary"]["label"] == "Summary [test]"
+    assert test_bundle["buttons"]["start_run"] == "Start Run [test]"
+    assert test_bundle["buttons"]["clear_run"] == "Clear Run"
+    assert test_bundle["labels"]["next_pick"] == "Next pick [test]"
+    assert test_bundle["status_labels"]["status"] == "status[test]"
+
+    html = render_web_app(language="en-x-test")
+    assert "Summary [test]" in html
+    assert "Start Run [test]" in html
+    assert "Next pick [test]" in html
+    assert "Round [test]" in html
+    assert "status[test]" in html
+
+
+def test_server_module_no_longer_embeds_full_html_document() -> None:
+    import prisoners_gambit.web.server as web_server
+
+    source = Path(web_server.__file__).read_text(encoding="utf-8")
+    assert "<!doctype html>" not in source
+    assert "const UI_STRINGS =" not in source
+
+
+def test_web_ui_text_is_driven_by_injected_bundle_not_inline_literals() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
+
+    html = render_web_app()
+
+    assert "localizeDomFromBundle();" in html
+    assert "document.querySelectorAll('[data-i18n]')" in html
+    assert "getNestedText('glossary.controlled_vote'" in html
+
+
+def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
+    from importlib import resources
+
+    html_template = resources.files("prisoners_gambit.web").joinpath("templates/app.html").read_text(encoding="utf-8")
+    js_source = resources.files("prisoners_gambit.web").joinpath("static/app.js").read_text(encoding="utf-8")
+
+    assert "Start Run" not in html_template
+    assert "Saved Run Found" not in html_template
+    assert "Current Decision" not in html_template
+    assert "Decision Details" not in html_template
+    assert ">Summary<" not in html_template
+    assert "title='What is controlled vote?'" not in html_template
+    assert "aria-label='Secondary information'" not in html_template
+
+    assert "Advanced tactic setup (optional)" not in js_source
+    assert "Choose next host" not in js_source
+    assert "Decision:" not in js_source
+    assert "Run Completion" not in js_source
+    assert "Cooperate" not in js_source
+    assert "Vote Cooperate" not in js_source
+    assert "No score modifiers this round." not in js_source
+    assert "Directive: You" not in js_source
+    assert "Dominant pressure" not in js_source
+    assert "Open Summary → Successor Comparison for full candidate breakdown." not in js_source
+    assert "NEW RIVAL" not in js_source
+    assert "Perks" not in js_source
+    assert "No active lineage pressure markers." not in js_source
+    assert "No summary yet." not in js_source
+    assert "HOST" not in js_source
+    assert "KIN" not in js_source
+    assert "OUT" not in js_source
+    assert "unknown role" not in js_source
+    assert "score / wins" not in js_source
+    assert "No vote yet." not in js_source
+    assert "No strategic snapshot yet." not in js_source
+    assert "No floor identity committed yet." not in js_source
+    assert "No solid clue read this floor." not in js_source
+    assert "No clear heir yet." not in js_source
+    assert "No outside pressure spotted." not in js_source
+    assert "No active score rules." not in js_source
+    assert "No clue memory this floor." not in js_source
+    assert "phase: " not in js_source
+    assert "floor: " not in js_source
+    assert "status: " not in js_source
+    assert "stance: " not in js_source
+    assert "Drift: " not in js_source
+    assert "→ You " not in js_source
+    assert ", Opp " not in js_source
+
+    rendered = render_web_app()
+    assert "Start Run" in rendered
+    assert "Decision Details" in rendered
+
+
+def test_server_root_lang_selection_changes_visible_bundle_text() -> None:
     from http.server import ThreadingHTTPServer
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -1358,99 +1495,24 @@ def test_web_root_contains_full_run_panels() -> None:
     thread.start()
 
     try:
-        with urlopen(f"http://127.0.0.1:{port}/") as resp:
+        with urlopen(f"http://127.0.0.1:{port}/?lang=en-x-test") as resp:
             html = resp.read().decode("utf-8")
-        assert "Current Decision" in html
-        assert "Decision Details" in html
-        assert "Secondary Info" in html
-        assert "Summary" in html
-        assert "Board" in html
-        assert "Chronicle" in html
-        assert "Debug" in html
+        assert "Start Run [test]" in html
+        assert "Current Decision [test]" in html
+        assert "Summary [test]" in html
+        assert "Prisoner's Gambit [test]" in html
+
+        with urlopen(f"http://127.0.0.1:{port}/?lang=unknown") as resp:
+            fallback_html = resp.read().decode("utf-8")
+        assert "Start Run [test]" not in fallback_html
+        assert "Current Decision [test]" not in fallback_html
+        assert "Summary [test]" not in fallback_html
+        assert "Start Run" in fallback_html
+        assert "Current Decision" in fallback_html
     finally:
         server.shutdown()
         server.server_close()
 
-
-def test_web_html_secondary_tabs_and_contextual_panel_structure() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "function setSecondaryTab(tab){" in web_server.HTML
-    assert "id='tabSummaryBtn'" in web_server.HTML
-    assert "id='tabBoardBtn'" in web_server.HTML
-    assert "id='tabChronicleBtn'" in web_server.HTML
-    assert "id='tabDebugBtn'" in web_server.HTML
-    assert "activeSecondaryTab = 'summary'" in web_server.HTML
-    assert "function updateContextualPanel(decisionType, snapshot){" in web_server.HTML
-    assert "id='contextualPanelTitle'" in web_server.HTML
-    assert "id='contextRoundPanel'" in web_server.HTML
-    assert "id='contextSummaryPanel'" in web_server.HTML
-    assert "id='contextSuccessorPanel'" in web_server.HTML
-    assert "id='contextRewardPanel'" in web_server.HTML
-    assert "id='contextCompletionPanel'" in web_server.HTML
-    assert "id='successorComparisonSection'" in web_server.HTML
-    assert "id='successorComparison' class='comparison-cards muted'" in web_server.HTML
-
-
-def test_web_html_debug_is_secondary_not_default_always_open_panel() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "<details open>" not in web_server.HTML
-    assert "id='secondaryTabDebug'" in web_server.HTML
-    assert "<div class='panel panel-enter panel-mobile-low raw-state-panel'" not in web_server.HTML
-
-
-def test_web_html_successor_choice_has_compact_primary_preview_with_secondary_full_comparison() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "id='successorsPrimary'" in web_server.HTML
-    assert "Open Summary → Successor Comparison for full candidate breakdown." in web_server.HTML
-    assert "id='successorComparisonSection' style='display:none; margin-top:10px;'" in web_server.HTML
-    assert "<h3>Successor Comparison</h3>" in web_server.HTML
-    assert "latest?.decision_type === 'SuccessorChoiceState'" in web_server.HTML
-    assert "successorComparisonSection.style.display = 'block';" in web_server.HTML
-    assert "function renderSuccessorComparisonCard(candidate){" in web_server.HTML
-    assert "<span class='muted-label'>Cause</span>" in web_server.HTML
-    assert "<span class='muted-label'>Pick for</span>" in web_server.HTML
-    assert "<span class='muted-label'>Risk</span>" in web_server.HTML
-    assert "<span class='muted-label'>Pitch</span>" in web_server.HTML
-    assert "<span class='muted-label'>Clue</span>" in web_server.HTML
-
-
-
-
-def test_web_html_onboarding_glossary_and_phase_helpers_present() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "id='onboardingPanel'" in web_server.HTML
-    assert "Quick start" in web_server.HTML
-    assert "ONBOARDING_DISMISSED_KEY" in web_server.HTML
-    assert "dismissOnboarding()" in web_server.HTML
-    assert "maybeShowOnboarding()" in web_server.HTML
-    assert "id='glossaryPanel'" in web_server.HTML
-    assert "function toggleGlossaryTerm(term){" in web_server.HTML
-    assert "Doctrine ?" in web_server.HTML
-    assert "Heir Pressure ?" in web_server.HTML
-    assert "Civil War Danger ?" in web_server.HTML
-    assert "Central Rival ?" in web_server.HTML
-    assert "Controlled Vote ?" in web_server.HTML
-    assert "shaped or forced by your active effects and commitments" in web_server.HTML
-    assert "Clue Fit / Memory ?" in web_server.HTML
-    assert "Lineage Direction ?" in web_server.HTML
-    assert "id='phaseActionHelper'" in web_server.HTML
-    assert "Pick by the first-line effect; use tags and notes only as tie-breakers." in web_server.HTML
-    assert "Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host." in web_server.HTML
-
-
-def test_web_html_tab_discoverability_copy_exists() -> None:
-    from prisoners_gambit.web import server as web_server
-
-    assert "id='tabHelpText'" in web_server.HTML
-    assert "const TAB_HELP_TEXT = Object.freeze({" in web_server.HTML
-    assert "Summary: floor stakes, pressure leaders, and why this turn matters." in web_server.HTML
-    assert "Board: live pressure markers, rival status, and civil-war risk." in web_server.HTML
-    assert "Chronicle: concise timeline of dynasty shifts across floors." in web_server.HTML
-    assert "Debug: raw state for troubleshooting only; ignore during normal play." in web_server.HTML
 
 def test_run_server_defaults_to_public_host(monkeypatch) -> None:
     captured = {}
@@ -1945,3 +2007,29 @@ def test_civil_war_context_includes_doctrine_mutation_pressure_note() -> None:
     assert context is not None
     assert context["doctrine_pressure"]
     assert "Doctrine" in context["doctrine_pressure"][0] or "doctrine" in context["doctrine_pressure"][0]
+
+
+def test_app_js_render_decision_uses_decision_type_variable_without_shadowing_translation_helper() -> None:
+    app_js = Path("src/prisoners_gambit/web/static/app.js").read_text(encoding="utf-8")
+
+    assert "const t = data.decision_type;" not in app_js
+    assert "const decisionType = data.decision_type;" in app_js
+    assert "if (decisionType === 'FeaturedRoundDecisionState')" in app_js
+    assert "if (decisionType === 'FloorVoteDecisionState')" in app_js
+    assert "if (decisionType === 'PowerupChoiceState')" in app_js
+    assert "if (decisionType === 'GenomeEditChoiceState')" in app_js
+    assert "if (decisionType === 'SuccessorChoiceState')" in app_js
+
+
+def test_default_ui_bundle_contains_runtime_labels_for_status_drift_and_round_effect_participants() -> None:
+    from prisoners_gambit.web.ui_resources import load_ui_strings
+
+    strings = load_ui_strings()
+
+    assert strings["status_labels"]["phase"] == "phase"
+    assert strings["status_labels"]["floor"] == "floor"
+    assert strings["status_labels"]["stance"] == "stance"
+    assert strings["status_labels"]["status"] == "status"
+    assert strings["labels"]["drift"] == "Drift"
+    assert strings["round_effects"]["labels"]["you"] == "You"
+    assert strings["round_effects"]["labels"]["opp"] == "Opp"

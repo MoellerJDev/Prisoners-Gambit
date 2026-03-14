@@ -1,0 +1,43 @@
+{
+  "app": {
+    "title": "Prisoner's Gambit [test]",
+    "subtitle": "Localization test bundle active.",
+    "page_title": "Prisoner's Gambit Web Prototype [test]"
+  },
+  "buttons": {
+    "start_run": "Start Run [test]"
+  },
+  "tabs": {
+    "summary": {
+      "label": "Summary [test]",
+      "help": "Summary [test]: floor stakes, pressure leaders, and why this turn matters."
+    }
+  },
+  "panels": {
+    "current_decision": "Current Decision [test]"
+  },
+  "decision_types": {
+    "featured_round": "Round move [test]"
+  },
+  "labels": {
+    "next_pick": "Next pick [test]",
+    "drift": "Drift [test]"
+  },
+  "round_result": {
+    "labels": {
+      "round": "Round [test]"
+    }
+  },
+  "accessibility": {
+    "secondary_information_tablist": "Secondary information [test]"
+  },
+  "status_labels": {
+    "status": "status[test]"
+  },
+  "round_effects": {
+    "labels": {
+      "you": "You[test]",
+      "opp": "Opp[test]"
+    }
+  }
+}
