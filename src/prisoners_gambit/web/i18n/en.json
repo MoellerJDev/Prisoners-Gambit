@@ -122,7 +122,9 @@
       "pick_for": "Pick for",
       "risk": "Risk",
       "pitch": "Pitch",
-      "clue": "Clue"
+      "clue": "Clue",
+      "score": "score",
+      "wins": "wins"
     }
   },
   "labels": {
@@ -195,7 +197,9 @@
     "tuning_lineage_behavior": "Tuning lineage behavior toward this doctrine.",
     "no_shaping_cause": "No shaping cause available.",
     "not_available": "n/a",
-    "no_direct_clue_fit": "No direct clue fit."
+    "no_direct_clue_fit": "No direct clue fit.",
+    "effect_details_in_notes": "Effect details in card notes.",
+    "unknown_role": "unknown role"
   },
   "prompts": {
     "copy_save_code": "Copy save code:",
@@ -228,5 +232,103 @@
     "vote_defect": "Vote Defect",
     "autopilot_vote": "Autopilot Vote",
     "manual_vote_primary": "Manual vote \u00b7 primary"
+  },
+  "round_result": {
+    "labels": {
+      "directive_you": "Directive: You",
+      "directive_opp": "Directive: Opp",
+      "round": "Round",
+      "moves": "Moves",
+      "round_delta": "Round Delta",
+      "match_total": "Match Total"
+    },
+    "empty": {
+      "no_score_modifiers": "No score modifiers this round."
+    }
+  },
+  "vote_result": {
+    "empty": {
+      "no_vote_yet": "No vote yet."
+    }
+  },
+  "strategic_snapshot": {
+    "empty": {
+      "no_snapshot": "No strategic snapshot yet."
+    }
+  },
+  "floor_identity": {
+    "empty": {
+      "no_identity": "No floor identity committed yet."
+    },
+    "labels": {
+      "dominant_pressure": "Dominant pressure",
+      "why_it_matters": "Why it matters",
+      "lineage_direction": "Lineage direction",
+      "focus_this_floor": "Focus this floor",
+      "host": "Host"
+    }
+  },
+  "floor_summary": {
+    "labels": {
+      "featured_read": "Featured read",
+      "succession_trend": "Succession trend",
+      "best_heir_lead": "Best heir lead",
+      "main_threat": "Main threat",
+      "conflict": "Conflict",
+      "key_rules": "Key rules",
+      "main_pressure": "Main pressure"
+    },
+    "empty": {
+      "no_clear_heir": "No clear heir yet.",
+      "no_outside_pressure": "No outside pressure spotted.",
+      "no_active_score_rules": "No active score rules.",
+      "unknown": "Unknown",
+      "no_solid_clue_read": "No solid clue read this floor."
+    }
+  },
+  "successor_preview": {
+    "labels": {
+      "why_this_choice_matters": "Why this choice matters",
+      "main_threats": "Main threats",
+      "clue_memory": "Clue memory"
+    },
+    "empty": {
+      "unknown": "unknown",
+      "no_clue_memory": "No clue memory this floor."
+    },
+    "hints": {
+      "open_summary_successor_comparison": "Open Summary \u2192 Successor Comparison for full candidate breakdown."
+    }
+  },
+  "marker_labels": {
+    "you": "YOU",
+    "heir": "HEIR",
+    "risk": "RISK",
+    "new_rival": "NEW RIVAL",
+    "rival": "RIVAL",
+    "heir_prefix": "Heir:",
+    "risk_prefix": "Risk:"
+  },
+  "dynasty_board": {
+    "labels": {
+      "perks": "Perks",
+      "score": "score",
+      "depth": "depth"
+    }
+  },
+  "completion": {
+    "labels": {
+      "on_floor": "on floor",
+      "as": "as"
+    }
+  },
+  "relation_tokens": {
+    "host": "HOST",
+    "kin": "KIN",
+    "outsider": "OUT"
+  },
+  "accessibility": {
+    "controlled_vote_help_title": "What is controlled vote?",
+    "secondary_information_tablist": "Secondary information"
   }
 }

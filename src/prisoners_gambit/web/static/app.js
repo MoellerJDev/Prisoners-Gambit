@@ -20,8 +20,8 @@ function cleanCauseLine(text){
 function moveLabel(v){ return v === 0 ? 'C' : 'D'; }
 function effectToken(label){ return `<span class='token effect'>✦ ${escapeHtml(label)}</span>`; }
 function relationToken(relation){
-  const labels = {host:'HOST', kin:'KIN', outsider:'OUT'};
-  return `<span class='token branch'>${escapeHtml(labels[relation] || 'OUT')}</span>`;
+  const labels = {host:t('relation_tokens.host'), kin:t('relation_tokens.kin'), outsider:t('relation_tokens.outsider')};
+  return `<span class='token branch'>${escapeHtml(labels[relation] || t('relation_tokens.outsider'))}</span>`;
 }
 function movementGlyph(delta){
   if (delta > 0) return `↑${delta}`;
@@ -47,7 +47,7 @@ function compactTokenPreview(items, renderer, limit=3, emptyLabel='none'){
 }
 
 function compactEffectLine(parts){
-  return (parts || []).find(part => Boolean(part && String(part).trim())) || 'Effect details in card notes.';
+  return (parts || []).find(part => Boolean(part && String(part).trim())) || t('fallbacks.effect_details_in_notes');
 }
 
 function renderCardTags(tags, limit=4){
@@ -98,8 +98,8 @@ function renderSuccessorComparisonCard(candidate){
   const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch || t('fallbacks.no_shaping_cause');
   return `<li class='comparison-card'>
     <div class='comparison-top'>
-      <span class='comparison-name'>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.branch_role || 'unknown role')}</span>
-      <span class='comparison-score'>${escapeHtml(candidate.score ?? '-')} score / ${escapeHtml(candidate.wins ?? '-')} wins</span>
+      <span class='comparison-name'>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.branch_role || t('fallbacks.unknown_role'))}</span>
+      <span class='comparison-score'>${escapeHtml(candidate.score ?? '-')} ${escapeHtml(t('successor_comparison.labels.score'))} / ${escapeHtml(candidate.wins ?? '-')} ${escapeHtml(t('successor_comparison.labels.wins'))}</span>
     </div>
     <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.cause'))}</span>${escapeHtml(topCause)}</div>
     <div class='comparison-row'><span class='muted-label'>${escapeHtml(getNestedText('successor_comparison.labels.pick_for'))}</span>${escapeHtml(candidate.attractive_now || t('fallbacks.not_available'))}</div>
@@ -126,6 +126,18 @@ function localizeDomFromBundle(){
       return;
     }
     node.textContent = value;
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(node => {
+    const key = node.getAttribute('data-i18n-title');
+    if (!key) return;
+    const value = t(key, '');
+    if (value) node.setAttribute('title', value);
+  });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(node => {
+    const key = node.getAttribute('data-i18n-aria-label');
+    if (!key) return;
+    const value = t(key, '');
+    if (value) node.setAttribute('aria-label', value);
   });
   document.title = getNestedText('app.page_title', document.title || "Prisoner's Gambit");
 }
@@ -307,7 +319,7 @@ function renderDecision(data){
 
   if (t === 'PowerupChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
-    phaseActionHelper.textContent = getNestedText('decision_helpers.powerup_choice', 'Pick by the first-line effect; use tags and notes only as tie-breakers.');
+    phaseActionHelper.textContent = getNestedText('decision_helpers.powerup_choice');
     document.getElementById('decisionView').innerHTML = `
       <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.powerup_card'))}</div>
       <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
@@ -352,7 +364,7 @@ function renderDecision(data){
 
   if (t === 'SuccessorChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_next_host');
-    phaseActionHelper.textContent = getNestedText('decision_helpers.successor_choice', 'Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host.');
+    phaseActionHelper.textContent = getNestedText('decision_helpers.successor_choice');
     document.getElementById('decisionView').innerHTML = `
       <div>${escapeHtml(t('labels.choose_now'))}</div><div>${escapeHtml(t('labels.next_host'))}</div>
       <div>${escapeHtml(t('labels.floor'))}</div><div>${decision.floor_number}</div>
@@ -377,10 +389,10 @@ function renderRoundEffects(round) {
   const modifiers = round.breakdown?.score_adjustments || [];
   const modifierLines = modifiers.length
     ? modifiers.map(entry => `<div class='fx-item'>${powerupToken(entry.source)} → You ${entry.player_delta >= 0 ? '+' : ''}${entry.player_delta}, Opp ${entry.opponent_delta >= 0 ? '+' : ''}${entry.opponent_delta}</div>`).join('')
-    : `<div class='fx-item muted'>No score modifiers this round.</div>`;
+    : `<div class='fx-item muted'>${escapeHtml(t('round_result.empty.no_score_modifiers'))}</div>`;
   root.innerHTML = `
-    <div class='fx-item'>${effectToken(`Directive: You ${round.player_reason}`)}</div>
-    <div class='fx-item'>${effectToken(`Directive: Opp ${round.opponent_reason}`)}</div>
+    <div class='fx-item'>${effectToken(`${t('round_result.labels.directive_you')} ${round.player_reason}`)}</div>
+    <div class='fx-item'>${effectToken(`${t('round_result.labels.directive_opp')} ${round.opponent_reason}`)}</div>
     ${modifierLines}`;
 }
 
@@ -402,10 +414,10 @@ function renderSnapshot(snapshot){
     previousTotals = totals;
     roundResult.innerHTML = `
       <div class='kv'>
-        <div>Round</div><div>${round.round_index + 1}/${round.total_rounds}</div>
-        <div>Moves</div><div>You ${moveLabel(round.player_move)} vs Opp ${moveLabel(round.opponent_move)}</div>
-        <div>Round Delta</div><div><span class='good'>${round.player_delta >= 0 ? '+' : ''}${round.player_delta}</span> / <span class='danger'>${round.opponent_delta >= 0 ? '+' : ''}${round.opponent_delta}</span></div>
-        <div>Match Total</div><div class='scoreline'><span class='good'>${round.player_total}</span> : <span class='danger'>${round.opponent_total}</span></div>
+        <div>${escapeHtml(t('round_result.labels.round'))}</div><div>${round.round_index + 1}/${round.total_rounds}</div>
+        <div>${escapeHtml(t('round_result.labels.moves'))}</div><div>You ${moveLabel(round.player_move)} vs Opp ${moveLabel(round.opponent_move)}</div>
+        <div>${escapeHtml(t('round_result.labels.round_delta'))}</div><div><span class='good'>${round.player_delta >= 0 ? '+' : ''}${round.player_delta}</span> / <span class='danger'>${round.opponent_delta >= 0 ? '+' : ''}${round.opponent_delta}</span></div>
+        <div>${escapeHtml(t('round_result.labels.match_total'))}</div><div class='scoreline'><span class='good'>${round.player_total}</span> : <span class='danger'>${round.opponent_total}</span></div>
       </div>`;
   } else {
     roundResult.className = 'muted';
@@ -416,30 +428,30 @@ function renderSnapshot(snapshot){
   const vote = snapshot.floor_vote_result;
   document.getElementById('voteResult').innerHTML = vote
     ? `${effectToken(`Vote ${moveLabel(vote.player_vote)}`)} — cooperators ${vote.cooperators}, defectors ${vote.defectors}, reward <span class='good'>+${vote.player_reward}</span>`
-    : 'No vote yet.';
+    : t('vote_result.empty.no_vote_yet');
 
   const capLines = (items, limit=2) => (items || []).slice(0, limit);
   const strategic = snapshot.strategic_snapshot;
-  document.getElementById('strategicSnapshotHeadline').textContent = strategic?.headline || 'No strategic snapshot yet.';
+  document.getElementById('strategicSnapshotHeadline').textContent = strategic?.headline || t('strategic_snapshot.empty.no_snapshot');
   document.getElementById('strategicSnapshotChips').innerHTML = strategic
     ? (strategic.chips || []).map(chip => effectToken(chip)).join('')
     : '';
   document.getElementById('strategicSnapshotDetails').innerHTML = strategic
     ? (strategic.details || []).slice(0, 2).map(line => `<li>${escapeHtml(line)}</li>`).join('')
-    : '<li>No strategic snapshot yet.</li>';
+    : `<li>${escapeHtml(t('strategic_snapshot.empty.no_snapshot'))}</li>`;
 
   const floorIdentity = snapshot.floor_identity;
   document.getElementById('floorIdentityHeadline').textContent = floorIdentity
     ? floorIdentity.headline
-    : 'No floor identity committed yet.';
+    : t('floor_identity.empty.no_identity');
   document.getElementById('floorIdentity').innerHTML = floorIdentity
     ? `
-      <li><strong>Dominant pressure</strong>: ${escapeHtml(floorIdentity.dominant_pressure)}</li>
-      <li><strong>Why it matters</strong>: ${escapeHtml(floorIdentity.pressure_reason)}</li>
-      <li><strong>Lineage direction</strong>: ${escapeHtml(floorIdentity.lineage_direction)}</li>
-      <li><strong>Focus this floor</strong>: ${escapeHtml(floorIdentity.strategic_focus)}</li>
-      <li><strong>Host</strong>: ${branchToken(floorIdentity.host_name)} · F${escapeHtml(floorIdentity.target_floor)}</li>`
-    : '<li>No floor identity committed yet.</li>';
+      <li><strong>${escapeHtml(t('floor_identity.labels.dominant_pressure'))}</strong>: ${escapeHtml(floorIdentity.dominant_pressure)}</li>
+      <li><strong>${escapeHtml(t('floor_identity.labels.why_it_matters'))}</strong>: ${escapeHtml(floorIdentity.pressure_reason)}</li>
+      <li><strong>${escapeHtml(t('floor_identity.labels.lineage_direction'))}</strong>: ${escapeHtml(floorIdentity.lineage_direction)}</li>
+      <li><strong>${escapeHtml(t('floor_identity.labels.focus_this_floor'))}</strong>: ${escapeHtml(floorIdentity.strategic_focus)}</li>
+      <li><strong>${escapeHtml(t('floor_identity.labels.host'))}</strong>: ${branchToken(floorIdentity.host_name)} · F${escapeHtml(floorIdentity.target_floor)}</li>`
+    : `<li>${escapeHtml(t('floor_identity.empty.no_identity'))}</li>`;
 
   const summary = snapshot.floor_summary?.entries || [];
   const pressure = snapshot.floor_summary?.heir_pressure;
@@ -451,27 +463,27 @@ function renderSnapshot(snapshot){
   const threatPreview = capLines(pressure?.future_threats || [], PANEL_LIMITS.floorThreats).map(entry =>
     `<li>${branchToken(entry.name)} ${escapeHtml(entry.branch_role)} · <span class='muted'>${escapeHtml((entry.shaping_causes || [entry.rationale])[0] || entry.rationale)}</span></li>`
   ).join('');
-  const featuredLead = capLines(featuredInference, 1).map(line => `<li>${escapeHtml(line)}</li>`).join('') || '<li class="muted">No solid clue read this floor.</li>';
+  const featuredLead = capLines(featuredInference, 1).map(line => `<li>${escapeHtml(line)}</li>`).join('') || `<li class="muted">${escapeHtml(t('floor_summary.empty.no_solid_clue_read'))}</li>`;
   const pressureBlock = pressure
-    ? `<li><strong>Succession trend</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`
-      + `<li><strong>Best heir lead</strong><ul>${successorPreview || '<li class="muted">No clear heir yet.</li>'}</ul></li>`
-      + `<li><strong>Main threat</strong><ul>${threatPreview || '<li class="muted">No outside pressure spotted.</li>'}</ul></li>`
+    ? `<li><strong>${escapeHtml(t('floor_summary.labels.succession_trend'))}</strong>: ${escapeHtml(pressure.branch_doctrine)}</li>`
+      + `<li><strong>${escapeHtml(t('floor_summary.labels.best_heir_lead'))}</strong><ul>${successorPreview || `<li class="muted">${escapeHtml(t('floor_summary.empty.no_clear_heir'))}</li>`}</ul></li>`
+      + `<li><strong>${escapeHtml(t('floor_summary.labels.main_threat'))}</strong><ul>${threatPreview || `<li class="muted">${escapeHtml(t('floor_summary.empty.no_outside_pressure'))}</li>`}</ul></li>`
     : '';
   const civilWarBlock = civilWar
-    ? `<li><strong>Conflict</strong>: ${escapeHtml(civilWar.thesis)}</li>`
-      + `<li><strong>Key rules</strong><ul>${capLines(civilWar.scoring_rules || [], PANEL_LIMITS.rules).map(rule => `<li>${escapeHtml(rule)}</li>`).join('') || '<li class="muted">No active score rules.</li>'}</ul></li>`
-      + `<li><strong>Main pressure</strong>: ${escapeHtml(capLines(civilWar.dangerous_branches || [], 1).join(' · ') || 'Unknown')}</li>`
+    ? `<li><strong>${escapeHtml(t('floor_summary.labels.conflict'))}</strong>: ${escapeHtml(civilWar.thesis)}</li>`
+      + `<li><strong>${escapeHtml(t('floor_summary.labels.key_rules'))}</strong><ul>${capLines(civilWar.scoring_rules || [], PANEL_LIMITS.rules).map(rule => `<li>${escapeHtml(rule)}</li>`).join('') || `<li class="muted">${escapeHtml(t('floor_summary.empty.no_active_score_rules'))}</li>`}</ul></li>`
+      + `<li><strong>${escapeHtml(t('floor_summary.labels.main_pressure'))}</strong>: ${escapeHtml(capLines(civilWar.dangerous_branches || [], 1).join(' · ') || t('floor_summary.empty.unknown'))}</li>`
     : '';
   const floorSummaryFull = summary.length
     ? summary.slice(0, PANEL_LIMITS.floorLeaders).map(entry => {
         const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
         const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
         return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='muted'>${escapeHtml(entry.descriptor)}</span> · <span class='good'>${entry.score}</span> pts · ${movementGlyph(entry.score_delta || 0)}S ${movementGlyph(entry.wins_delta || 0)}W · ${continuity} · P${trend}</li>`;
-      }).join('') + `<li><strong>Featured read</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
+      }).join('') + `<li><strong>${escapeHtml(t('floor_summary.labels.featured_read'))}</strong><ul>${featuredLead}</ul></li>` + pressureBlock + civilWarBlock
     : '<li>No summary yet.</li>';
   const floorSummaryPrimary = summary.length
     ? summary.slice(0, 2).map(entry => `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} <span class='good'>${entry.score}</span> pts · <span class='muted'>${escapeHtml(entry.descriptor)}</span></li>`).join('')
-      + `<li class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_context', 'Open Summary tab for full floor context.'))}</li>`
+      + `<li class='context-note'>${escapeHtml(t('hints.summary_tab_context'))}</li>`
     : '<li>No summary yet.</li>';
   document.getElementById('floorSummaryFull').innerHTML = floorSummaryFull;
   document.getElementById('floorSummaryPrimary').innerHTML = floorSummaryPrimary;
@@ -479,16 +491,16 @@ function renderSnapshot(snapshot){
   const successors = snapshot.successor_options?.candidates || [];
   const successorState = snapshot.successor_options;
   const successorContext = successorState
-    ? `<li><strong>Why this choice matters</strong>: ${escapeHtml(successorState.current_phase || 'unknown')} phase, pressure ${escapeHtml(successorState.civil_war_pressure || 'unknown')}</li>`
-      + `<li><strong>Main threats</strong>: ${escapeHtml(capLines(successorState.threat_profile || [], 2).join(', ') || 'none')}</li>`
-      + `<li><strong>Clue memory</strong>: ${escapeHtml((successorState.featured_inference_summary || [])[0] || 'No clue memory this floor.')}</li>`
+    ? `<li><strong>${escapeHtml(t('successor_preview.labels.why_this_choice_matters'))}</strong>: ${escapeHtml(successorState.current_phase || t('successor_preview.empty.unknown'))} phase, pressure ${escapeHtml(successorState.civil_war_pressure || t('successor_preview.empty.unknown'))}</li>`
+      + `<li><strong>${escapeHtml(t('successor_preview.labels.main_threats'))}</strong>: ${escapeHtml(capLines(successorState.threat_profile || [], 2).join(', ') || t('fallbacks.none'))}</li>`
+      + `<li><strong>${escapeHtml(t('successor_preview.labels.clue_memory'))}</strong>: ${escapeHtml((successorState.featured_inference_summary || [])[0] || t('successor_preview.empty.no_clue_memory'))}</li>`
     : '';
   const successorPrimary = successors.length
     ? successors.slice(0, PANEL_LIMITS.successorCards).map(candidate => {
         const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch;
         return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${candidate.score} pts<br/><span class='muted'>${escapeHtml(topCause)}</span></li>`;
-      }).join('') + `<li class='context-note'>Open Summary → Successor Comparison for full candidate breakdown.</li>`
-    : `${successorContext}<li>${escapeHtml(getNestedText('messages.no_successor_choice', 'No successor choice active.'))}</li>`;
+      }).join('') + `<li class='context-note'>${t('successor_preview.hints.open_summary_successor_comparison')}</li>`
+    : `${successorContext}<li>${escapeHtml(getNestedText('messages.no_successor_choice'))}</li>`;
   document.getElementById('successorsPrimary').innerHTML = successorPrimary;
 
   const successorComparisonSection = document.getElementById('successorComparisonSection');
@@ -500,14 +512,14 @@ function renderSnapshot(snapshot){
     successorComparison.innerHTML = comparisonCandidates.map(renderSuccessorComparisonCard).join('');
   } else {
     successorComparisonSection.style.display = 'none';
-    successorComparison.innerHTML = `<li>${escapeHtml(getNestedText('messages.no_successor_choice', 'No successor choice active.'))}</li>`;
+    successorComparison.innerHTML = `<li>${escapeHtml(getNestedText('messages.no_successor_choice'))}</li>`;
   }
 
   const rewardContext = document.getElementById('rewardContext');
   if (latest?.decision_type === 'PowerupChoiceState') {
-    rewardContext.innerHTML = `${effectToken(getNestedText('messages.powerup_choice_active', 'Powerup choice active'))} ${escapeHtml(getNestedText('messages.pick_one_offer', 'Pick one offer in Current Decision.'))} <div class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_choose', 'Use Summary tab for floor-level context while choosing.'))}</div>`;
+    rewardContext.innerHTML = `${effectToken(getNestedText('messages.powerup_choice_active'))} ${escapeHtml(getNestedText('messages.pick_one_offer'))} <div class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_choose'))}</div>`;
   } else if (latest?.decision_type === 'GenomeEditChoiceState') {
-    rewardContext.innerHTML = `${effectToken(getNestedText('messages.genome_edit_active', 'Genome edit active'))} ${escapeHtml(getNestedText('messages.pick_one_genome', 'Pick one genome edit in Current Decision.'))} <div class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_choose', 'Use Summary tab for floor-level context while choosing.'))}</div>`;
+    rewardContext.innerHTML = `${effectToken(getNestedText('messages.genome_edit_active'))} ${escapeHtml(getNestedText('messages.pick_one_genome'))} <div class='context-note'>${escapeHtml(getNestedText('hints.summary_tab_choose'))}</div>`;
   } else {
     rewardContext.textContent = getNestedText('fallbacks.no_reward_choice_active');
   }
@@ -516,14 +528,14 @@ function renderSnapshot(snapshot){
   document.getElementById('dynastyBoard').innerHTML = dynastyEntries.length
     ? dynastyEntries.map(entry => {
         const markerTokens = [
-          entry.is_current_host ? effectToken('YOU') : '',
-          entry.has_successor_pressure ? effectToken('HEIR') : '',
-          entry.has_civil_war_danger ? effectToken('RISK') : '',
-          entry.is_central_rival ? effectToken(entry.is_new_central_rival ? 'NEW RIVAL' : 'RIVAL') : '',
+          entry.is_current_host ? effectToken(t('marker_labels.you')) : '',
+          entry.has_successor_pressure ? effectToken(t('marker_labels.heir')) : '',
+          entry.has_civil_war_danger ? effectToken(t('marker_labels.risk')) : '',
+          entry.is_central_rival ? effectToken(entry.is_new_central_rival ? t('marker_labels.new_rival') : t('marker_labels.rival')) : '',
         ].filter(Boolean);
         const markerCauses = [
-          entry.has_successor_pressure && entry.successor_pressure_cause ? `Heir: ${escapeHtml(cleanCauseLine(entry.successor_pressure_cause))}` : '',
-          entry.has_civil_war_danger && entry.civil_war_danger_cause ? `Risk: ${escapeHtml(cleanCauseLine(entry.civil_war_danger_cause))}` : '',
+          entry.has_successor_pressure && entry.successor_pressure_cause ? `${t('marker_labels.heir_prefix')} ${escapeHtml(cleanCauseLine(entry.successor_pressure_cause))}` : '',
+          entry.has_civil_war_danger && entry.civil_war_danger_cause ? `${t('marker_labels.risk_prefix')} ${escapeHtml(cleanCauseLine(entry.civil_war_danger_cause))}` : '',
         ].filter(Boolean);
         const markerBlock = markerTokens.length
           ? `${markerTokens.join(' ')}${markerCauses.length ? `<br/><span class="muted">${markerCauses.slice(0, 2).join(' · ')}</span>` : ''}`
@@ -531,14 +543,14 @@ function renderSnapshot(snapshot){
         const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
         const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
         const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '');
-        const perkLine = perkPreview ? `<br/><span class='muted'>Perks ${perkPreview}</span>` : '';
-        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} · ${escapeHtml(entry.role)} · score ${entry.score} (${movementGlyph(entry.score_delta || 0)}S, ${movementGlyph(entry.wins_delta || 0)}W) · ${continuity} · P${trend} · depth ${entry.lineage_depth}<br/>${markerBlock}${perkLine}</li>`;
+        const perkLine = perkPreview ? `<br/><span class='muted'>${escapeHtml(t('dynasty_board.labels.perks'))} ${perkPreview}</span>` : '';
+        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} · ${escapeHtml(entry.role)} · ${escapeHtml(t('dynasty_board.labels.score'))} ${entry.score} (${movementGlyph(entry.score_delta || 0)}S, ${movementGlyph(entry.wins_delta || 0)}W) · ${continuity} · P${trend} · ${escapeHtml(t('dynasty_board.labels.depth'))} ${entry.lineage_depth}<br/>${markerBlock}${perkLine}</li>`;
       }).join('')
     : `<li>${escapeHtml(getNestedText('fallbacks.no_lineage_board'))}</li>`;
 
   const completion = snapshot.completion;
   document.getElementById('completion').innerHTML = completion
-    ? `${effectToken(completion.outcome.toUpperCase())} on floor ${completion.floor_number} as ${branchToken(completion.player_name)}`
+    ? `${effectToken(completion.outcome.toUpperCase())} ${t('completion.labels.on_floor')} ${completion.floor_number} ${t('completion.labels.as')} ${branchToken(completion.player_name)}`
     : getNestedText('fallbacks.run_in_progress');
 
   const chronicle = snapshot.lineage_chronicle || [];

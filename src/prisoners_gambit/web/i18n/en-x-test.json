@@ -18,5 +18,16 @@
   },
   "decision_types": {
     "featured_round": "Round move [test]"
+  },
+  "labels": {
+    "next_pick": "Next pick [test]"
+  },
+  "round_result": {
+    "labels": {
+      "round": "Round [test]"
+    }
+  },
+  "accessibility": {
+    "secondary_information_tablist": "Secondary information [test]"
   }
 }

@@ -1020,10 +1020,10 @@ def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
     html = render_web_app()
 
     assert "markerTokens.join(' ')" in html
-    assert "effectToken('YOU')" in html
-    assert "effectToken('HEIR')" in html
-    assert "effectToken('RISK')" in html
-    assert "NEW RIVAL" in html
+    assert "effectToken(t('marker_labels.you'))" in html
+    assert "effectToken(t('marker_labels.heir'))" in html
+    assert "effectToken(t('marker_labels.risk'))" in html
+    assert "marker_labels.new_rival" in html
     assert "relationToken" in html
 
 
@@ -1332,8 +1332,8 @@ def test_web_html_shows_floor_identity_headline_and_compact_fields() -> None:
     html = render_web_app()
 
     assert "id='floorIdentityHeadline'" in html
-    assert "<strong>Dominant pressure</strong>" in html
-    assert "<strong>Why it matters</strong>" in html
+    assert "floor_identity.labels.dominant_pressure" in html
+    assert "floor_identity.labels.why_it_matters" in html
 
 
 def test_web_html_splits_decision_actions_from_details_panel() -> None:
@@ -1374,6 +1374,12 @@ def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
     assert strings["tabs"]["summary"]["label"] == "Summary"
     assert strings["decision_types"]["featured_round"] == "Round move"
     assert strings["successor_comparison"]["labels"]["cause"] == "Cause"
+    assert strings["round_result"]["labels"]["match_total"] == "Match Total"
+    assert strings["floor_identity"]["labels"]["dominant_pressure"] == "Dominant pressure"
+    assert strings["floor_summary"]["labels"]["featured_read"] == "Featured read"
+    assert strings["successor_preview"]["labels"]["main_threats"] == "Main threats"
+    assert strings["marker_labels"]["new_rival"] == "NEW RIVAL"
+    assert strings["accessibility"]["secondary_information_tablist"] == "Secondary information"
     assert "controlled_vote" in strings["glossary"]
     assert "powerup_choice" in strings["decision_helpers"]
 
@@ -1388,10 +1394,12 @@ def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> Non
     assert test_bundle["tabs"]["summary"]["label"] == "Summary [test]"
     assert test_bundle["buttons"]["start_run"] == "Start Run [test]"
     assert test_bundle["buttons"]["clear_run"] == "Clear Run"
+    assert test_bundle["labels"]["next_pick"] == "Next pick [test]"
 
     html = render_web_app(language="en-x-test")
     assert "Summary [test]" in html
     assert "Start Run [test]" in html
+    assert "Next pick [test]" in html
 
 
 def test_server_module_no_longer_embeds_full_html_document() -> None:
@@ -1424,6 +1432,8 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "Current Decision" not in html_template
     assert "Decision Details" not in html_template
     assert ">Summary<" not in html_template
+    assert "title='What is controlled vote?'" not in html_template
+    assert "aria-label='Secondary information'" not in html_template
 
     assert "Advanced tactic setup (optional)" not in js_source
     assert "Choose next host" not in js_source
@@ -1431,6 +1441,12 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "Run Completion" not in js_source
     assert "Cooperate" not in js_source
     assert "Vote Cooperate" not in js_source
+    assert "No score modifiers this round." not in js_source
+    assert "Directive: You" not in js_source
+    assert "Dominant pressure" not in js_source
+    assert "Open Summary → Successor Comparison for full candidate breakdown." not in js_source
+    assert "NEW RIVAL" not in js_source
+    assert "Perks" not in js_source
 
     rendered = render_web_app()
     assert "Start Run" in rendered
