@@ -6,7 +6,6 @@ import random
 from typing import TYPE_CHECKING
 
 from prisoners_gambit.content.powerup_templates import build_powerup_pool
-from prisoners_gambit.systems.offers import generate_powerup_offers
 
 if TYPE_CHECKING:
     from prisoners_gambit.core.models import Agent
@@ -14,7 +13,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MAX_AI_POWERUPS = 3
-MAX_AI_POWERUP_ROLL_ATTEMPTS = 3
 
 
 @dataclass(slots=True)
@@ -80,21 +78,15 @@ class ProgressionEngine:
                     continue
 
                 owned_types = {type(existing) for existing in survivor.powerups}
-                available_types = {type(powerup) for powerup in build_powerup_pool()}
-                unowned_type_count = len(available_types - owned_types)
-                if unowned_type_count == 0:
+                valid_powerups = [powerup for powerup in build_powerup_pool() if type(powerup) not in owned_types]
+                if not valid_powerups:
                     continue
 
-                attempt_budget = max(MAX_AI_POWERUP_ROLL_ATTEMPTS, unowned_type_count)
-                for _ in range(attempt_budget):
-                    powerup = generate_powerup_offers(1, self.rng)[0]
-                    if type(powerup) in owned_types:
-                        continue
-                    survivor.powerups.append(powerup)
-                    logger.debug(
-                        "Granted AI powerup | agent=%s | powerup=%s | chance=%.2f",
-                        survivor.name,
-                        powerup.name,
-                        floor_config.ai_powerup_chance,
-                    )
-                    break
+                powerup = self.rng.choice(valid_powerups).clone()
+                survivor.powerups.append(powerup)
+                logger.debug(
+                    "Granted AI powerup | agent=%s | powerup=%s | chance=%.2f",
+                    survivor.name,
+                    powerup.name,
+                    floor_config.ai_powerup_chance,
+                )

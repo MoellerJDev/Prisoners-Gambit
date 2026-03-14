@@ -97,10 +97,10 @@ def test_grant_ai_powerups_gives_none_when_chance_is_zero(monkeypatch) -> None:
     class FloorConfig:
         ai_powerup_chance = 0.0
 
-    def fake_generate_powerup_offers(count, rng):
-        raise AssertionError("Should not generate perks when chance is 0.0")
+    def fake_build_powerup_pool():
+        raise AssertionError("Should not build powerup pool when chance is 0.0")
 
-    monkeypatch.setattr("prisoners_gambit.systems.progression.generate_powerup_offers", fake_generate_powerup_offers)
+    monkeypatch.setattr("prisoners_gambit.systems.progression.build_powerup_pool", fake_build_powerup_pool)
 
     engine.grant_ai_powerups(survivors=survivors, player=player, floor_config=FloorConfig())
 
@@ -117,17 +117,12 @@ def test_grant_ai_powerups_gives_all_non_player_survivors_when_chance_is_one(mon
     ai_b = make_agent("B")
     survivors = [player, ai_a, ai_b]
 
-    granted_names = ["P1", "P2"]
+    from prisoners_gambit.core.powerups import OpeningGambit, TrustDividend
 
-    class DummyPowerup:
-        def __init__(self, name: str) -> None:
-            self.name = name
-
-    def fake_generate_powerup_offers(count, rng):
-        name = granted_names.pop(0)
-        return [DummyPowerup(name)]
-
-    monkeypatch.setattr("prisoners_gambit.systems.progression.generate_powerup_offers", fake_generate_powerup_offers)
+    monkeypatch.setattr(
+        "prisoners_gambit.systems.progression.build_powerup_pool",
+        lambda: [OpeningGambit(bonus=1), TrustDividend(bonus=1)],
+    )
 
     class FloorConfig:
         ai_powerup_chance = 1.0
@@ -135,8 +130,8 @@ def test_grant_ai_powerups_gives_all_non_player_survivors_when_chance_is_one(mon
     engine.grant_ai_powerups(survivors=survivors, player=player, floor_config=FloorConfig())
 
     assert player.powerups == []
-    assert [powerup.name for powerup in ai_a.powerups] == ["P1"]
-    assert [powerup.name for powerup in ai_b.powerups] == ["P2"]
+    assert len(ai_a.powerups) == 1
+    assert len(ai_b.powerups) == 1
 
 
 def test_grant_ai_powerups_never_grants_to_player_even_with_certain_chance(monkeypatch) -> None:
@@ -145,10 +140,12 @@ def test_grant_ai_powerups_never_grants_to_player_even_with_certain_chance(monke
     player = make_agent("You", is_player=True)
     survivors = [player]
 
-    def fake_generate_powerup_offers(count, rng):
-        return [object()]
+    from prisoners_gambit.core.powerups import OpeningGambit
 
-    monkeypatch.setattr("prisoners_gambit.systems.progression.generate_powerup_offers", fake_generate_powerup_offers)
+    monkeypatch.setattr(
+        "prisoners_gambit.systems.progression.build_powerup_pool",
+        lambda: [OpeningGambit(bonus=1)],
+    )
 
     class FloorConfig:
         ai_powerup_chance = 1.0
@@ -163,7 +160,6 @@ def test_grant_ai_powerups_skips_duplicate_powerup_types(monkeypatch) -> None:
 
     player = make_agent("You", is_player=True)
     ai = make_agent("A")
-    ai.powerups.append(type("OtherPowerup", (), {"name": "Other"})())
     from prisoners_gambit.core.powerups import TrustDividend
 
     ai.powerups.append(TrustDividend(bonus=1))
@@ -172,8 +168,8 @@ def test_grant_ai_powerups_skips_duplicate_powerup_types(monkeypatch) -> None:
         ai_powerup_chance = 1.0
 
     monkeypatch.setattr(
-        "prisoners_gambit.systems.progression.generate_powerup_offers",
-        lambda count, rng: [TrustDividend(bonus=2)],
+        "prisoners_gambit.systems.progression.build_powerup_pool",
+        lambda: [TrustDividend(bonus=2), TrustDividend(bonus=3)],
     )
 
     engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
@@ -198,9 +194,11 @@ def test_grant_ai_powerups_respects_max_powerup_cap(monkeypatch) -> None:
     class FloorConfig:
         ai_powerup_chance = 1.0
 
+    from prisoners_gambit.core.powerups import OpeningGambit
+
     monkeypatch.setattr(
-        "prisoners_gambit.systems.progression.generate_powerup_offers",
-        lambda count, rng: [type("P4", (), {"name": "P4"})()],
+        "prisoners_gambit.systems.progression.build_powerup_pool",
+        lambda: [OpeningGambit(bonus=1)],
     )
 
     before = len(ai.powerups)
@@ -209,34 +207,29 @@ def test_grant_ai_powerups_respects_max_powerup_cap(monkeypatch) -> None:
     assert len(ai.powerups) == before
 
 
-def test_grant_ai_powerups_retries_when_first_roll_is_duplicate(monkeypatch) -> None:
-    engine = ProgressionEngine(rng=random.Random(1), offers_per_floor=5, featured_matches_per_floor=3)
+def test_grant_ai_powerups_old_retry_budget_can_still_miss_valid_later_offer() -> None:
+    from prisoners_gambit.core.powerups import BlocPolitics, OpeningGambit, TrustDividend
 
-    player = make_agent("You", is_player=True)
-    ai = make_agent("A")
-    from prisoners_gambit.core.powerups import OpeningGambit, TrustDividend
+    def old_policy_would_grant(rolls):
+        owned = [TrustDividend(bonus=1), OpeningGambit(bonus=1)]
+        attempts = 3
+        for powerup in rolls[:attempts]:
+            if any(type(existing) is type(powerup) for existing in owned):
+                continue
+            return True
+        return False
 
-    ai.powerups.append(TrustDividend(bonus=1))
-
-    class FloorConfig:
-        ai_powerup_chance = 1.0
-
-    roll_sequence = iter([
+    duplicate_heavy_rolls = [
         TrustDividend(bonus=2),
-        OpeningGambit(bonus=1),
-    ])
+        OpeningGambit(bonus=2),
+        TrustDividend(bonus=3),
+        BlocPolitics(bonus=2),
+    ]
 
-    monkeypatch.setattr(
-        "prisoners_gambit.systems.progression.generate_powerup_offers",
-        lambda count, rng: [next(roll_sequence)],
-    )
-
-    engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
-
-    assert any(isinstance(powerup, OpeningGambit) for powerup in ai.powerups)
+    assert old_policy_would_grant(duplicate_heavy_rolls) is False
 
 
-def test_grant_ai_powerups_can_miss_valid_later_offer_after_retry_budget(monkeypatch) -> None:
+def test_grant_ai_powerups_grants_valid_non_duplicate_from_filtered_pool(monkeypatch) -> None:
     engine = ProgressionEngine(rng=random.Random(1), offers_per_floor=5, featured_matches_per_floor=3)
 
     player = make_agent("You", is_player=True)
@@ -248,16 +241,14 @@ def test_grant_ai_powerups_can_miss_valid_later_offer_after_retry_budget(monkeyp
     class FloorConfig:
         ai_powerup_chance = 1.0
 
-    roll_sequence = iter([
-        TrustDividend(bonus=2),
-        OpeningGambit(bonus=2),
-        TrustDividend(bonus=3),
-        BlocPolitics(bonus=2),
-    ])
-
     monkeypatch.setattr(
-        "prisoners_gambit.systems.progression.generate_powerup_offers",
-        lambda count, rng: [next(roll_sequence)],
+        "prisoners_gambit.systems.progression.build_powerup_pool",
+        lambda: [
+            TrustDividend(bonus=2),
+            OpeningGambit(bonus=2),
+            TrustDividend(bonus=3),
+            BlocPolitics(bonus=2),
+        ],
     )
 
     engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
@@ -278,10 +269,7 @@ def test_grant_ai_powerups_skips_when_all_powerup_types_are_already_owned(monkey
     class FloorConfig:
         ai_powerup_chance = 1.0
 
-    monkeypatch.setattr(
-        "prisoners_gambit.systems.progression.generate_powerup_offers",
-        lambda count, rng: [type("Unused", (), {"name": "Unused"})()],
-    )
+    monkeypatch.setattr("prisoners_gambit.systems.progression.MAX_AI_POWERUPS", 999)
 
     before = len(ai.powerups)
     engine.grant_ai_powerups(survivors=[player, ai], player=player, floor_config=FloorConfig())
