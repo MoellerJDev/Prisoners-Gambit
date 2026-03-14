@@ -98,9 +98,6 @@ def _parse_json_body(handler: "Handler") -> tuple[dict | None, int, dict | None]
         return None, 400, {"error": "invalid action payload"}
     return payload, 200, None
 
-HTML = render_web_app()
-
-
 
 class Handler(BaseHTTPRequestHandler):
     def _state_lock(self) -> threading.RLock:

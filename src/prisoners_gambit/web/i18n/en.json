@@ -1,4 +1,52 @@
 {
+  "app": {
+    "page_title": "Prisoner's Gambit Web Prototype",
+    "title": "Prisoner's Gambit",
+    "subtitle": "Full-run web prototype with typed decisions and atmospheric table-style UI."
+  },
+  "buttons": {
+    "start_run": "Start Run",
+    "continue_next_phase": "Continue to next phase",
+    "export_save_code": "Export Save Code",
+    "import_save_code": "Import Save Code",
+    "clear_run": "Clear Run",
+    "resume_run": "Resume Run",
+    "start_new_run": "Start New Run",
+    "clear_saved_run": "Clear Saved Run"
+  },
+  "status": {
+    "not_started": "status: not_started",
+    "phase_unknown": "phase: -",
+    "floor_unknown": "floor: -",
+    "stance_none": "stance: none"
+  },
+  "saved_run": {
+    "title": "Saved Run Found",
+    "messages": {
+      "cleared": "Saved run cleared.",
+      "autosaved": "Autosaved.",
+      "not_found": "No saved run found.",
+      "resumed": "Run resumed.",
+      "new_run_started": "Started new run; previous save overwritten.",
+      "invalid_code": "Invalid save code.",
+      "local_autosave_available": "A local autosave is available."
+    }
+  },
+  "panels": {
+    "current_decision": "Current Decision",
+    "advanced_tactics": "Advanced tactics",
+    "decision_details": "Decision Details",
+    "secondary_info": "Secondary Info",
+    "strategic_snapshot": "Strategic Snapshot",
+    "floor_identity": "Floor Identity",
+    "floor_referendum": "Floor Referendum",
+    "floor_summary": "Floor Summary",
+    "successor_comparison": "Successor Comparison",
+    "dynasty_board": "Dynasty Board",
+    "lineage_chronicle": "Lineage Chronicle",
+    "raw_state": "Raw State",
+    "expand_raw_state": "Expand raw state/debug JSON"
+  },
   "tabs": {
     "summary": {
       "label": "Summary",
@@ -46,9 +94,47 @@
     "clue_fit": "Clue Fit / Memory indicates how strongly this option aligns with recent featured-round reads and floor clue history.",
     "lineage_direction": "Lineage Direction summarizes where your dynasty composition is drifting: hosts, kin support, and outsider pressure."
   },
+  "decision_types": {
+    "featured_round": "Round move",
+    "floor_vote": "Floor vote",
+    "powerup_choice": "Powerup choice",
+    "genome_edit": "Genome edit",
+    "successor_choice": "Successor choice"
+  },
   "decision_helpers": {
+    "generic_phase_choice": "Choose the action for the active phase; details explain the tradeoff.",
+    "featured_round": "Use clue channels and rival read to decide C, D, or autopilot.",
+    "floor_vote": "Vote is shaped by active effects and commitments; confirm before locking floor outcome.",
     "powerup_choice": "Pick by the first-line effect; use tags and notes only as tie-breakers.",
+    "genome_edit_choice": "First line is immediate impact; doctrine drift shows long-term direction change.",
     "successor_choice": "Compare Cause, Pick for, Risk, Pitch, and Clue fit before choosing host."
+  },
+  "context_panel": {
+    "latest_round_result": "Latest Round Result",
+    "run_completion": "Run Completion",
+    "successor_options": "Successor Options",
+    "reward_selection": "Reward Selection",
+    "floor_summary": "Floor Summary"
+  },
+  "successor_comparison": {
+    "labels": {
+      "cause": "Cause",
+      "pick_for": "Pick for",
+      "risk": "Risk",
+      "pitch": "Pitch",
+      "clue": "Clue"
+    }
+  },
+  "labels": {
+    "decision_prefix": "Decision:",
+    "main_choice_now": "Main choice now",
+    "choose_one_offer": "Choose one offer",
+    "choose_next_host": "Choose next host",
+    "advanced_tactic_setup": "Advanced tactic setup (optional)",
+    "trigger": "Trigger",
+    "phase": "Phase",
+    "fit": "Fit",
+    "tradeoff": "Tradeoff"
   },
   "hints": {
     "summary_tab_context": "Open Summary tab for full floor context.",
@@ -60,6 +146,27 @@
     "genome_edit_active": "Genome edit active",
     "pick_one_offer": "Pick one offer in Current Decision.",
     "pick_one_genome": "Pick one genome edit in Current Decision."
+  },
+  "fallbacks": {
+    "no_decision_yet": "No decision yet.",
+    "pick_highlighted_action": "Pick the highlighted action to keep pace.",
+    "start_run_to_begin": "Start run to begin.",
+    "no_rounds_resolved": "No rounds resolved yet.",
+    "no_summary_yet": "No summary yet.",
+    "no_strategic_snapshot": "No strategic snapshot yet.",
+    "no_floor_identity": "No floor identity committed yet.",
+    "no_vote_yet": "No vote yet.",
+    "no_lineage_board": "No lineage board yet.",
+    "no_lineage_events": "No lineage events yet.",
+    "run_in_progress": "Run in progress.",
+    "no_reward_choice_active": "No reward choice active.",
+    "no_active_decision": "No active decision.",
+    "main_choice_now": "Main choice now"
+  },
+  "prompts": {
+    "copy_save_code": "Copy save code:",
+    "paste_save_code": "Paste save code:",
+    "rounds_n": "Rounds (N):"
   },
   "chronicle_labels": {
     "run_start": "Run start",

@@ -3,38 +3,38 @@
 <head>
   <meta charset='utf-8'/>
   <meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'/>
-  <title>Prisoner's Gambit Web Prototype</title>
+  <title>{{PAGE_TITLE}}</title>
   <style>
 {{INLINE_CSS}}
   </style>
 </head>
 <body>
 <div class='wrap'>
-  <h1 class='header-title'>Prisoner's Gambit</h1>
-  <div class='sub'>Full-run web prototype with typed decisions and atmospheric table-style UI.</div>
+  <h1 id='appTitle' class='header-title' data-i18n='app.title'></h1>
+  <div id='appSubtitle' class='sub' data-i18n='app.subtitle'></div>
 
   <div class='panel panel-enter'>
     <div class='row controls action-controls'>
-      <button class='btn' onclick='startRun()'>Start Run</button>
-      <button id='advanceBtn' class='btn primary-action' onclick='advanceFlow()' style='display:none;'>Continue to next phase</button>
-      <button class='btn' onclick='exportSaveCode()'>Export Save Code</button>
-      <button class='btn' onclick='importSaveCode()'>Import Save Code</button>
-      <button class='btn' onclick='clearRun()'>Clear Run</button>
+      <button id='startRunBtn' class='btn' onclick='startRun()' data-i18n='buttons.start_run'></button>
+      <button id='advanceBtn' class='btn primary-action' onclick='advanceFlow()' style='display:none;' data-i18n='buttons.continue_next_phase'></button>
+      <button id='exportSaveBtn' class='btn' onclick='exportSaveCode()' data-i18n='buttons.export_save_code'></button>
+      <button id='importSaveBtn' class='btn' onclick='importSaveCode()' data-i18n='buttons.import_save_code'></button>
+      <button id='clearRunBtn' class='btn' onclick='clearRun()' data-i18n='buttons.clear_run'></button>
     </div>
     <div class='row controls status-controls'>
-      <span id='status' class='pill'>status: not_started</span>
-      <span id='phase' class='pill'>phase: -</span>
-      <span id='floor' class='pill'>floor: -</span>
-      <span id='activeStance' class='pill'>stance: none</span>
+      <span id='status' class='pill' data-i18n='status.not_started'></span>
+      <span id='phase' class='pill' data-i18n='status.phase_unknown'></span>
+      <span id='floor' class='pill' data-i18n='status.floor_unknown'></span>
+      <span id='activeStance' class='pill' data-i18n='status.stance_none'></span>
     </div>
   </div>
 
   <div id='resumePanel' class='panel panel-enter' style='display:none; margin-top:12px;'>
-    <h3>Saved Run Found</h3>
+    <h3 id='resumePanelTitle' data-i18n='saved_run.title'></h3>
     <div class='row'>
-      <button class='btn' onclick='resumeSavedRun()'>Resume Run</button>
-      <button class='btn' onclick='startNewRunFromPrompt()'>Start New Run</button>
-      <button class='btn' onclick='clearSavedRun()'>Clear Saved Run</button>
+      <button id='resumeRunBtn' class='btn' onclick='resumeSavedRun()' data-i18n='buttons.resume_run'></button>
+      <button id='startNewRunBtn' class='btn' onclick='startNewRunFromPrompt()' data-i18n='buttons.start_new_run'></button>
+      <button id='clearSavedRunBtn' class='btn' onclick='clearSavedRun()' data-i18n='buttons.clear_saved_run'></button>
     </div>
     <div id='saveNotice' class='muted' style='margin-top:8px;'></div>
   </div>
@@ -42,110 +42,110 @@
   <div id='onboardingPanel' class='panel panel-enter onboarding-panel' style='display:none;'>
     <div class='row' style='align-items:flex-start; gap:10px;'>
       <div>
-        <h3 id='onboardingTitle'>Quick start</h3>
+        <h3 id='onboardingTitle' data-i18n='onboarding.quick_start_title'></h3>
         <ul class='onboarding-points'>
-          <li id='onboardingPoint1'>Act in <strong>Current Decision</strong>; that is the only required move right now.</li>
-          <li id='onboardingPoint2'>Use <strong>Decision Details</strong> to confirm what this phase is asking and what your options do.</li>
-          <li id='onboardingPoint3'><strong>Summary</strong> explains this floor; <strong>Board</strong> shows who is gaining pressure.</li>
-          <li id='onboardingPoint4'><strong>Chronicle</strong> is your short history of what changed across floors and hosts.</li>
-          <li id='onboardingPoint5'>On choice cards, read the <strong>first line</strong> first for immediate effect.</li>
+          <li id='onboardingPoint1' data-i18n='onboarding.points.current_decision'></li>
+          <li id='onboardingPoint2' data-i18n='onboarding.points.decision_details'></li>
+          <li id='onboardingPoint3' data-i18n='onboarding.points.summary_board'></li>
+          <li id='onboardingPoint4' data-i18n='onboarding.points.chronicle'></li>
+          <li id='onboardingPoint5' data-i18n='onboarding.points.choice_cards'></li>
         </ul>
       </div>
-      <button id='onboardingDismissBtn' class='btn onboarding-dismiss' onclick='dismissOnboarding()'>Got it</button>
+      <button id='onboardingDismissBtn' class='btn onboarding-dismiss' onclick='dismissOnboarding()' data-i18n='onboarding.dismiss_button'></button>
     </div>
   </div>
 
   <div class='grid'>
     <div class='panel panel-enter decision-actions-panel'>
-      <h3>Current Decision</h3>
-      <div id='decisionType' class='muted'>No decision yet.</div>
-      <div id='actionsPrimaryLabel' class='actions-primary-label'>Main choice now</div>
-      <div id='phaseActionHelper' class='decision-helper'>Pick the highlighted action to keep pace.</div>
+      <h3 id='currentDecisionHeading' data-i18n='panels.current_decision'></h3>
+      <div id='decisionType' class='muted' data-i18n='fallbacks.no_decision_yet'></div>
+      <div id='actionsPrimaryLabel' class='actions-primary-label' data-i18n='fallbacks.main_choice_now'></div>
+      <div id='phaseActionHelper' class='decision-helper' data-i18n='fallbacks.pick_highlighted_action'></div>
       <div id='actions' class='row actions'></div>
       <details id='advancedActions' class='advanced-actions' style='display:none;'>
-        <summary id='advancedActionsLabel'>Advanced tactics</summary>
+        <summary id='advancedActionsLabel' data-i18n='panels.advanced_tactics'></summary>
         <div id='advancedActionsGrid' class='row actions actions-secondary'></div>
       </details>
       <div id='pending' class='warn' style='margin-top:8px;'></div>
     </div>
 
     <div class='panel panel-enter decision-details-panel'>
-      <h3>Decision Details <button class='btn help-chip-inline' onclick="toggleGlossaryTerm('controlled_vote')" title='What is controlled vote?'>?</button></h3>
-      <div id='decisionView' class='kv muted'>Start run to begin.</div>
+      <h3><span id='decisionDetailsHeading' data-i18n='panels.decision_details'></span> <button class='btn help-chip-inline' onclick="toggleGlossaryTerm('controlled_vote')" title='What is controlled vote?'>?</button></h3>
+      <div id='decisionView' class='kv muted' data-i18n='fallbacks.start_run_to_begin'></div>
     </div>
 
     <div class='panel panel-enter contextual-panel'>
-      <h3 id='contextualPanelTitle' class='contextual-title'>Latest Round Result</h3>
+      <h3 id='contextualPanelTitle' class='contextual-title' data-i18n='context_panel.latest_round_result'></h3>
       <div id='contextRoundPanel'>
-        <div id='roundResult' class='muted'>No rounds resolved yet.</div>
+        <div id='roundResult' class='muted' data-i18n='fallbacks.no_rounds_resolved'></div>
         <div id='roundEffects' class='muted' style='margin-top:10px;'></div>
       </div>
       <div id='contextSummaryPanel' style='display:none;'>
-        <ul id='floorSummaryPrimary' class='list muted'><li>No summary yet.</li></ul>
+        <ul id='floorSummaryPrimary' class='list muted'><li data-i18n='fallbacks.no_summary_yet'></li></ul>
       </div>
       <div id='contextSuccessorPanel' style='display:none;'>
-        <ul id='successorsPrimary' class='list muted'><li>No successor choice active.</li></ul>
+        <ul id='successorsPrimary' class='list muted'><li data-i18n='messages.no_successor_choice'></li></ul>
       </div>
       <div id='contextRewardPanel' style='display:none;'>
-        <div id='rewardContext' class='muted'>No reward choice active.</div>
+        <div id='rewardContext' class='muted' data-i18n='fallbacks.no_reward_choice_active'></div>
       </div>
       <div id='contextCompletionPanel' style='display:none;'>
-        <div id='completion' class='muted'>Run in progress.</div>
+        <div id='completion' class='muted' data-i18n='fallbacks.run_in_progress'></div>
       </div>
     </div>
 
     <div class='panel panel-enter secondary-info-panel panel-mobile-low'>
-      <h3>Secondary Info</h3>
+      <h3 id='secondaryInfoHeading' data-i18n='panels.secondary_info'></h3>
       <div class='tab-controls' role='tablist' aria-label='Secondary information'>
-        <button class='btn tab-btn active' id='tabSummaryBtn' data-tab='summary' onclick="setSecondaryTab('summary')" role='tab' aria-selected='true'>Summary</button>
-        <button class='btn tab-btn' id='tabBoardBtn' data-tab='board' onclick="setSecondaryTab('board')" role='tab' aria-selected='false'>Board</button>
-        <button class='btn tab-btn' id='tabChronicleBtn' data-tab='chronicle' onclick="setSecondaryTab('chronicle')" role='tab' aria-selected='false'>Chronicle</button>
-        <button class='btn tab-btn' id='tabDebugBtn' data-tab='debug' onclick="setSecondaryTab('debug')" role='tab' aria-selected='false'>Debug</button>
+        <button class='btn tab-btn active' id='tabSummaryBtn' data-tab='summary' onclick="setSecondaryTab('summary')" role='tab' aria-selected='true' data-i18n='tabs.summary.label'></button>
+        <button class='btn tab-btn' id='tabBoardBtn' data-tab='board' onclick="setSecondaryTab('board')" role='tab' aria-selected='false' data-i18n='tabs.board.label'></button>
+        <button class='btn tab-btn' id='tabChronicleBtn' data-tab='chronicle' onclick="setSecondaryTab('chronicle')" role='tab' aria-selected='false' data-i18n='tabs.chronicle.label'></button>
+        <button class='btn tab-btn' id='tabDebugBtn' data-tab='debug' onclick="setSecondaryTab('debug')" role='tab' aria-selected='false' data-i18n='tabs.debug.label'></button>
       </div>
-      <div id='tabHelpText' class='tab-help'>Summary: floor stakes, pressure leaders, and why this turn matters.</div>
+      <div id='tabHelpText' class='tab-help' data-i18n='tabs.summary.help'></div>
       <div class='glossary-row'>
-        <button id='glossaryBtnDoctrine' class='help-chip' onclick="toggleGlossaryTerm('doctrine')">Doctrine ?</button>
-        <button id='glossaryBtnHeirPressure' class='help-chip' onclick="toggleGlossaryTerm('heir_pressure')">Heir Pressure ?</button>
-        <button id='glossaryBtnCivilWarDanger' class='help-chip' onclick="toggleGlossaryTerm('civil_war_danger')">Civil War Danger ?</button>
-        <button id='glossaryBtnCentralRival' class='help-chip' onclick="toggleGlossaryTerm('central_rival')">Central Rival ?</button>
-        <button id='glossaryBtnControlledVote' class='help-chip' onclick="toggleGlossaryTerm('controlled_vote')">Controlled Vote ?</button>
-        <button id='glossaryBtnClueFit' class='help-chip' onclick="toggleGlossaryTerm('clue_fit')">Clue Fit / Memory ?</button>
-        <button id='glossaryBtnLineageDirection' class='help-chip' onclick="toggleGlossaryTerm('lineage_direction')">Lineage Direction ?</button>
+        <button id='glossaryBtnDoctrine' class='help-chip' onclick="toggleGlossaryTerm('doctrine')" data-i18n='glossary_labels.doctrine'></button>
+        <button id='glossaryBtnHeirPressure' class='help-chip' onclick="toggleGlossaryTerm('heir_pressure')" data-i18n='glossary_labels.heir_pressure'></button>
+        <button id='glossaryBtnCivilWarDanger' class='help-chip' onclick="toggleGlossaryTerm('civil_war_danger')" data-i18n='glossary_labels.civil_war_danger'></button>
+        <button id='glossaryBtnCentralRival' class='help-chip' onclick="toggleGlossaryTerm('central_rival')" data-i18n='glossary_labels.central_rival'></button>
+        <button id='glossaryBtnControlledVote' class='help-chip' onclick="toggleGlossaryTerm('controlled_vote')" data-i18n='glossary_labels.controlled_vote'></button>
+        <button id='glossaryBtnClueFit' class='help-chip' onclick="toggleGlossaryTerm('clue_fit')" data-i18n='glossary_labels.clue_fit'></button>
+        <button id='glossaryBtnLineageDirection' class='help-chip' onclick="toggleGlossaryTerm('lineage_direction')" data-i18n='glossary_labels.lineage_direction'></button>
       </div>
       <div id='glossaryPanel' class='glossary-panel' style='display:none;'></div>
 
       <section id='secondaryTabSummary' class='tab-panel active' role='tabpanel'>
-        <h3>Strategic Snapshot</h3>
-        <div id='strategicSnapshotHeadline' class='snapshot-headline muted'>No strategic snapshot yet.</div>
+        <h3 id='strategicSnapshotHeading' data-i18n='panels.strategic_snapshot'></h3>
+        <div id='strategicSnapshotHeadline' class='snapshot-headline muted' data-i18n='fallbacks.no_strategic_snapshot'></div>
         <div id='strategicSnapshotChips' class='row snapshot-chips'></div>
-        <ul id='strategicSnapshotDetails' class='list muted'><li>No strategic snapshot yet.</li></ul>
-        <h3 style='margin-top:10px;'>Floor Identity</h3>
-        <div id='floorIdentityHeadline' class='floor-headline muted'>No floor identity committed yet.</div>
-        <ul id='floorIdentity' class='list muted'><li>No floor identity committed yet.</li></ul>
-        <h3 style='margin-top:10px;'>Floor Referendum</h3>
-        <div id='voteResult' class='muted'>No vote yet.</div>
-        <h3 style='margin-top:10px;'>Floor Summary</h3>
-        <ul id='floorSummaryFull' class='list muted'><li>No summary yet.</li></ul>
+        <ul id='strategicSnapshotDetails' class='list muted'><li data-i18n='fallbacks.no_strategic_snapshot'></li></ul>
+        <h3 id='floorIdentityHeading' style='margin-top:10px;' data-i18n='panels.floor_identity'></h3>
+        <div id='floorIdentityHeadline' class='floor-headline muted' data-i18n='fallbacks.no_floor_identity'></div>
+        <ul id='floorIdentity' class='list muted'><li data-i18n='fallbacks.no_floor_identity'></li></ul>
+        <h3 id='floorReferendumHeading' style='margin-top:10px;' data-i18n='panels.floor_referendum'></h3>
+        <div id='voteResult' class='muted' data-i18n='fallbacks.no_vote_yet'></div>
+        <h3 id='floorSummaryHeading' style='margin-top:10px;' data-i18n='panels.floor_summary'></h3>
+        <ul id='floorSummaryFull' class='list muted'><li data-i18n='fallbacks.no_summary_yet'></li></ul>
         <div id='successorComparisonSection' style='display:none; margin-top:10px;'>
-          <h3>Successor Comparison</h3>
-          <ul id='successorComparison' class='comparison-cards muted'><li>No successor choice active.</li></ul>
+          <h3 id='successorComparisonHeading' data-i18n='panels.successor_comparison'></h3>
+          <ul id='successorComparison' class='comparison-cards muted'><li data-i18n='messages.no_successor_choice'></li></ul>
         </div>
       </section>
 
       <section id='secondaryTabBoard' class='tab-panel' role='tabpanel'>
-        <h3>Dynasty Board</h3>
-        <ul id='dynastyBoard' class='list muted'><li>No lineage board yet.</li></ul>
+        <h3 id='dynastyBoardHeading' data-i18n='panels.dynasty_board'></h3>
+        <ul id='dynastyBoard' class='list muted'><li data-i18n='fallbacks.no_lineage_board'></li></ul>
       </section>
 
       <section id='secondaryTabChronicle' class='tab-panel' role='tabpanel'>
-        <h3>Lineage Chronicle</h3>
-        <ul id='chronicle' class='list muted'><li>No lineage events yet.</li></ul>
+        <h3 id='lineageChronicleHeading' data-i18n='panels.lineage_chronicle'></h3>
+        <ul id='chronicle' class='list muted'><li data-i18n='fallbacks.no_lineage_events'></li></ul>
       </section>
 
       <section id='secondaryTabDebug' class='tab-panel raw-state-panel' role='tabpanel'>
-        <h3>Raw State</h3>
+        <h3 id='rawStateHeading' data-i18n='panels.raw_state'></h3>
         <details>
-          <summary>Expand raw state/debug JSON</summary>
+          <summary id='expandRawStateSummary' data-i18n='panels.expand_raw_state'></summary>
           <pre id='stateJson'>{}</pre>
         </details>
       </section>
