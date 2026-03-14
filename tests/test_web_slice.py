@@ -49,7 +49,6 @@ def test_new_web_session_uses_fresh_seed_without_pg_seed(monkeypatch: pytest.Mon
 
     assert first.seed != second.seed
 
-
 def test_new_web_session_uses_configured_rounds_per_match(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PG_ROUNDS_PER_MATCH", "9")
 
