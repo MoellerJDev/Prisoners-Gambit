@@ -1,3 +1,8 @@
+import base64
+import hashlib
+import hmac
+import json
+
 from prisoners_gambit.core.constants import COOPERATE
 from prisoners_gambit.core.interaction import (
     CivilWarContext,
@@ -34,6 +39,20 @@ def test_state_codec_round_trip_payload_integrity() -> None:
     payload_json = "{\"seed\":7,\"version\":1}"
     code = export_save_code(payload_json, b"secret", version=SAVE_STATE_VERSION)
     assert import_save_code(code, b"secret", version=SAVE_STATE_VERSION) == {"seed": 7, "version": 1}
+
+
+def test_state_codec_import_supports_uncompressed_envelope() -> None:
+    payload_json = "{\"seed\":7,\"version\":1}"
+    signature = hmac.new(b"secret", payload_json.encode("utf-8"), hashlib.sha256).hexdigest()
+    envelope = {
+        "version": SAVE_STATE_VERSION,
+        "compressed": False,
+        "payload": base64.urlsafe_b64encode(payload_json.encode("utf-8")).decode("ascii"),
+        "signature": signature,
+    }
+    encoded = base64.urlsafe_b64encode(json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8")).decode("ascii")
+
+    assert import_save_code(encoded, b"secret", version=SAVE_STATE_VERSION) == {"seed": 7, "version": 1}
 
 
 def test_refresh_strategic_snapshot_uses_typed_snapshot_and_central_rival() -> None:
@@ -255,3 +274,40 @@ def test_refresh_strategic_snapshot_keeps_rival_and_pressure_coherent_with_stabl
     assert "Pressure: threat lane" in strategic.chips
     assert any(detail.startswith("Central rival signal: outsider") for detail in strategic.details)
     assert any(detail.startswith("Why dangerous now: because succession pressure") for detail in strategic.details)
+
+
+def test_floor_summary_uses_one_sorted_order_for_entries_and_central_rival() -> None:
+    session = FeaturedMatchWebSession(seed=29, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    summary_agents = list(reversed(session._branch_floor_ranking()))
+    synthesis = synthesize_floor_summary(
+        floor_number=session.floor_number,
+        summary_agents=summary_agents,
+        player=session.player,
+        floor_clue_log=session._floor_clue_log,
+        continuity=FloorContinuityContext(
+            previous_floor_names=session._previous_floor_names,
+            branch_continuity_streaks=session._branch_continuity_streaks,
+            previous_branch_stats=session._previous_branch_stats,
+            previous_pressure_levels=session._previous_pressure_levels,
+            previous_central_rival=session._previous_central_rival,
+        ),
+    )
+
+    names_in_presented_order = [entry.name for entry in synthesis.summary.entries]
+    sorted_names = [
+        entry.name
+        for entry in sorted(
+            synthesis.summary.entries,
+            key=lambda entry: (-entry.score, entry.name, entry.lineage_depth),
+        )
+    ]
+
+    assert names_in_presented_order == sorted_names
+    first_non_player = next((entry.name for entry in synthesis.summary.entries if not entry.is_player), None)
+    assert synthesis.central_rival_name == first_non_player

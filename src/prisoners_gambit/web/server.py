@@ -20,6 +20,7 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundDecisionState,
     ROUND_STANCES_REQUIRING_ROUNDS,
 )
+from prisoners_gambit.config.settings import Settings
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 
 _log = logging.getLogger(__name__)
@@ -34,6 +35,12 @@ _MAX_REQUEST_BODY_BYTES = 16 * 1024  # JSON action payloads are tiny; cap bodies
 _PROCESS_LOCAL_SAVE_SECRET = secrets.token_bytes(32)
 _DEFAULT_HOST = "0.0.0.0"
 _DEFAULT_PORT = 8765
+
+
+def _new_web_session() -> FeaturedMatchWebSession:
+    settings = Settings.from_env()
+    seed = settings.seed if settings.seed is not None else secrets.randbelow(2**63)
+    return FeaturedMatchWebSession(seed=seed, rounds=settings.rounds_per_match)
 
 
 def _current_save_secret() -> bytes:
@@ -960,7 +967,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path == "/api/run/start":
             with self._state_lock():
-                session = FeaturedMatchWebSession(seed=7, rounds=3)
+                session = _new_web_session()
                 session.start()
                 self._set_session(session)
                 payload = session.view()
