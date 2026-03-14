@@ -999,7 +999,8 @@ def test_web_html_powerup_cards_use_effect_first_compact_structure() -> None:
 
     assert "function renderPowerupChoiceCard(offer, idx){" in html
     assert "<span class='choice-card-effect'>" in html
-    assert "renderCardTags(tagPool, 4)" in html
+    assert "renderCardTags(compactTags, 3)" in html
+    assert "function renderPowerupChoiceDetails(offer, idx){" in html
     assert "<summary class='choice-card-more'>Details</summary>" not in html
     assert "<details><summary class='choice-card-more'>Details</summary>" not in html
 
@@ -1047,7 +1048,7 @@ def test_web_html_genome_cards_use_before_after_and_compact_tags() -> None:
     assert "function renderGenomeChoiceCard(offer, idx){" in html
     assert "const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff" in html
     assert "renderCardTags(tags, 3)" in html
-    assert "Doctrine drift" in html
+    assert "function renderGenomeChoiceDetails(offer, idx){" in html
 
 
 def test_web_html_perk_lists_use_compact_preview_with_more_count() -> None:
@@ -1314,16 +1315,30 @@ def test_web_html_mobile_layout_prioritizes_decision_context_and_reduces_clutter
     assert "Expand raw state/debug JSON" in html
 
 
-def test_web_html_marks_primary_actions_for_mobile_tap_focus() -> None:
+def test_web_html_marks_primary_actions_for_mobile_tap_focus_without_defaulting_choice_index_zero() -> None:
     from prisoners_gambit.web.ui_resources import render_web_app
 
     html = render_web_app()
 
     assert "p.suggested_move === 0 ? 'primary-action' : ''" in html
     assert "p.suggested_vote === 0 ? 'primary-action' : ''" in html
-    assert "btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';" in html
+    assert "choice-option-selected" in html
+    assert "btn.className = `btn action-tile-secondary choice-option ${selectedIdx === idx ? 'choice-option-selected' : ''}`;" in html
+    assert "btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';" not in html
     assert "function actionTile(label, meta){" in html
     assert "action-tile-title" in html
+
+
+def test_web_html_choice_phases_use_select_then_confirm_decision_surface() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
+
+    html = render_web_app()
+
+    assert "function setPendingChoiceSelection(decisionType, selectedIndex){" in html
+    assert "function renderChoiceSelectionPrompt(){" in html
+    assert "t('messages.select_to_preview')" in html
+    assert "t('buttons.confirm_choice')" in html
+    assert "renderSuccessorChoiceDetails(decision.candidates[selectedIdx], selectedIdx)" in html
 
 
 def test_web_html_prioritizes_mobile_panel_ordering() -> None:
