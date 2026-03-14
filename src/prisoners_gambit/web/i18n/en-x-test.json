@@ -39,5 +39,13 @@
       "you": "You[test]",
       "opp": "Opp[test]"
     }
+  },
+  "transition_decisions": {
+    "primary_label": "Required transition [test]",
+    "successor_review": {
+      "label": "Review successor options [test]",
+      "explanation": "Next host selection is ready [test].",
+      "action_meta": "Open successor options [test]"
+    }
   }
 }

@@ -1014,6 +1014,18 @@ def test_web_html_uses_contextual_transition_action_button() -> None:
     assert "Continue Screen" not in html
 
 
+def test_web_html_renders_transition_only_decision_surface_from_bundle_keys() -> None:
+    from prisoners_gambit.web.ui_resources import render_web_app
+
+    html = render_web_app()
+
+    assert "function hasVisibleTransitionAction(data){" in html
+    assert "function transitionDecisionCopy(data){" in html
+    assert "getNestedText('transition_decisions.successor_review.label')" in html
+    assert "getNestedText('transition_decisions.generic.label')" in html
+    assert "onclick='advanceFlow()'" in html
+
+
 def test_web_html_dynasty_board_renders_all_marker_tokens_compactly() -> None:
     from prisoners_gambit.web.ui_resources import render_web_app
 
@@ -1389,7 +1401,8 @@ def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
     assert strings["vote_result"]["labels"]["cooperators"] == "cooperators"
     assert strings["dynasty_board"]["empty"]["no_active_markers"].startswith("No active lineage pressure")
     assert "controlled_vote" in strings["glossary"]
-    assert "powerup_choice" in strings["decision_helpers"]
+    assert strings["transition_decisions"]["primary_label"] == "Required transition"
+    assert strings["transition_decisions"]["successor_review"]["label"] == "Review successor options"
 
 
 def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> None:
@@ -1404,6 +1417,8 @@ def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> Non
     assert test_bundle["buttons"]["clear_run"] == "Clear Run"
     assert test_bundle["labels"]["next_pick"] == "Next pick [test]"
     assert test_bundle["status_labels"]["status"] == "status[test]"
+    assert test_bundle["transition_decisions"]["primary_label"] == "Required transition [test]"
+    assert test_bundle["transition_decisions"]["successor_review"]["label"] == "Review successor options [test]"
 
     html = render_web_app(language="en-x-test")
     assert "Summary [test]" in html

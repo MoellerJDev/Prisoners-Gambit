@@ -97,6 +97,27 @@ def test_runtime_tabs_switch_and_debug_not_default(web_server_runtime, playwrigh
     assert page.locator("#secondaryTabDebug.active").count() == 1
 
 
+def test_runtime_transition_only_state_renders_primary_action_in_current_decision(web_server_runtime, playwright_page) -> None:
+    _post_json(web_server_runtime, "/api/run/start")
+    _post_json(web_server_runtime, "/api/action", {"type": "manual_move", "move": "C"})
+    _post_json(web_server_runtime, "/api/advance")
+    _post_json(web_server_runtime, "/api/action", {"type": "manual_vote", "vote": "C"})
+    _post_json(web_server_runtime, "/api/advance")
+
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+    page.evaluate("refresh()")
+    page.wait_for_timeout(150)
+
+    assert "Review successor options" in page.locator("#decisionType").inner_text()
+    assert "Open successor options" in page.locator("#decisionView").inner_text()
+    assert page.locator("#actions button.primary-action", has_text="Review successor options").count() == 1
+
+    page.locator("#actions button.primary-action", has_text="Review successor options").click()
+    page.wait_for_timeout(150)
+    assert "Successor choice" in page.locator("#decisionType").inner_text()
+
+
 def test_runtime_powerup_cards_render_compact_and_click_to_genome(web_server_runtime, playwright_page) -> None:
     _drive_to_powerup_choice(web_server_runtime)
 

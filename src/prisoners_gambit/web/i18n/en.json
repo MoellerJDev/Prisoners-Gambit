@@ -366,5 +366,20 @@
       "you": "You",
       "opp": "Opp"
     }
+  },
+  "transition_decisions": {
+    "primary_label": "Required transition",
+    "generic": {
+      "label": "Continue run",
+      "helper": "The current phase has a required transition step before the next typed decision.",
+      "explanation": "The next phase gate is ready. Continue to open the next required step and keep the run moving.",
+      "action_meta": "Open next step"
+    },
+    "successor_review": {
+      "label": "Review successor options",
+      "helper": "Floor end is complete; review successor candidates to choose the next host.",
+      "explanation": "Next host selection is ready. Open successor options to compare heirs and continue the dynasty.",
+      "action_meta": "Open successor options"
+    }
   }
 }
