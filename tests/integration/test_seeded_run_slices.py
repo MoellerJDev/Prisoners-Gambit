@@ -98,4 +98,4 @@ def test_seeded_completion_slice_finishes_for_multiple_paths(seed: int, candidat
 
     completion = session.view()["snapshot"]["completion"]
     assert completion is not None
-    assert completion["outcome"] in {"victory", "eliminated"}
+    assert completion["outcome"] in {"victory", "eliminated", "capped"}

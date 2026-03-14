@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MAX_AI_POWERUPS = 3
+MAX_AI_POWERUP_ROLL_ATTEMPTS = 3
 
 
 @dataclass(slots=True)
@@ -74,15 +75,18 @@ class ProgressionEngine:
                 continue
 
             if self.rng.random() <= floor_config.ai_powerup_chance:
-                powerup = generate_powerup_offers(1, self.rng)[0]
                 if len(survivor.powerups) >= MAX_AI_POWERUPS:
                     continue
-                if any(type(existing) is type(powerup) for existing in survivor.powerups):
-                    continue
-                survivor.powerups.append(powerup)
-                logger.debug(
-                    "Granted AI powerup | agent=%s | powerup=%s | chance=%.2f",
-                    survivor.name,
-                    powerup.name,
-                    floor_config.ai_powerup_chance,
-                )
+
+                for _ in range(MAX_AI_POWERUP_ROLL_ATTEMPTS):
+                    powerup = generate_powerup_offers(1, self.rng)[0]
+                    if any(type(existing) is type(powerup) for existing in survivor.powerups):
+                        continue
+                    survivor.powerups.append(powerup)
+                    logger.debug(
+                        "Granted AI powerup | agent=%s | powerup=%s | chance=%.2f",
+                        survivor.name,
+                        powerup.name,
+                        floor_config.ai_powerup_chance,
+                    )
+                    break

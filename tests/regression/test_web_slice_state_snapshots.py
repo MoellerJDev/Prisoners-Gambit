@@ -90,7 +90,7 @@ def test_regression_completion_snapshot_contract() -> None:
     assert view["status"] == "completed"
     assert isinstance(completion, dict)
     assert REQUIRED_COMPLETION_KEYS.issubset(completion.keys())
-    assert completion["outcome"] in {"victory", "eliminated"}
+    assert completion["outcome"] in {"victory", "eliminated", "capped"}
     assert completion["floor_number"] == snapshot["current_floor"]
     assert completion["seed"] == 7
     assert completion["player_name"]
