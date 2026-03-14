@@ -430,6 +430,10 @@ HTML = """<!doctype html>
         <div id='voteResult' class='muted'>No vote yet.</div>
         <h3 style='margin-top:10px;'>Floor Summary</h3>
         <ul id='floorSummaryFull' class='list muted'><li>No summary yet.</li></ul>
+        <div id='successorComparisonSection' style='display:none; margin-top:10px;'>
+          <h3>Successor Comparison</h3>
+          <ul id='successorComparison' class='list muted'><li>No successor choice active.</li></ul>
+        </div>
       </section>
 
       <section id='secondaryTabBoard' class='tab-panel' role='tabpanel'>
@@ -804,9 +808,24 @@ function renderSnapshot(snapshot){
     ? successors.slice(0, PANEL_LIMITS.successorCards).map(candidate => {
         const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch;
         return `<li>${branchToken(candidate.name)} · ${escapeHtml(candidate.branch_role)} · ${candidate.score} pts<br/><span class='muted'>${escapeHtml(topCause)}</span></li>`;
-      }).join('')
+      }).join('') + `<li class='context-note'>Open Summary → Successor Comparison for full candidate breakdown.</li>`
     : `${successorContext}<li>No successor choice active.</li>`;
   document.getElementById('successorsPrimary').innerHTML = successorPrimary;
+
+  const successorComparisonSection = document.getElementById('successorComparisonSection');
+  const successorComparison = document.getElementById('successorComparison');
+  const activeSuccessorDecision = latest?.decision_type === 'SuccessorChoiceState' ? latest?.decision : null;
+  const comparisonCandidates = activeSuccessorDecision?.candidates || successors;
+  if (latest?.decision_type === 'SuccessorChoiceState' && comparisonCandidates.length) {
+    successorComparisonSection.style.display = 'block';
+    successorComparison.innerHTML = comparisonCandidates.map(candidate => {
+      const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch || 'No shaping cause available.';
+      return `<li><strong>${escapeHtml(candidate.name)}</strong> · ${escapeHtml(candidate.branch_role || 'unknown role')} · ${escapeHtml(candidate.score ?? '-')} score / ${escapeHtml(candidate.wins ?? '-')} wins<br/><strong>Top shaping cause:</strong> ${escapeHtml(topCause)}<br/><strong>Attractive now:</strong> ${escapeHtml(candidate.attractive_now || 'n/a')}<br/><strong>Danger later:</strong> ${escapeHtml(candidate.danger_later || 'n/a')}<br/><strong>Succession pitch:</strong> ${escapeHtml(candidate.succession_pitch || 'n/a')}<br/><strong>Clue fit:</strong> ${escapeHtml(candidate.featured_inference_context || 'No direct clue fit.')}</li>`;
+    }).join('');
+  } else {
+    successorComparisonSection.style.display = 'none';
+    successorComparison.innerHTML = '<li>No successor choice active.</li>';
+  }
 
   const rewardContext = document.getElementById('rewardContext');
   if (latest?.decision_type === 'PowerupChoiceState') {

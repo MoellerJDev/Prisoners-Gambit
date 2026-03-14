@@ -1368,6 +1368,8 @@ def test_web_html_secondary_tabs_and_contextual_panel_structure() -> None:
     assert "id='contextSuccessorPanel'" in web_server.HTML
     assert "id='contextRewardPanel'" in web_server.HTML
     assert "id='contextCompletionPanel'" in web_server.HTML
+    assert "id='successorComparisonSection'" in web_server.HTML
+    assert "id='successorComparison'" in web_server.HTML
 
 
 def test_web_html_debug_is_secondary_not_default_always_open_panel() -> None:
@@ -1376,6 +1378,22 @@ def test_web_html_debug_is_secondary_not_default_always_open_panel() -> None:
     assert "<details open>" not in web_server.HTML
     assert "id='secondaryTabDebug'" in web_server.HTML
     assert "<div class='panel panel-enter panel-mobile-low raw-state-panel'" not in web_server.HTML
+
+
+def test_web_html_successor_choice_has_compact_primary_preview_with_secondary_full_comparison() -> None:
+    from prisoners_gambit.web import server as web_server
+
+    assert "id='successorsPrimary'" in web_server.HTML
+    assert "Open Summary → Successor Comparison for full candidate breakdown." in web_server.HTML
+    assert "id='successorComparisonSection' style='display:none; margin-top:10px;'" in web_server.HTML
+    assert "<h3>Successor Comparison</h3>" in web_server.HTML
+    assert "latest?.decision_type === 'SuccessorChoiceState'" in web_server.HTML
+    assert "successorComparisonSection.style.display = 'block';" in web_server.HTML
+    assert "<strong>Top shaping cause:</strong>" in web_server.HTML
+    assert "<strong>Attractive now:</strong>" in web_server.HTML
+    assert "<strong>Danger later:</strong>" in web_server.HTML
+    assert "<strong>Succession pitch:</strong>" in web_server.HTML
+    assert "<strong>Clue fit:</strong>" in web_server.HTML
 
 
 def test_run_server_defaults_to_public_host(monkeypatch) -> None:
