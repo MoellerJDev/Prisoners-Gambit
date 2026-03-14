@@ -215,6 +215,69 @@ HTML = """<!doctype html>
     }
     .action-tile-title { font-size:14px; font-weight:600; color:var(--text); line-height:1.25; }
     .action-tile-meta { font-size:12px; color:var(--muted); line-height:1.25; }
+    .choice-card-effect { font-size:13px; font-weight:600; color:var(--text); line-height:1.3; }
+    .choice-card-tags { display:flex; flex-wrap:wrap; gap:5px; }
+    .choice-mini-tag {
+      display:inline-flex;
+      align-items:center;
+      border:1px solid color-mix(in oklab, var(--border), #000 20%);
+      border-radius:999px;
+      padding:2px 8px;
+      font-size:11px;
+      color:var(--muted);
+      background:#111b2c;
+    }
+    .choice-card-fit { font-size:11px; color:var(--accent); }
+    .choice-card-detail {
+      margin:1px 0 0;
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.25;
+      max-width:100%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .choice-card-more {
+      margin-top:2px;
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.06em;
+    }
+    .comparison-cards {
+      margin:0;
+      padding:0;
+      list-style:none;
+      display:grid;
+      gap:8px;
+    }
+    .comparison-card {
+      border:1px solid color-mix(in oklab, var(--border), #000 20%);
+      border-radius:10px;
+      background:#111a2a;
+      padding:8px;
+      display:grid;
+      gap:5px;
+    }
+    .comparison-top {
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .comparison-name { font-weight:700; font-size:13px; }
+    .comparison-score { font-size:12px; color:var(--muted); }
+    .comparison-row { font-size:12px; line-height:1.35; color:var(--text); }
+    .comparison-row .muted-label {
+      color:var(--muted);
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      font-size:10px;
+      margin-right:4px;
+    }
     .action-tile-secondary { border-color:color-mix(in oklab, var(--border), #000 35%); background:#172236; }
     .actions-primary-label {
       margin-top:8px;
@@ -432,7 +495,7 @@ HTML = """<!doctype html>
         <ul id='floorSummaryFull' class='list muted'><li>No summary yet.</li></ul>
         <div id='successorComparisonSection' style='display:none; margin-top:10px;'>
           <h3>Successor Comparison</h3>
-          <ul id='successorComparison' class='list muted'><li>No successor choice active.</li></ul>
+          <ul id='successorComparison' class='comparison-cards muted'><li>No successor choice active.</li></ul>
         </div>
       </section>
 
@@ -493,6 +556,77 @@ function genomeToken(label){ return `<span class='token genome'>🧬 ${escapeHtm
 function actionTile(label, meta){
   const metaText = meta ? `<span class='action-tile-meta'>${escapeHtml(meta)}</span>` : '';
   return `<span class='action-tile-title'>${escapeHtml(label)}</span>${metaText}`;
+}
+
+function compactTokenPreview(items, renderer, limit=3, emptyLabel='none'){
+  const values = items || [];
+  if (!values.length) return emptyLabel;
+  const shown = values.slice(0, limit).map(renderer).join(' ');
+  const extra = values.length - limit;
+  return extra > 0 ? `${shown} <span class='choice-card-more'>+${extra} more</span>` : shown;
+}
+
+function compactEffectLine(parts){
+  return (parts || []).find(part => Boolean(part && String(part).trim())) || 'Effect details in card notes.';
+}
+
+function renderCardTags(tags, limit=4){
+  const values = (tags || []).filter(Boolean).slice(0, limit);
+  return values.length ? `<div class='choice-card-tags'>${values.map(tag => `<span class='choice-mini-tag'>${escapeHtml(tag)}</span>`).join('')}</div>` : '';
+}
+
+function renderPowerupChoiceCard(offer, idx){
+  const label = `${idx + 1}. ${offer.name}`;
+  const trigger = cleanCauseLine(offer.trigger || '').replace(/^Trigger:\s*/i, '');
+  const effect = cleanCauseLine(offer.effect || '').replace(/^Effect:\s*/i, '');
+  const role = cleanCauseLine(offer.role || '').replace(/^Role:\s*/i, '');
+  const effectLine = compactEffectLine([effect, trigger, role]);
+  const fit = offer.relevance_hint || offer.crown_hint || '';
+  const tagPool = [];
+  if (trigger) tagPool.push(`Trigger ${trigger}`);
+  if (offer.tags && offer.tags.length) tagPool.push(...offer.tags);
+  if (offer.phase_support) tagPool.push(`Phase ${offer.phase_support}`);
+  if (role) tagPool.push(role);
+  const secondary = [offer.lineage_commitment, offer.doctrine_vector, offer.tradeoff, offer.successor_pressure]
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(line => `<div class='choice-card-detail'>${escapeHtml(line)}</div>`)
+    .join('');
+  return `
+    <span class='action-tile-title'>${escapeHtml(label)}</span>
+    <span class='choice-card-effect'>${escapeHtml(effectLine)}</span>
+    ${renderCardTags(tagPool, 4)}
+    ${fit ? `<span class='choice-card-fit'>Fit: ${escapeHtml(fit)}</span>` : ''}
+    ${secondary}
+  `;
+}
+
+function renderGenomeChoiceCard(offer, idx){
+  const label = `${idx + 1}. ${offer.name}`;
+  const drift = offer.doctrine_drift ? `Drift: ${offer.doctrine_drift}` : '';
+  const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff || 'Tuning lineage behavior toward this doctrine.';
+  const tags = [offer.phase_support ? `Phase ${offer.phase_support}` : '', drift, offer.successor_pressure ? 'Heir pressure' : ''].filter(Boolean);
+  return `
+    <span class='action-tile-title'>${escapeHtml(label)}</span>
+    <span class='choice-card-effect'>${escapeHtml(beforeAfter)}</span>
+    ${renderCardTags(tags, 3)}
+    ${offer.tradeoff ? `<div class='choice-card-detail'>Tradeoff: ${escapeHtml(offer.tradeoff)}</div>` : ''}
+  `;
+}
+
+function renderSuccessorComparisonCard(candidate){
+  const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch || 'No shaping cause available.';
+  return `<li class='comparison-card'>
+    <div class='comparison-top'>
+      <span class='comparison-name'>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.branch_role || 'unknown role')}</span>
+      <span class='comparison-score'>${escapeHtml(candidate.score ?? '-')} score / ${escapeHtml(candidate.wins ?? '-')} wins</span>
+    </div>
+    <div class='comparison-row'><span class='muted-label'>Cause</span>${escapeHtml(topCause)}</div>
+    <div class='comparison-row'><span class='muted-label'>Pick for</span>${escapeHtml(candidate.attractive_now || 'n/a')}</div>
+    <div class='comparison-row'><span class='muted-label'>Risk</span>${escapeHtml(candidate.danger_later || 'n/a')}</div>
+    <div class='comparison-row'><span class='muted-label'>Pitch</span>${escapeHtml(candidate.succession_pitch || 'n/a')}</div>
+    <div class='comparison-row'><span class='muted-label'>Clue</span>${escapeHtml(candidate.featured_inference_context || 'No direct clue fit.')}</div>
+  </li>`;
 }
 
 function shortDecisionLabel(type){
@@ -611,7 +745,7 @@ function renderDecision(data){
       <div>Floor</div><div>${p.floor_number} (${escapeHtml(p.floor_label)})</div>
       <div>Next pick</div><div>${effectToken(`Autopilot: ${moveLabel(p.suggested_vote)}`)}</div>
       <div>Floor Score</div><div>${p.current_floor_score}</div>
-      <div>Powerups</div><div>${(p.powerups || []).map(powerupToken).join(' ') || 'none'}</div>`;
+      <div>Powerups</div><div>${compactTokenPreview(p.powerups || [], powerupToken, 3, 'none')}</div>`;
     actions.innerHTML = `
       <button class='btn ${p.suggested_vote === 0 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'C'})">${actionTile('Vote Cooperate', 'Manual vote · primary')}</button>
       <button class='btn ${p.suggested_vote === 1 ? 'primary-action' : ''}' onclick="sendAction({type:'manual_vote', vote:'D'})">${actionTile('Vote Defect', 'Manual vote · primary')}</button>
@@ -628,21 +762,12 @@ function renderDecision(data){
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
-      const label = `${idx + 1}. ${offer.name}`;
       const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
       const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
-      const synergy = offer.tags && offer.tags.length ? `Synergy: ${offer.tags.join(', ')}` : '';
-      const fit = offer.relevance_hint ? `Fit: ${offer.relevance_hint}` : '';
-      const crown = offer.crown_hint || '';
-      const trigger = offer.trigger || '';
-      const effect = offer.effect || '';
-      const role = offer.role || '';
-      const subtitle = crown || fit || trigger || role || synergy || commitment || doctrine || 'Powerup option';
-      const functional = [trigger, effect, role].filter(Boolean).map(line => `<div class='action-tile-meta'>${escapeHtml(line)}</div>`).join('');
-      btn.innerHTML = `${actionTile(label, subtitle)}${functional}<span class='muted'>${powerupToken(offer.name)}</span>`;
-      btn.title = [offer.branch_identity, crown, fit, commitment || doctrine, synergy, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
+      btn.innerHTML = renderPowerupChoiceCard(offer, idx);
+      btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_powerup', offer_index: idx});
       actions.appendChild(btn);
     });
@@ -658,13 +783,12 @@ function renderDecision(data){
     decision.offers.forEach((offer, idx) => {
       const btn = document.createElement('button');
       btn.className = idx === 0 ? 'btn primary-action' : 'btn action-tile-secondary';
-      const label = `${idx + 1}. ${offer.name}`;
       const commitment = offer.lineage_commitment ? `Commitment: ${offer.lineage_commitment}` : '';
       const doctrine = offer.doctrine_vector ? `Doctrine: ${offer.doctrine_vector}` : '';
       const tradeoff = offer.tradeoff ? `Tradeoff: ${offer.tradeoff}` : '';
       const pressure = offer.successor_pressure ? `Heir pressure: ${offer.successor_pressure}` : '';
       const drift = offer.doctrine_drift ? `Doctrine drift: ${offer.doctrine_drift}` : '';
-      btn.innerHTML = `${actionTile(label, commitment || doctrine || 'Genome option')}<span class='muted'>${genomeToken(offer.name)}</span>`;
+      btn.innerHTML = renderGenomeChoiceCard(offer, idx);
       btn.title = [offer.branch_identity, commitment || doctrine, tradeoff, `Phase: ${offer.phase_support || 'both'}`, pressure, drift].filter(Boolean).join(' | ');
       btn.onclick = () => sendAction({type:'choose_genome_edit', offer_index: idx});
       actions.appendChild(btn);
@@ -818,10 +942,7 @@ function renderSnapshot(snapshot){
   const comparisonCandidates = activeSuccessorDecision?.candidates || successors;
   if (latest?.decision_type === 'SuccessorChoiceState' && comparisonCandidates.length) {
     successorComparisonSection.style.display = 'block';
-    successorComparison.innerHTML = comparisonCandidates.map(candidate => {
-      const topCause = (candidate.shaping_causes || [])[0] || candidate.succession_pitch || 'No shaping cause available.';
-      return `<li><strong>${escapeHtml(candidate.name)}</strong> · ${escapeHtml(candidate.branch_role || 'unknown role')} · ${escapeHtml(candidate.score ?? '-')} score / ${escapeHtml(candidate.wins ?? '-')} wins<br/><strong>Top shaping cause:</strong> ${escapeHtml(topCause)}<br/><strong>Attractive now:</strong> ${escapeHtml(candidate.attractive_now || 'n/a')}<br/><strong>Danger later:</strong> ${escapeHtml(candidate.danger_later || 'n/a')}<br/><strong>Succession pitch:</strong> ${escapeHtml(candidate.succession_pitch || 'n/a')}<br/><strong>Clue fit:</strong> ${escapeHtml(candidate.featured_inference_context || 'No direct clue fit.')}</li>`;
-    }).join('');
+    successorComparison.innerHTML = comparisonCandidates.map(renderSuccessorComparisonCard).join('');
   } else {
     successorComparisonSection.style.display = 'none';
     successorComparison.innerHTML = '<li>No successor choice active.</li>';
@@ -854,7 +975,9 @@ function renderSnapshot(snapshot){
           : '<span class="muted">No active lineage pressure markers.</span>';
         const continuity = entry.survived_previous_floor ? `↺F${entry.continuity_streak}` : 'new';
         const trend = entry.pressure_trend === 'rising' ? '↗' : (entry.pressure_trend === 'falling' ? '↘' : '→');
-        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} · ${escapeHtml(entry.role)} · score ${entry.score} (${movementGlyph(entry.score_delta || 0)}S, ${movementGlyph(entry.wins_delta || 0)}W) · ${continuity} · P${trend} · depth ${entry.lineage_depth}<br/>${markerBlock}</li>`;
+        const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '');
+        const perkLine = perkPreview ? `<br/><span class='muted'>Perks ${perkPreview}</span>` : '';
+        return `<li>${branchToken(entry.name)} ${relationToken(entry.lineage_relation)} · ${escapeHtml(entry.role)} · score ${entry.score} (${movementGlyph(entry.score_delta || 0)}S, ${movementGlyph(entry.wins_delta || 0)}W) · ${continuity} · P${trend} · depth ${entry.lineage_depth}<br/>${markerBlock}${perkLine}</li>`;
       }).join('')
     : '<li>No lineage board yet.</li>';
 
