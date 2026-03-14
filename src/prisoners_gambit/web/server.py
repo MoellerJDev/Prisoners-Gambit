@@ -587,13 +587,17 @@ function renderPowerupChoiceCard(offer, idx){
   if (offer.tags && offer.tags.length) tagPool.push(...offer.tags);
   if (offer.phase_support) tagPool.push(`Phase ${offer.phase_support}`);
   if (role) tagPool.push(role);
-  const secondary = [offer.lineage_commitment, offer.doctrine_vector, offer.tradeoff, offer.successor_pressure].filter(Boolean);
+  const secondary = [offer.lineage_commitment, offer.doctrine_vector, offer.tradeoff, offer.successor_pressure]
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(line => `<div class='choice-card-detail'>${escapeHtml(line)}</div>`)
+    .join('');
   return `
     <span class='action-tile-title'>${escapeHtml(label)}</span>
     <span class='choice-card-effect'>${escapeHtml(effectLine)}</span>
     ${renderCardTags(tagPool, 4)}
     ${fit ? `<span class='choice-card-fit'>Fit: ${escapeHtml(fit)}</span>` : ''}
-    ${secondary.length ? `<details><summary class='choice-card-more'>Details</summary>${secondary.slice(0, 2).map(line => `<div class='choice-card-detail'>${escapeHtml(line)}</div>`).join('')}</details>` : ''}
+    ${secondary}
   `;
 }
 
@@ -617,7 +621,8 @@ function renderSuccessorComparisonCard(candidate){
       <span class='comparison-name'>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.branch_role || 'unknown role')}</span>
       <span class='comparison-score'>${escapeHtml(candidate.score ?? '-')} score / ${escapeHtml(candidate.wins ?? '-')} wins</span>
     </div>
-    <div class='comparison-row'><span class='muted-label'>Pick for</span>${escapeHtml(candidate.attractive_now || topCause)}</div>
+    <div class='comparison-row'><span class='muted-label'>Cause</span>${escapeHtml(topCause)}</div>
+    <div class='comparison-row'><span class='muted-label'>Pick for</span>${escapeHtml(candidate.attractive_now || 'n/a')}</div>
     <div class='comparison-row'><span class='muted-label'>Risk</span>${escapeHtml(candidate.danger_later || 'n/a')}</div>
     <div class='comparison-row'><span class='muted-label'>Pitch</span>${escapeHtml(candidate.succession_pitch || 'n/a')}</div>
     <div class='comparison-row'><span class='muted-label'>Clue</span>${escapeHtml(candidate.featured_inference_context || 'No direct clue fit.')}</div>

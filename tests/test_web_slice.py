@@ -997,7 +997,8 @@ def test_web_html_powerup_cards_use_effect_first_compact_structure() -> None:
     assert "function renderPowerupChoiceCard(offer, idx){" in web_server.HTML
     assert "<span class='choice-card-effect'>" in web_server.HTML
     assert "renderCardTags(tagPool, 4)" in web_server.HTML
-    assert "<summary class='choice-card-more'>Details</summary>" in web_server.HTML
+    assert "<summary class='choice-card-more'>Details</summary>" not in web_server.HTML
+    assert "<details><summary class='choice-card-more'>Details</summary>" not in web_server.HTML
 
 
 def test_web_html_uses_contextual_transition_action_button() -> None:
@@ -1409,6 +1410,7 @@ def test_web_html_successor_choice_has_compact_primary_preview_with_secondary_fu
     assert "latest?.decision_type === 'SuccessorChoiceState'" in web_server.HTML
     assert "successorComparisonSection.style.display = 'block';" in web_server.HTML
     assert "function renderSuccessorComparisonCard(candidate){" in web_server.HTML
+    assert "<span class='muted-label'>Cause</span>" in web_server.HTML
     assert "<span class='muted-label'>Pick for</span>" in web_server.HTML
     assert "<span class='muted-label'>Risk</span>" in web_server.HTML
     assert "<span class='muted-label'>Pitch</span>" in web_server.HTML
