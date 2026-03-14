@@ -77,6 +77,8 @@ def test_runtime_non_default_language_changes_multiple_visible_areas_and_runtime
     page.wait_for_timeout(150)
     assert "Next pick [test]" in page.locator("#decisionView").inner_text()
     assert "status[test]: awaiting_decision" in page.locator("#status").inner_text()
+    assert page.locator("#actions button", has_text="Cooperate").count() >= 1
+    assert page.locator("#actions button", has_text="Defect").count() >= 1
 
 def test_runtime_tabs_switch_and_debug_not_default(web_server_runtime, playwright_page) -> None:
     page = playwright_page

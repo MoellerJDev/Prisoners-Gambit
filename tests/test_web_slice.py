@@ -2007,3 +2007,29 @@ def test_civil_war_context_includes_doctrine_mutation_pressure_note() -> None:
     assert context is not None
     assert context["doctrine_pressure"]
     assert "Doctrine" in context["doctrine_pressure"][0] or "doctrine" in context["doctrine_pressure"][0]
+
+
+def test_app_js_render_decision_uses_decision_type_variable_without_shadowing_translation_helper() -> None:
+    app_js = Path("src/prisoners_gambit/web/static/app.js").read_text(encoding="utf-8")
+
+    assert "const t = data.decision_type;" not in app_js
+    assert "const decisionType = data.decision_type;" in app_js
+    assert "if (decisionType === 'FeaturedRoundDecisionState')" in app_js
+    assert "if (decisionType === 'FloorVoteDecisionState')" in app_js
+    assert "if (decisionType === 'PowerupChoiceState')" in app_js
+    assert "if (decisionType === 'GenomeEditChoiceState')" in app_js
+    assert "if (decisionType === 'SuccessorChoiceState')" in app_js
+
+
+def test_default_ui_bundle_contains_runtime_labels_for_status_drift_and_round_effect_participants() -> None:
+    from prisoners_gambit.web.ui_resources import load_ui_strings
+
+    strings = load_ui_strings()
+
+    assert strings["status_labels"]["phase"] == "phase"
+    assert strings["status_labels"]["floor"] == "floor"
+    assert strings["status_labels"]["stance"] == "stance"
+    assert strings["status_labels"]["status"] == "status"
+    assert strings["labels"]["drift"] == "Drift"
+    assert strings["round_effects"]["labels"]["you"] == "You"
+    assert strings["round_effects"]["labels"]["opp"] == "Opp"

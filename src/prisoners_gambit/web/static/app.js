@@ -253,7 +253,7 @@ function updateContextualPanel(decisionType, snapshot){
 
 function renderDecision(data){
   const decision = data.decision;
-  const t = data.decision_type;
+  const decisionType = data.decision_type;
   const actions = document.getElementById('actions');
   const actionsPrimaryLabel = document.getElementById('actionsPrimaryLabel');
   const advanced = document.getElementById('advancedActions');
@@ -266,7 +266,7 @@ function renderDecision(data){
   advancedGrid.innerHTML = '';
   advanced.open = false;
   advanced.style.display = 'none';
-  document.getElementById('decisionType').textContent = t ? `${getNestedText('labels.decision_prefix')} ${shortDecisionLabel(t)}` : getNestedText('fallbacks.no_active_decision');
+  document.getElementById('decisionType').textContent = decisionType ? `${getNestedText('labels.decision_prefix')} ${shortDecisionLabel(decisionType)}` : getNestedText('fallbacks.no_active_decision');
   if (!decision) {
     actionsPrimaryLabel.textContent = '';
     phaseActionHelper.textContent = '';
@@ -274,7 +274,7 @@ function renderDecision(data){
     return;
   }
 
-  if (t === 'FeaturedRoundDecisionState') {
+  if (decisionType === 'FeaturedRoundDecisionState') {
     const p = decision.prompt;
     const clues = (p.clue_channels || []).map(c => `<li>${escapeHtml(c)}</li>`).join('') || `<li class="muted">${escapeHtml(t('fallbacks.no_explicit_clues'))}</li>`;
     const floorLog = (p.floor_clue_log || []).slice(-3).map(c => `<li>${escapeHtml(c)}</li>`).join('') || `<li class="muted">${escapeHtml(t('fallbacks.no_prior_featured_clues'))}</li>`;
@@ -301,7 +301,7 @@ function renderDecision(data){
     return;
   }
 
-  if (t === 'FloorVoteDecisionState') {
+  if (decisionType === 'FloorVoteDecisionState') {
     actionsPrimaryLabel.textContent = getNestedText('fallbacks.main_choice_now');
   phaseActionHelper.textContent = getNestedText('decision_helpers.floor_vote');
     const p = decision.prompt;
@@ -317,7 +317,7 @@ function renderDecision(data){
     return;
   }
 
-  if (t === 'PowerupChoiceState') {
+  if (decisionType === 'PowerupChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.powerup_choice');
     document.getElementById('decisionView').innerHTML = `
@@ -339,7 +339,7 @@ function renderDecision(data){
     return;
   }
 
-  if (t === 'GenomeEditChoiceState') {
+  if (decisionType === 'GenomeEditChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_one_offer');
     phaseActionHelper.textContent = getNestedText('decision_helpers.genome_edit_choice');
     document.getElementById('decisionView').innerHTML = `
@@ -362,7 +362,7 @@ function renderDecision(data){
     return;
   }
 
-  if (t === 'SuccessorChoiceState') {
+  if (decisionType === 'SuccessorChoiceState') {
     actionsPrimaryLabel.textContent = getNestedText('labels.choose_next_host');
     phaseActionHelper.textContent = getNestedText('decision_helpers.successor_choice');
     document.getElementById('decisionView').innerHTML = `
