@@ -165,21 +165,39 @@ _GENOME_GUIDANCE_BY_NAME: dict[str, OfferDoctrineGuidance] = {
 }
 
 
-_DEFAULT_GUIDANCE = OfferDoctrineGuidance(
-    doctrine_vector="survivability / stabilization",
-    branch_identity="Mixed doctrine",
-    tradeoff="Balanced adaptation with no extreme commitment.",
-    phase_support="both",
-    successor_pressure="Keeps succession pressure mixed rather than polarized.",
-)
+def _guidance_or_error(guidance_by_name: dict[str, OfferDoctrineGuidance], name: str, *, kind: str) -> OfferDoctrineGuidance:
+    guidance = guidance_by_name.get(name)
+    if guidance is None:
+        raise KeyError(f"Missing doctrine guidance for {kind} '{name}'")
+    return guidance
 
 
 def guidance_for_powerup(powerup: Powerup) -> OfferDoctrineGuidance:
-    return _POWERUP_GUIDANCE_BY_NAME.get(powerup.name, _DEFAULT_GUIDANCE)
+    return _guidance_or_error(_POWERUP_GUIDANCE_BY_NAME, powerup.name, kind="powerup")
 
 
 def guidance_for_genome_edit(edit: GenomeEdit) -> OfferDoctrineGuidance:
-    return _GENOME_GUIDANCE_BY_NAME.get(edit.name, _DEFAULT_GUIDANCE)
+    return _guidance_or_error(_GENOME_GUIDANCE_BY_NAME, edit.name, kind="genome edit")
+
+
+def guidance_for_dynamic_powerup(name: str) -> OfferDoctrineGuidance | None:
+    return _POWERUP_GUIDANCE_BY_NAME.get(name)
+
+
+def guidance_for_dynamic_genome_edit(name: str) -> OfferDoctrineGuidance | None:
+    return _GENOME_GUIDANCE_BY_NAME.get(name)
+
+
+def validate_declared_guidance_coverage(*, powerup_names: set[str], genome_edit_names: set[str]) -> None:
+    missing_powerups = sorted(powerup_names - set(_POWERUP_GUIDANCE_BY_NAME))
+    missing_edits = sorted(genome_edit_names - set(_GENOME_GUIDANCE_BY_NAME))
+    if missing_powerups or missing_edits:
+        problems: list[str] = []
+        if missing_powerups:
+            problems.append(f"powerups={missing_powerups}")
+        if missing_edits:
+            problems.append(f"genome_edits={missing_edits}")
+        raise ValueError("Missing doctrine guidance coverage: " + "; ".join(problems))
 
 
 _COMMITMENT_BY_VECTOR: dict[str, str] = {

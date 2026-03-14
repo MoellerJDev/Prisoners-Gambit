@@ -60,8 +60,15 @@ def import_save_code(save_code: str, secret: bytes, *, version: int) -> dict:
     if not isinstance(payload_b64, str) or not isinstance(signature, str):
         raise ValueError("Invalid save code")
 
+    compressed = envelope.get("compressed", True)
+    if not isinstance(compressed, bool):
+        raise ValueError("Invalid save code")
+
     try:
-        payload_json = zlib.decompress(base64.urlsafe_b64decode(payload_b64.encode("ascii"))).decode("utf-8")
+        payload_bytes = base64.urlsafe_b64decode(payload_b64.encode("ascii"))
+        if compressed:
+            payload_bytes = zlib.decompress(payload_bytes)
+        payload_json = payload_bytes.decode("utf-8")
     except (ValueError, zlib.error, UnicodeDecodeError) as exc:
         raise ValueError("Invalid save code") from exc
 
