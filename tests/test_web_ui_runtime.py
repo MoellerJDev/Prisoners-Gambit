@@ -288,8 +288,8 @@ def test_runtime_choice_selection_does_not_carry_to_new_choice_payload_same_type
             decision: {
               floor_number: 2,
               offers: [
-                {name:'Alpha Card', effect:'Gain leverage now', trigger:'When pressure rises'},
-                {name:'Beta Card', effect:'Hold stability', trigger:'When ties form'},
+                {name:'Repeat Card', effect:'Gain leverage now', trigger:'When pressure rises', tradeoff:'Expose host lane'},
+                {name:'Repeat Card', effect:'Hold stability', trigger:'When ties form', tradeoff:'Slow doctrine pivot'},
               ],
             },
           };
@@ -301,8 +301,8 @@ def test_runtime_choice_selection_does_not_carry_to_new_choice_payload_same_type
             decision: {
               floor_number: 2,
               offers: [
-                {name:'Gamma Card', effect:'Shift doctrine', trigger:'When outsider leads'},
-                {name:'Delta Card', effect:'Protect heir lane', trigger:'When host pressured'},
+                {name:'Repeat Card', effect:'Shift doctrine', trigger:'When outsider leads', tradeoff:'Agitate rivals'},
+                {name:'Repeat Card', effect:'Protect heir lane', trigger:'When host pressured', tradeoff:'Narrow options'},
               ],
             },
           };
@@ -311,6 +311,87 @@ def test_runtime_choice_selection_does_not_carry_to_new_choice_payload_same_type
         """
     )
 
+    assert page.locator("#actions button.choice-option-selected").count() == 0
+    assert page.locator("#decisionView .choice-confirm-btn").count() == 0
+    assert "Select an option" in page.locator("#decisionView").inner_text()
+
+
+def test_runtime_choice_selection_persists_when_same_payload_rerenders(web_server_runtime, playwright_page) -> None:
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+
+    page.evaluate(
+        """
+        () => {
+          const decision = {
+            decision_type: 'SuccessorChoiceState',
+            decision: {
+              floor_number: 3,
+              candidates: [
+                {
+                  name:'Shared Heir',
+                  branch_role:'Host line',
+                  score:12,
+                  wins:4,
+                  shaping_causes:['Built floor control'],
+                  attractive_now:'Stabilizes the chamber',
+                  danger_later:'Can over-centralize power',
+                  succession_pitch:'Protect the current bloc',
+                  featured_inference_context:'Clue points toward reliable coordination',
+                },
+                {
+                  name:'Shared Heir',
+                  branch_role:'Outsider line',
+                  score:11,
+                  wins:5,
+                  shaping_causes:['Punishes weak coalitions'],
+                  attractive_now:'Breaks rival pressure',
+                  danger_later:'May trigger backlash',
+                  succession_pitch:'Force a doctrine reset',
+                  featured_inference_context:'Clue points toward disruptive pressure',
+                },
+              ],
+            },
+          };
+          renderDecision(decision);
+          document.querySelector('#actions button:nth-child(2)').click();
+          renderDecision(decision);
+        }
+        """
+    )
+
+    assert page.locator("#actions button.choice-option-selected").count() == 1
+    assert "2. Shared Heir" in page.locator("#decisionView .choice-details-title").inner_text()
+    assert page.locator("#decisionView .choice-confirm-btn").count() == 1
+    assert "disruptive pressure" in page.locator("#decisionView").inner_text()
+
+
+def test_runtime_confirm_clears_stale_selection_before_next_choice_phase(web_server_runtime, playwright_page) -> None:
+    _drive_to_successor_choice(web_server_runtime)
+
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+    page.evaluate("refresh()")
+    page.wait_for_timeout(150)
+
+    page.locator("#actions button").nth(1).click()
+    page.wait_for_timeout(150)
+    assert page.locator("#actions button.choice-option-selected").count() == 1
+
+    page.locator("#decisionView .choice-confirm-btn").click()
+    page.wait_for_timeout(150)
+    assert "Powerup choice" in page.locator("#decisionType").inner_text()
+    assert page.locator("#actions button.choice-option-selected").count() == 0
+    assert page.locator("#decisionView .choice-confirm-btn").count() == 0
+    assert "Select an option" in page.locator("#decisionView").inner_text()
+
+    page.locator("#actions button").first.click()
+    page.wait_for_timeout(150)
+    assert page.locator("#actions button.choice-option-selected").count() == 1
+
+    page.locator("#decisionView .choice-confirm-btn").click()
+    page.wait_for_timeout(150)
+    assert "Genome edit" in page.locator("#decisionType").inner_text()
     assert page.locator("#actions button.choice-option-selected").count() == 0
     assert page.locator("#decisionView .choice-confirm-btn").count() == 0
     assert "Select an option" in page.locator("#decisionView").inner_text()

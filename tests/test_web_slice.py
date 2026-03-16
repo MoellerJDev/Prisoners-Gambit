@@ -1334,10 +1334,14 @@ def test_web_html_choice_phases_use_select_then_confirm_decision_surface() -> No
 
     html = render_web_app()
 
+    assert "function stableSerialize(value){" in html
+    assert "function choicePayloadForSignature(decisionType, decision){" in html
     assert "function choiceSignatureFor(decisionType, decision){" in html
+    assert "function clearPendingChoiceSelection(){" in html
     assert "function setPendingChoiceSelection(decisionType, choiceSignature, selectedIndex){" in html
     assert "function getPendingChoiceSelection(decisionType, choiceSignature, itemCount){" in html
     assert "function renderChoiceSelectionPrompt(){" in html
+    assert "clearPendingChoiceSelection();" in html
     assert "t('messages.select_to_preview')" in html
     assert "t('buttons.confirm_choice')" in html
     assert "renderSuccessorChoiceDetails(decision.candidates[selectedIdx], selectedIdx)" in html
