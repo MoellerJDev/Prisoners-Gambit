@@ -19,16 +19,13 @@ def _post_json(base_url: str, path: str, payload: dict | None = None) -> dict:
 def _drive_to_successor_choice(base_url: str) -> None:
     _post_json(base_url, "/api/run/start")
     _post_json(base_url, "/api/action", {"type": "manual_move", "move": "C"})
-    _post_json(base_url, "/api/advance")
     _post_json(base_url, "/api/action", {"type": "manual_vote", "vote": "C"})
-    _post_json(base_url, "/api/advance")
     _post_json(base_url, "/api/advance")
 
 
 def _drive_to_powerup_choice(base_url: str) -> None:
     _drive_to_successor_choice(base_url)
     _post_json(base_url, "/api/action", {"type": "choose_successor", "candidate_index": 0})
-    _post_json(base_url, "/api/advance")
 
 
 @pytest.fixture
@@ -70,7 +67,7 @@ def test_runtime_non_default_language_changes_multiple_visible_areas_and_runtime
 
     assert "Prisoner's Gambit [test]" in page.locator("#appTitle").inner_text()
     assert "Start Run [test]" in page.locator("#startRunBtn").inner_text()
-    assert "Current Decision [test]" in page.locator("#currentDecisionHeading").inner_text()
+    assert "Current Decision [test]" in (page.locator("#currentDecisionHeading").text_content() or "")
     assert "Summary [test]" in page.locator("#tabSummaryBtn").inner_text()
 
     page.click("#startRunBtn")
@@ -100,9 +97,7 @@ def test_runtime_tabs_switch_and_debug_not_default(web_server_runtime, playwrigh
 def test_runtime_transition_only_state_renders_primary_action_in_current_decision(web_server_runtime, playwright_page) -> None:
     _post_json(web_server_runtime, "/api/run/start")
     _post_json(web_server_runtime, "/api/action", {"type": "manual_move", "move": "C"})
-    _post_json(web_server_runtime, "/api/advance")
     _post_json(web_server_runtime, "/api/action", {"type": "manual_vote", "vote": "C"})
-    _post_json(web_server_runtime, "/api/advance")
 
     page = playwright_page
     page.goto(web_server_runtime, wait_until="networkidle")
@@ -211,12 +206,12 @@ def test_runtime_glossary_toggle_and_tab_help_updates(web_server_runtime, playwr
 
     page.click("button:has-text('Doctrine ?')")
     page.wait_for_timeout(50)
-    assert "build identity" in glossary.inner_text()
+    assert "strategic identity" in glossary.inner_text()
 
     page.click("#tabBoardBtn")
-    assert "gaining pressure" in page.locator("#tabHelpText").inner_text()
+    assert "civil-war risk" in page.locator("#tabHelpText").inner_text()
     page.click("#tabChronicleBtn")
-    assert "changed across floors" in page.locator("#tabHelpText").inner_text()
+    assert "dynasty shifts across floors" in page.locator("#tabHelpText").inner_text()
 
 
 

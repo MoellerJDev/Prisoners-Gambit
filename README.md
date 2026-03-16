@@ -50,6 +50,12 @@ python -m venv .venv
 pip install -e .[dev]
 ```
 
+If you want to run the Playwright-backed web runtime tests, install the browser bundle once after the dev install:
+
+```powershell
+python -m playwright install chromium
+```
+
 ### 2) Run the game
 
 ```bash
@@ -180,6 +186,22 @@ Use a **Web Service** on Render connected to this repo.
    - **Raw State** JSON panel.
 
 The web prototype reuses core progression mechanics for floor standings and referendum outcomes, while exposing a focused typed decision surface in prototype UI form.
+
+### Web runtime tests
+
+The browser runtime suite uses Playwright plus a local Chromium download.
+
+Run the one-time browser install:
+
+```powershell
+python -m playwright install chromium
+```
+
+Then run the runtime suite:
+
+```powershell
+python -m pytest tests/test_web_ui_runtime.py
+```
 
 ---
 
