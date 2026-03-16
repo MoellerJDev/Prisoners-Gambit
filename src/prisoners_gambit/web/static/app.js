@@ -89,17 +89,40 @@ function renderGenomeChoiceCard(offer, idx){
   `;
 }
 
-function choiceSignatureFor(decisionType, decision){
-  if (!decision) return `${decisionType}:none`;
+function stableSerialize(value){
+  if (value === null || value === undefined) return 'null';
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
+  if (typeof value === 'object') {
+    const entries = Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`);
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function choicePayloadForSignature(decisionType, decision){
+  if (!decision) return null;
   if (decisionType === 'PowerupChoiceState' || decisionType === 'GenomeEditChoiceState') {
-    const offers = (decision.offers || []).map(offer => offer?.name || '').join('|');
-    return `${decisionType}:${decision.floor_number || '-'}:${offers}`;
+    return {
+      floor_number: decision.floor_number || null,
+      offers: decision.offers || [],
+    };
   }
   if (decisionType === 'SuccessorChoiceState') {
-    const candidates = (decision.candidates || []).map(candidate => candidate?.name || '').join('|');
-    return `${decisionType}:${decision.floor_number || '-'}:${candidates}`;
+    return {
+      floor_number: decision.floor_number || null,
+      candidates: decision.candidates || [],
+    };
   }
-  return `${decisionType}:other`;
+  return null;
+}
+
+function choiceSignatureFor(decisionType, decision){
+  const payload = choicePayloadForSignature(decisionType, decision);
+  return `${decisionType}:${stableSerialize(payload)}`;
+}
+
+function clearPendingChoiceSelection(){
+  pendingChoiceSelection = null;
 }
 
 function setPendingChoiceSelection(decisionType, choiceSignature, selectedIndex){
@@ -107,10 +130,16 @@ function setPendingChoiceSelection(decisionType, choiceSignature, selectedIndex)
 }
 
 function getPendingChoiceSelection(decisionType, choiceSignature, itemCount){
-  if (!pendingChoiceSelection || pendingChoiceSelection.decisionType !== decisionType) return null;
-  if (pendingChoiceSelection.choiceSignature !== choiceSignature) return null;
+  if (!pendingChoiceSelection) return null;
+  if (pendingChoiceSelection.decisionType !== decisionType || pendingChoiceSelection.choiceSignature !== choiceSignature) {
+    clearPendingChoiceSelection();
+    return null;
+  }
   const idx = pendingChoiceSelection.selectedIndex;
-  if (!Number.isInteger(idx) || idx < 0 || idx >= itemCount) return null;
+  if (!Number.isInteger(idx) || idx < 0 || idx >= itemCount) {
+    clearPendingChoiceSelection();
+    return null;
+  }
   return idx;
 }
 
@@ -760,6 +789,7 @@ async function autosaveFromServer(){
 }
 
 async function restoreSavedCode(saveCode){
+  clearPendingChoiceSelection();
   await fetch('/api/run/import', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -785,16 +815,26 @@ async function startNewRunFromPrompt(){
   document.getElementById('resumePanel').style.display = 'none';
 }
 
-async function startRun(){ await fetch('/api/run/start', {method:'POST'}); await refresh(); }
+async function startRun(){
+  clearPendingChoiceSelection();
+  await fetch('/api/run/start', {method:'POST'});
+  await refresh();
+}
 async function clearRun(){
+  clearPendingChoiceSelection();
   await fetch('/api/run/clear', {method:'POST'});
   clearSavedRun();
   latest = null;
   previousTotals = null;
   await refresh();
 }
-async function advanceFlow(){ await fetch('/api/advance', {method:'POST'}); await refresh(); }
+async function advanceFlow(){
+  clearPendingChoiceSelection();
+  await fetch('/api/advance', {method:'POST'});
+  await refresh();
+}
 async function sendAction(payload){
+  if (payload?.type && String(payload.type).startsWith('choose_')) clearPendingChoiceSelection();
   await fetch('/api/action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
   await refresh();
 }
@@ -808,6 +848,7 @@ async function exportSaveCode(){
 async function importSaveCode(){
   const code = prompt(getNestedText('prompts.paste_save_code'));
   if (!code) return;
+  clearPendingChoiceSelection();
   const response = await fetch('/api/run/import', {
     method:'POST',
     headers:{'Content-Type':'application/json'},

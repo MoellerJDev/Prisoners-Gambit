@@ -42,6 +42,7 @@ class StubRenderer:
     def __init__(self) -> None:
         self.successor_choices = []
         self.eliminated_floor = None
+        self.capped_floor = None
 
     def show_run_header(self, seed): pass
     def show_floor_roster(self, floor_number, roster_entries): pass
@@ -72,6 +73,9 @@ class StubRenderer:
         self.eliminated_floor = floor_number
 
     def show_victory(self, floor_number, player, seed): pass
+
+    def show_capped(self, floor_number, player, seed):
+        self.capped_floor = floor_number
 
 
 class ScriptedTournament:
