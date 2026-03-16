@@ -58,6 +58,30 @@ def format_genome_edit_line(index: int, edit: GenomeEdit) -> str:
 
 def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list[str]:
     lines: list[str] = []
+    if isinstance(offer, PowerupOfferView):
+        if offer.hook:
+            lines.append(f"Why now: {offer.hook}")
+        if offer.timing:
+            lines.append(f"When: {offer.timing}")
+        if offer.plan:
+            lines.append(f"Plan: {offer.plan}")
+        if offer.cost:
+            lines.append(f"Cost: {offer.cost}")
+        if offer.fit_detail:
+            lines.append(f"Fit detail: {offer.fit_detail}")
+        if offer.doctrine_commitment:
+            lines.append(f"Doctrine commitment: {offer.doctrine_commitment}")
+    if isinstance(offer, GenomeEditOfferView):
+        if offer.rewrite:
+            lines.append(f"Rewrite: {offer.rewrite}")
+        if offer.doctrine_shift:
+            lines.append(f"Shift: {offer.doctrine_shift}")
+        if offer.tempo_note:
+            lines.append(offer.tempo_note)
+        if offer.stability_note:
+            lines.append(offer.stability_note)
+        if offer.doctrine_commitment:
+            lines.append(f"Doctrine commitment: {offer.doctrine_commitment}")
     if offer.lineage_commitment:
         lines.append(f"Lineage commitment: {offer.lineage_commitment}")
     if offer.doctrine_vector and not offer.lineage_commitment:
@@ -72,19 +96,22 @@ def _offer_doctrine_lines(offer: PowerupOfferView | GenomeEditOfferView) -> list
         lines.append(f"Successor pressure: {offer.successor_pressure}")
     if isinstance(offer, PowerupOfferView):
         if offer.trigger:
-            lines.append(offer.trigger)
+            lines.append(f"When: {offer.trigger}")
         if offer.effect:
-            lines.append(offer.effect)
+            lines.append(f"Effect: {offer.effect}")
         if offer.role:
-            lines.append(offer.role)
+            lines.append(f"Role: {offer.role}")
         if offer.tags:
             lines.append(f"Synergy tags: {', '.join(offer.tags)}")
         if offer.relevance_hint:
             lines.append(f"Offer rationale: {offer.relevance_hint}")
         if offer.crown_hint:
             lines.append(offer.crown_hint)
-    if isinstance(offer, GenomeEditOfferView) and offer.doctrine_drift:
-        lines.append(f"Doctrine drift: {offer.doctrine_drift}")
+    if isinstance(offer, GenomeEditOfferView):
+        if offer.doctrine_drift:
+            lines.append(f"Doctrine drift: {offer.doctrine_drift}")
+        if offer.current_summary or offer.projected_summary:
+            lines.append(f"Build: {offer.current_summary or '-'} -> {offer.projected_summary or '-'}")
     return lines
 
 
@@ -107,26 +134,46 @@ def format_successor_candidate_view(index: int, candidate: SuccessorCandidateVie
     tradeoffs = "; ".join(candidate.tradeoffs)
     strengths = "; ".join(candidate.strengths)
     liabilities = "; ".join(candidate.liabilities)
-    return (
-        f"{index}. {candidate.name} | depth={candidate.lineage_depth} | score={candidate.score} | wins={candidate.wins}\n"
-        f"   Role: {candidate.branch_role}\n"
-        f"   Doctrine: {candidate.branch_doctrine}\n"
-        f"   Tags: {_tag_text(candidate.tags)}\n"
-        f"   Shaping causes: {shaping_causes}\n"
-        f"   Read: {candidate.descriptor}\n"
-        f"   Tradeoffs: {tradeoffs}\n"
-        f"   Strengths: {strengths}\n"
-        f"   Liabilities: {liabilities}\n"
-        f"   Attractive now: {candidate.attractive_now}\n"
-        f"   Danger later: {candidate.danger_later}\n"
-        f"   Succession play: {candidate.succession_pitch}\n"
-        f"   Succession risk: {candidate.succession_risk}\n"
-        f"   Anti-score note: {candidate.anti_score_note}\n"
-        f"   Implied future: {candidate.lineage_future}\n"
-        f"   Build: {candidate.genome_summary}\n"
-        f"   Powerups: {powerups}"
-        + (f"\n   Featured inference: {candidate.featured_inference_context}" if candidate.featured_inference_context else "")
-    )
+    lines = [
+        f"{index}. {candidate.name} | depth={candidate.lineage_depth} | score={candidate.score} | wins={candidate.wins}",
+        f"   Role: {candidate.branch_role}",
+        f"   Doctrine: {candidate.branch_doctrine}",
+        f"   Tags: {_tag_text(candidate.tags)}",
+        f"   Shaping causes: {shaping_causes}",
+        f"   Read: {candidate.descriptor}",
+    ]
+    if candidate.headline:
+        lines.append(f"   Headline: {candidate.headline}")
+    if candidate.play_pattern:
+        lines.append(f"   Pattern: {candidate.play_pattern}")
+    if candidate.why_now:
+        lines.append(f"   Why now: {candidate.why_now}")
+    if candidate.watch_out:
+        lines.append(f"   Watch out: {candidate.watch_out}")
+    if candidate.dynasty_future:
+        lines.append(f"   Dynasty future: {candidate.dynasty_future}")
+    lines.extend([
+        f"   Tradeoffs: {tradeoffs}",
+        f"   Strengths: {strengths}",
+        f"   Liabilities: {liabilities}",
+        f"   Attractive now: {candidate.attractive_now}",
+        f"   Danger later: {candidate.danger_later}",
+        f"   Succession play: {candidate.succession_pitch}",
+        f"   Succession risk: {candidate.succession_risk}",
+        f"   Anti-score note: {candidate.anti_score_note}",
+        f"   Implied future: {candidate.lineage_future}",
+        f"   Build: {candidate.genome_summary}",
+        f"   Powerups: {powerups}",
+    ])
+    if candidate.clue_future:
+        lines.append(f"   Clue future: {candidate.clue_future}")
+    if candidate.clue_stability:
+        lines.append(f"   Clue stability: {candidate.clue_stability}")
+    if candidate.clue_confidence:
+        lines.append(f"   Clue confidence: {candidate.clue_confidence}")
+    if candidate.featured_inference_context:
+        lines.append(f"   Featured inference: {candidate.featured_inference_context}")
+    return "\n".join(lines)
 
 
 def format_featured_inference_summary(summary: list[str]) -> str:

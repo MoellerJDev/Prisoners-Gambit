@@ -3,6 +3,17 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from prisoners_gambit.content.strategic_text import (
+    civil_war_featured_inference_lines,
+    featured_inference_confidence_detail,
+    featured_inference_confidence_label,
+    featured_inference_future_text,
+    featured_inference_stability_text,
+    featured_inference_summary_clues,
+    featured_inference_summary_scope,
+    featured_inference_summary_tags,
+)
+
 
 _TAG_HINTS: dict[str, tuple[str, ...]] = {
     "Aggressive": ("aggressive", "exploitative", "defected into your cooperation", "opened with d"),
@@ -26,6 +37,14 @@ class FeaturedInferenceSignals:
     inferred_tags: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class FeaturedInferenceBrief:
+    future: str
+    stability: str
+    confidence_label: str
+    confidence_detail: str
+
+
 def normalize_featured_inference_signals(clue_log: Sequence[str], *, max_clues: int = 3) -> FeaturedInferenceSignals:
     unique_clues = _dedupe_clues(clue_log)
     if not unique_clues:
@@ -40,15 +59,11 @@ def summarize_featured_inference_signals(signals: FeaturedInferenceSignals) -> l
     if not signals.observed_clues:
         return []
 
-    summary: list[str] = [f"Clues seen: {' | '.join(signals.observed_clues)}"]
+    summary: list[str] = [featured_inference_summary_clues(signals.observed_clues)]
     if signals.inferred_tags:
-        summary.append(
-            "Likely playstyle tags this floor: "
-            + ", ".join(signals.inferred_tags)
-            + ". Use this to compare heir fit and risk."
-        )
+        summary.append(featured_inference_summary_tags(signals.inferred_tags))
 
-    summary.append("Clues only: this does not reveal hidden opponents.")
+    summary.append(featured_inference_summary_scope())
     return summary
 
 
@@ -58,19 +73,40 @@ def synthesize_floor_featured_inference(clue_log: Sequence[str], *, max_lines: i
     return summarize_featured_inference_signals(signals)
 
 
+def successor_featured_inference_brief(
+    *,
+    candidate_tags: Sequence[str],
+    featured_inference_signals: FeaturedInferenceSignals,
+) -> FeaturedInferenceBrief | None:
+    if not candidate_tags or not featured_inference_signals.observed_clues:
+        return None
+
+    inferred = set(featured_inference_signals.inferred_tags)
+    aligned = [tag for tag in candidate_tags if tag in inferred]
+    return FeaturedInferenceBrief(
+        future=_future_frame(candidate_tags),
+        stability=_stability_frame(candidate_tags=candidate_tags, aligned=aligned),
+        confidence_label=_confidence_label(aligned),
+        confidence_detail=_confidence_detail(aligned),
+    )
+
+
 def successor_featured_inference_context(
     *,
     candidate_tags: Sequence[str],
     featured_inference_signals: FeaturedInferenceSignals,
 ) -> str | None:
-    if not candidate_tags or not featured_inference_signals.observed_clues:
+    brief = successor_featured_inference_brief(
+        candidate_tags=candidate_tags,
+        featured_inference_signals=featured_inference_signals,
+    )
+    if brief is None:
         return None
-
-    aligned = [tag for tag in candidate_tags if tag in set(featured_inference_signals.inferred_tags)]
-    future_frame = _future_frame(candidate_tags)
-    stability_frame = _stability_frame(candidate_tags=candidate_tags, aligned=aligned)
-    confidence_frame = _confidence_frame(aligned)
-    return f"Future path: {future_frame} Stability: {stability_frame} Clue confidence: {confidence_frame}"
+    return (
+        f"Future path: {brief.future} "
+        f"Stability: {brief.stability} "
+        f"Clue confidence: {brief.confidence_detail}"
+    )
 
 
 def civil_war_featured_inference_context(featured_inference_signals: FeaturedInferenceSignals) -> list[str]:
@@ -84,16 +120,16 @@ def civil_war_featured_inference_context(featured_inference_signals: FeaturedInf
     legitimacy = inferred & {"Cooperative", "Forgiving", "Consensus", "Referendum"}
 
     if coercive and legitimacy:
-        framing.append("Clue read: both trust and force plans look live right now.")
+        framing.append(civil_war_featured_inference_lines("mixed"))
     elif coercive:
-        framing.append("Clue read: force-heavy pressure is rising; backlash risk is real if hardline branches stumble.")
+        framing.append(civil_war_featured_inference_lines("coercive"))
     elif legitimacy:
-        framing.append("Clue read: trust-heavy pressure is rising; betrayal spikes can break that trust quickly.")
+        framing.append(civil_war_featured_inference_lines("legitimacy"))
 
     if inferred & {"Retaliatory", "Punishing"}:
-        framing.append("Clue read: retaliation risk is high—one betrayal can snowball.")
+        framing.append(civil_war_featured_inference_lines("retaliation"))
     if inferred & {"Exploitative", "Aggressive", "Punishing"}:
-        framing.append("Clue read: deception risk is live—mirror rounds can flip on bait-and-punish traps.")
+        framing.append(civil_war_featured_inference_lines("deception"))
 
     return framing[:2]
 
@@ -104,12 +140,12 @@ def _future_frame(candidate_tags: Sequence[str]) -> str:
     consensus = tag_set & {"Cooperative", "Forgiving", "Consensus", "Referendum"}
 
     if hardline and consensus:
-        return "hybrid lineage branch blending coercive doctrine with consensus habits, creating dual succession pressures"
+        return featured_inference_future_text("hybrid")
     if hardline:
-        return "hardline lineage branch centered on control, punishment, and deception pressure"
+        return featured_inference_future_text("hardline")
     if consensus:
-        return "consensus lineage branch centered on reciprocity, legitimacy, and coalition doctrine"
-    return "ambiguous lineage branch with unclear doctrine inheritance"
+        return featured_inference_future_text("consensus")
+    return featured_inference_future_text("ambiguous")
 
 
 def _stability_frame(*, candidate_tags: Sequence[str], aligned: Sequence[str]) -> str:
@@ -120,26 +156,25 @@ def _stability_frame(*, candidate_tags: Sequence[str], aligned: Sequence[str]) -
 
     if hardline and consensus:
         if aligned_set & hardline and aligned_set & consensus:
-            return "broadly stable now, but civil-war fracture risk rises because rival heirs can challenge either doctrine wing"
-        return "fragile because the floor has not clearly validated both doctrine wings"
+            return featured_inference_stability_text("hybrid_confirmed")
+        return featured_inference_stability_text("hybrid_unconfirmed")
     if hardline:
         if aligned_set & hardline:
-            return "stable while coercive reads persist, but brittle if floors pivot toward cooperative legitimacy"
-        return "fragile: coercive doctrine is under-read this floor and can trigger succession backlash"
+            return featured_inference_stability_text("hardline_confirmed")
+        return featured_inference_stability_text("hardline_unconfirmed")
     if consensus:
         if aligned_set & consensus:
-            return "stable while trust loops hold, but vulnerable to betrayal cascades in civil-war mirrors"
-        return "fragile: consensus doctrine lacks floor confirmation and can be exploited by deceptive rivals"
-    return "uncertain because observed reads do not anchor a clear doctrine trajectory"
+            return featured_inference_stability_text("consensus_confirmed")
+        return featured_inference_stability_text("consensus_unconfirmed")
+    return featured_inference_stability_text("ambiguous")
 
 
-def _confidence_frame(aligned: Sequence[str]) -> str:
-    if len(aligned) >= 2:
-        joined = ", ".join(aligned[:2]).lower()
-        return f"high—observed featured reads reinforce this branch on {joined}"
-    if len(aligned) == 1:
-        return f"moderate—only {aligned[0].lower()} is directly reinforced; keep deception risk in view"
-    return "low—observed featured reads do not directly reinforce this branch future"
+def _confidence_label(aligned: Sequence[str]) -> str:
+    return featured_inference_confidence_label(len(aligned))
+
+
+def _confidence_detail(aligned: Sequence[str]) -> str:
+    return featured_inference_confidence_detail(aligned)
 
 
 def _dedupe_clues(clue_log: Sequence[str]) -> list[str]:
@@ -159,5 +194,4 @@ def _dedupe_clues(clue_log: Sequence[str]) -> list[str]:
 
 def _hinted_tags(clues: Sequence[str]) -> list[str]:
     text = " ".join(clues).lower()
-    tags = [tag for tag, hints in _TAG_HINTS.items() if any(hint in text for hint in hints)]
-    return tags
+    return [tag for tag, hints in _TAG_HINTS.items() if any(hint in text for hint in hints)]

@@ -100,15 +100,15 @@ def test_runtime_transition_only_state_renders_primary_action_in_current_decisio
     _post_json(web_server_runtime, "/api/action", {"type": "manual_vote", "vote": "C"})
 
     page = playwright_page
-    page.goto(web_server_runtime, wait_until="networkidle")
+    page.goto(f"{web_server_runtime}/?lang=en-x-test", wait_until="networkidle")
     page.evaluate("refresh()")
     page.wait_for_timeout(150)
 
-    assert "Review successor options" in page.locator("#decisionType").inner_text()
-    assert "Open successor options" in page.locator("#decisionView").inner_text()
-    assert page.locator("#actions button.primary-action", has_text="Review successor options").count() == 1
+    assert "Review successor options [test]" in page.locator("#decisionType").inner_text()
+    assert "Next host selection is ready [test]." in page.locator("#decisionView").inner_text()
+    assert page.locator("#actions button.primary-action", has_text="Review successor options [test]").count() == 1
 
-    page.locator("#actions button.primary-action", has_text="Review successor options").click()
+    page.locator("#actions button.primary-action", has_text="Review successor options [test]").click()
     page.wait_for_timeout(150)
     assert "Successor choice" in page.locator("#decisionType").inner_text()
 
@@ -127,7 +127,7 @@ def test_runtime_powerup_cards_render_compact_and_click_to_genome(web_server_run
     assert page.locator("#actions button details").count() == 0
     assert page.locator("#actions .choice-card-effect").count() >= 1
     assert page.locator("#decisionView .choice-confirm-btn").count() == 0
-    assert "Select an option" in page.locator("#decisionView").inner_text()
+    assert "strategy rows" in page.locator("#decisionView").inner_text()
     assert page.locator("#actions button.choice-option-selected").count() == 0
 
     page.locator("#actions button").nth(1).click()
@@ -152,8 +152,8 @@ def test_runtime_successor_comparison_visible_and_survives_tab_switch(web_server
 
     assert "Successor choice" in page.locator("#decisionType").inner_text()
     assert page.locator("#successorComparisonSection").evaluate("el => getComputedStyle(el).display") != "none"
-    assert page.locator("#successorComparison .muted-label", has_text="Cause").count() >= 1
-    assert page.locator("#successorComparison .muted-label", has_text="Pick for").count() >= 1
+    assert page.locator("#successorComparison .muted-label", has_text="Pattern").count() >= 1
+    assert page.locator("#successorComparison .muted-label", has_text="Why now").count() >= 1
 
     page.click("#tabBoardBtn")
     assert page.locator("#secondaryTabBoard.active").count() == 1
@@ -216,6 +216,21 @@ def test_runtime_glossary_toggle_and_tab_help_updates(web_server_runtime, playwr
 
 
 
+def test_runtime_decision_help_is_contextual_for_successor_choice(web_server_runtime, playwright_page) -> None:
+    _drive_to_successor_choice(web_server_runtime)
+
+    page = playwright_page
+    page.goto(web_server_runtime, wait_until="networkidle")
+    page.evaluate("refresh()")
+    page.wait_for_timeout(150)
+
+    page.click(".decision-details-panel .help-chip-inline")
+    page.wait_for_timeout(50)
+    help_text = page.locator("#glossaryPanel").inner_text()
+    assert "Pattern is how the heir wins" in help_text
+    assert "clue confidence" in help_text.lower()
+
+
 def test_runtime_controlled_vote_glossary_is_mechanically_explicit(web_server_runtime, playwright_page) -> None:
     page = playwright_page
     page.goto(web_server_runtime, wait_until="networkidle")
@@ -235,13 +250,13 @@ def test_runtime_phase_helpers_show_for_reward_and_successor_choices(web_server_
     page.evaluate("refresh()")
     page.wait_for_timeout(150)
 
-    assert "Compare Cause, Pick for, Risk" in page.locator("#phaseActionHelper").inner_text()
+    assert "Compare Pattern, Why now, Watch out" in page.locator("#phaseActionHelper").inner_text()
 
     page.locator("#actions button").first.click()
     page.locator("#decisionView .choice-confirm-btn").click()
     page.wait_for_timeout(150)
     assert "Powerup choice" in page.locator("#decisionType").inner_text()
-    assert "Pick by the first-line effect" in page.locator("#phaseActionHelper").inner_text()
+    assert "Compare Why now, When, Plan, and Cost" in page.locator("#phaseActionHelper").inner_text()
 
 
 def test_runtime_successor_choice_select_then_confirm_updates_decision_details(web_server_runtime, playwright_page) -> None:
@@ -255,7 +270,7 @@ def test_runtime_successor_choice_select_then_confirm_updates_decision_details(w
     assert "Successor choice" in page.locator("#decisionType").inner_text()
     assert page.locator("#actions button.choice-option-selected").count() == 0
     assert page.locator("#decisionView .choice-confirm-btn").count() == 0
-    assert "Select an option" in page.locator("#decisionView").inner_text()
+    assert "strategy rows" in page.locator("#decisionView").inner_text()
 
     selected_name = page.locator("#actions button .action-tile-title").first.inner_text()
     page.locator("#actions button").first.click()
@@ -264,6 +279,7 @@ def test_runtime_successor_choice_select_then_confirm_updates_decision_details(w
     assert page.locator("#actions button.choice-option-selected").count() == 1
     assert page.locator("#decisionView .choice-details-title").inner_text() == selected_name
     assert page.locator("#decisionView .choice-confirm-btn").count() == 1
+    assert "Pattern" in page.locator("#decisionView").inner_text()
     assert page.locator("#decisionView").inner_text().count("No direct clue fit") == 0
 
     page.locator("#decisionView .choice-confirm-btn").click()
@@ -308,7 +324,7 @@ def test_runtime_choice_selection_does_not_carry_to_new_choice_payload_same_type
 
     assert page.locator("#actions button.choice-option-selected").count() == 0
     assert page.locator("#decisionView .choice-confirm-btn").count() == 0
-    assert "Select an option" in page.locator("#decisionView").inner_text()
+    assert "strategy rows" in page.locator("#decisionView").inner_text()
 
 
 def test_runtime_choice_selection_persists_when_same_payload_rerenders(web_server_runtime, playwright_page) -> None:
@@ -378,7 +394,7 @@ def test_runtime_confirm_clears_stale_selection_before_next_choice_phase(web_ser
     assert "Powerup choice" in page.locator("#decisionType").inner_text()
     assert page.locator("#actions button.choice-option-selected").count() == 0
     assert page.locator("#decisionView .choice-confirm-btn").count() == 0
-    assert "Select an option" in page.locator("#decisionView").inner_text()
+    assert "strategy rows" in page.locator("#decisionView").inner_text()
 
     page.locator("#actions button").first.click()
     page.wait_for_timeout(150)
@@ -389,7 +405,7 @@ def test_runtime_confirm_clears_stale_selection_before_next_choice_phase(web_ser
     assert "Genome edit" in page.locator("#decisionType").inner_text()
     assert page.locator("#actions button.choice-option-selected").count() == 0
     assert page.locator("#decisionView .choice-confirm-btn").count() == 0
-    assert "Select an option" in page.locator("#decisionView").inner_text()
+    assert "strategy rows" in page.locator("#decisionView").inner_text()
 
 
 def test_runtime_mobile_choice_cards_and_detail_panel_are_separate_and_compact(web_server_runtime) -> None:

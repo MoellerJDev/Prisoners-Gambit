@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from prisoners_gambit.content.strategic_text import (
+    identity_primary_descriptor,
+    identity_tool_descriptor,
+    identity_variance_descriptor,
+)
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.models import Agent
 
@@ -62,37 +67,13 @@ def analyze_agent_identity(agent: Agent) -> AgentIdentity:
 
 
 def _build_descriptor(tags: list[str]) -> str:
-    parts: list[str] = []
-
-    if "Cooperative" in tags and "Retaliatory" in tags:
-        parts.append("Reciprocal cooperator")
-    elif "Aggressive" in tags and "Exploitative" in tags:
-        parts.append("Predatory opener")
-    elif "Cooperative" in tags:
-        parts.append("Trust-leaning strategist")
-    elif "Aggressive" in tags:
-        parts.append("Pressure-oriented strategist")
-    else:
-        parts.append("Adaptive strategist")
-
-    if "Control" in tags:
-        parts.append("with move control")
-    elif "Referendum" in tags:
-        parts.append("with group-vote pressure")
-    elif "Consensus" in tags:
-        parts.append("with cooperation incentives")
-    elif "Punishing" in tags:
-        parts.append("with harsh punishments")
-    elif "Defensive" in tags:
-        parts.append("with defensive tools")
-
-    if "Unstable" in tags:
-        parts.append("and volatile behavior")
-    elif "Tempo" in tags:
-        parts.append("and timing spikes")
-    elif "Precise" in tags:
-        parts.append("and low-noise execution")
-
+    parts = [identity_primary_descriptor(tags)]
+    tool = identity_tool_descriptor(tags)
+    variance = identity_variance_descriptor(tags)
+    if tool:
+        parts.append(tool)
+    if variance:
+        parts.append(variance)
     return " ".join(parts)
 
 

@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+from prisoners_gambit.core.choice_presenters import (
+    format_featured_inference_lines,
+    successor_break_point,
+    successor_doctrine_arc,
+    successor_dynasty_future,
+    successor_headline,
+    successor_play_pattern,
+    successor_watch_out,
+    successor_why_now,
+)
+from prisoners_gambit.core.featured_inference import FeaturedInferenceBrief
 from prisoners_gambit.core.heir_pressure import FloorHeirPressure
 from prisoners_gambit.core.interaction import FloorSummaryHeirPressureView, FloorSummaryPressureEntryView, SuccessorCandidateView
 
@@ -25,7 +36,15 @@ def to_floor_summary_pressure_entry_view(candidate) -> FloorSummaryPressureEntry
     )
 
 
-def to_successor_candidate_view(*, agent, identity, assessment, featured_inference_context: str | None = None) -> SuccessorCandidateView:
+def to_successor_candidate_view(
+    *,
+    agent,
+    identity,
+    assessment,
+    featured_inference_context: str | None = None,
+    featured_inference_brief: FeaturedInferenceBrief | None = None,
+) -> SuccessorCandidateView:
+    clue_future, clue_stability, clue_confidence, clue_confidence_label = format_featured_inference_lines(featured_inference_brief)
     return SuccessorCandidateView(
         name=agent.name,
         lineage_depth=agent.lineage_depth,
@@ -48,4 +67,14 @@ def to_successor_candidate_view(*, agent, identity, assessment, featured_inferen
         genome_summary=agent.genome.summary(),
         powerups=[powerup.name for powerup in agent.powerups],
         featured_inference_context=featured_inference_context,
+        headline=successor_headline(identity, assessment),
+        play_pattern=successor_play_pattern(identity),
+        why_now=successor_why_now(assessment),
+        watch_out=successor_watch_out(assessment),
+        dynasty_future=successor_dynasty_future(assessment),
+        doctrine_arc=successor_doctrine_arc(assessment),
+        clue_future=clue_future,
+        clue_stability=clue_stability,
+        clue_confidence=clue_confidence,
+        clue_confidence_label=clue_confidence_label,
     )

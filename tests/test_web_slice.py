@@ -748,6 +748,19 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert successor_decision is not None
     assert {"current_phase", "lineage_doctrine", "threat_profile", "civil_war_pressure"}.issubset(successor_decision.keys())
     assert successor_decision["civil_war_pressure"] in {"low", "rising", "high"}
+    successor_candidate = successor_decision["candidates"][0]
+    assert {
+        "headline",
+        "play_pattern",
+        "why_now",
+        "watch_out",
+        "dynasty_future",
+        "doctrine_arc",
+        "clue_future",
+        "clue_stability",
+        "clue_confidence",
+        "featured_inference_context",
+    }.issubset(successor_candidate.keys())
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
@@ -763,13 +776,49 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert floor_identity["dominant_pressure"]
     assert floor_identity["lineage_direction"].startswith("Doctrine path: ")
     powerup_offer = session.view()["decision"]["offers"][0]
-    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "tags", "trigger", "effect", "role", "relevance_hint", "crown_hint"}.issubset(powerup_offer.keys())
+    assert {
+        "lineage_commitment",
+        "doctrine_vector",
+        "branch_identity",
+        "tradeoff",
+        "phase_support",
+        "successor_pressure",
+        "tags",
+        "trigger",
+        "effect",
+        "role",
+        "relevance_hint",
+        "crown_hint",
+        "hook",
+        "timing",
+        "plan",
+        "cost",
+        "fit_detail",
+        "doctrine_commitment",
+        "player_tags",
+        "crown_label",
+    }.issubset(powerup_offer.keys())
+    assert powerup_offer["player_tags"]
+    assert all("_" not in tag for tag in powerup_offer["player_tags"])
 
     session.submit_action(ChoosePowerupAction(offer_index=0))
     session.advance()
     assert session.view()["decision_type"] == "GenomeEditChoiceState"
     genome_offer = session.view()["decision"]["offers"][0]
-    assert {"lineage_commitment", "doctrine_vector", "branch_identity", "tradeoff", "phase_support", "successor_pressure", "doctrine_drift"}.issubset(genome_offer.keys())
+    assert {
+        "lineage_commitment",
+        "doctrine_vector",
+        "branch_identity",
+        "tradeoff",
+        "phase_support",
+        "successor_pressure",
+        "doctrine_drift",
+        "rewrite",
+        "doctrine_shift",
+        "tempo_note",
+        "stability_note",
+        "doctrine_commitment",
+    }.issubset(genome_offer.keys())
 
     session.submit_action(ChooseGenomeEditAction(offer_index=0))
     session.advance()
@@ -947,7 +996,7 @@ def test_web_session_pending_messages_describe_next_required_action() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
 
-    assert session.view()["pending_message"] == "Floor 1 complete — review successor options."
+    assert session.view()["pending_message"] == "Floor 1 complete. Review successor options."
 
     session.advance()
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
@@ -972,6 +1021,7 @@ def test_web_session_transition_action_label_is_contextual_for_pending_states() 
 
     assert session.view()["pending_screen"] == "floor_summary"
     assert session.view()["transition_action_visible"] is True
+    assert session.view()["transition_action_kind"] == "successor_review"
     assert session.view()["transition_action_label"] == "Review successor options"
 
     session.advance()
@@ -1011,7 +1061,7 @@ def test_web_html_uses_contextual_transition_action_button() -> None:
     html = render_web_app()
 
     assert "id='advanceBtn'" in html
-    assert "transition_action_label" in html
+    assert "transition_action_kind" in html
     assert "Continue Screen" not in html
 
 
@@ -1046,7 +1096,7 @@ def test_web_html_genome_cards_use_before_after_and_compact_tags() -> None:
     html = render_web_app()
 
     assert "function renderGenomeChoiceCard(offer, idx){" in html
-    assert "const beforeAfter = offer.lineage_commitment || offer.doctrine_vector || offer.tradeoff" in html
+    assert "const effectLine = offer.rewrite || offer.doctrine_shift || offer.lineage_commitment" in html
     assert "renderCardTags(tags, 3)" in html
     assert "function renderGenomeChoiceDetails(offer, idx){" in html
 
@@ -1056,8 +1106,9 @@ def test_web_html_perk_lists_use_compact_preview_with_more_count() -> None:
 
     html = render_web_app()
 
-    assert "function compactTokenPreview(items, renderer, limit=3, emptyLabel='none'){" in html
-    assert "<span class='choice-card-more'>+${extra} more</span>" in html
+    assert "function compactTokenPreview(items, renderer, limit=3, emptyLabel=''){" in html
+    assert "function formatCountMore(extra){" in html
+    assert "t('messages.more_count', '+{count} more')" in html
     assert "const perkPreview = compactTokenPreview(entry.visible_powerups || [], powerupToken, 2, '')" in html
 
 def test_web_api_drives_session_without_terminal_formatting() -> None:
@@ -1341,10 +1392,12 @@ def test_web_html_choice_phases_use_select_then_confirm_decision_surface() -> No
     assert "function setPendingChoiceSelection(decisionType, choiceSignature, selectedIndex){" in html
     assert "function getPendingChoiceSelection(decisionType, choiceSignature, itemCount){" in html
     assert "function renderChoiceSelectionPrompt(){" in html
+    assert "function detailRow(label, value){" in html
     assert "clearPendingChoiceSelection();" in html
     assert "t('messages.select_to_preview')" in html
     assert "t('buttons.confirm_choice')" in html
     assert "renderSuccessorChoiceDetails(decision.candidates[selectedIdx], selectedIdx)" in html
+    assert "toggleDecisionHelp()" in html
 
 
 def test_web_html_successor_choice_details_use_featured_inference_context_for_clue() -> None:
@@ -1353,6 +1406,7 @@ def test_web_html_successor_choice_details_use_featured_inference_context_for_cl
     html = render_web_app()
 
     assert "candidate.featured_inference_context || t('fallbacks.no_direct_clue_fit')" in html
+    assert "candidate.clue_confidence || candidate.featured_inference_context" in html
     assert "candidate.clue_fit || t('fallbacks.no_direct_clue_fit')" not in html
 
 
@@ -1416,6 +1470,7 @@ def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
     assert strings["tabs"]["summary"]["label"] == "Summary"
     assert strings["decision_types"]["featured_round"] == "Round move"
     assert strings["successor_comparison"]["labels"]["cause"] == "Cause"
+    assert strings["decision_help"]["successor_choice"].startswith("Successor help:")
     assert strings["round_result"]["labels"]["match_total"] == "Match Total"
     assert strings["floor_identity"]["labels"]["dominant_pressure"] == "Dominant pressure"
     assert strings["floor_summary"]["labels"]["featured_read"] == "Featured read"
@@ -1431,8 +1486,11 @@ def test_web_ui_strings_bundle_contains_expected_localization_keys() -> None:
     assert strings["vote_result"]["labels"]["cooperators"] == "cooperators"
     assert strings["dynasty_board"]["empty"]["no_active_markers"].startswith("No active lineage pressure")
     assert "controlled_vote" in strings["glossary"]
+    assert strings["accessibility"]["decision_help_title"].startswith("What does this decision")
     assert strings["transition_decisions"]["primary_label"] == "Required transition"
     assert strings["transition_decisions"]["successor_review"]["label"] == "Review successor options"
+    assert strings["transition_decisions"]["reward_selection"]["label"] == "Continue to reward selection"
+    assert strings["transition_decisions"]["civil_war_start"]["label"] == "Start civil-war round"
 
 
 def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> None:
@@ -1449,6 +1507,8 @@ def test_web_ui_strings_language_fallback_and_optional_bundle_selection() -> Non
     assert test_bundle["status_labels"]["status"] == "status[test]"
     assert test_bundle["transition_decisions"]["primary_label"] == "Required transition [test]"
     assert test_bundle["transition_decisions"]["successor_review"]["label"] == "Review successor options [test]"
+    assert test_bundle["transition_decisions"]["reward_selection"]["label"] == "Continue to reward selection [test]"
+    assert test_bundle["transition_decisions"]["civil_war_start"]["label"] == "Start civil-war round [test]"
 
     html = render_web_app(language="en-x-test")
     assert "Summary [test]" in html
@@ -1986,6 +2046,8 @@ def test_web_snapshot_surfaces_doctrine_identity_chip() -> None:
 
     chips = session.view()["snapshot"]["strategic_snapshot"]["chips"]
     assert any(str(chip).startswith("Doctrine: ") for chip in chips)
+    details = session.view()["snapshot"]["strategic_snapshot"]["details"]
+    assert any("house" in str(detail).lower() or "doctrine" in str(detail).lower() for detail in details)
 
 
 def test_web_house_doctrine_stays_stable_across_floor_progression() -> None:
@@ -2024,12 +2086,12 @@ def test_successor_and_chronicle_surface_doctrine_mutation_framing() -> None:
 
     decision = session.view()["decision"]
     assert decision is not None
-    assert "Doctrine status:" in str(decision.get("lineage_doctrine"))
+    assert "Doctrine:" in str(decision.get("lineage_doctrine"))
 
     chronicle = session.view()["snapshot"]["lineage_chronicle"]
     doctrine_entries = [entry for entry in chronicle if entry["event_type"] in {"doctrine_pivot", "successor_pressure"}]
     assert doctrine_entries
-    assert any("Doctrine status:" in entry["summary"] for entry in doctrine_entries)
+    assert any("Doctrine:" in entry["summary"] or "Doctrine" in str(entry.get("cause", "")) for entry in doctrine_entries)
 
 
 def test_civil_war_context_includes_doctrine_mutation_pressure_note() -> None:

@@ -30,8 +30,8 @@ def test_doctrine_drift_tracks_phase_support_lane() -> None:
     ecosystem = OfferDoctrineGuidance("v", "b", "t", "ecosystem survival", "s")
     civil_war = OfferDoctrineGuidance("v", "b", "t", "civil-war readiness", "s")
 
-    assert doctrine_drift_text(ecosystem).startswith("Favors heirs") and "ecosystem" in doctrine_drift_text(ecosystem).lower()
-    assert doctrine_drift_text(civil_war).startswith("Favors heirs") and "branch-mirror conflict" in doctrine_drift_text(civil_war).lower()
+    assert doctrine_drift_text(ecosystem).startswith("Shift:") and "ecosystem" in doctrine_drift_text(ecosystem).lower()
+    assert doctrine_drift_text(civil_war).startswith("Shift:") and "civil-war mirrors" in doctrine_drift_text(civil_war).lower()
 
 
 def test_guidance_lookup_fails_loudly_for_missing_catalog_entries() -> None:

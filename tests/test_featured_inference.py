@@ -33,7 +33,7 @@ def test_floor_summary_synthesis_uses_normalized_featured_signals() -> None:
     summary = summarize_featured_inference_signals(signals)
 
     assert any("Clues seen" in line for line in summary)
-    assert any("Likely playstyle tags this floor" in line for line in summary)
+    assert any("Likely featured tags this floor" in line for line in summary)
     assert any("Clues only" in line for line in summary)
 
 
@@ -67,10 +67,10 @@ def test_successor_framing_uses_normalized_featured_inference_signals() -> None:
     )
 
     assert aligned is not None and "Future path" in aligned
-    assert aligned is not None and "consensus lineage branch" in aligned
-    assert aligned is not None and "high" in aligned
-    assert mismatched is not None and "hardline lineage branch" in mismatched
-    assert mismatched is not None and "low" in mismatched
+    assert aligned is not None and "Consensus branch built around" in aligned
+    assert aligned is not None and "High:" in aligned
+    assert mismatched is not None and "Hardline branch built around" in mismatched
+    assert mismatched is not None and "Low:" in mismatched
 
 
 def test_successor_framing_is_stable_even_if_summary_wording_changes() -> None:
@@ -99,7 +99,7 @@ def test_successor_framing_is_stable_even_if_summary_wording_changes() -> None:
     )
 
     assert baseline == after_wording_drift
-    assert baseline is not None and "high" in baseline
+    assert baseline is not None and "High:" in baseline
 
 
 def test_successor_framing_differs_across_competing_tag_futures() -> None:
@@ -125,12 +125,12 @@ def test_successor_framing_differs_across_competing_tag_futures() -> None:
         featured_inference_signals=consensus_signals,
     )
 
-    assert hardline is not None and "hardline lineage branch" in hardline
-    assert hardline is not None and "coercive reads persist" in hardline
-    assert hardline is not None and "high" in hardline
-    assert consensus is not None and "consensus lineage branch" in consensus
+    assert hardline is not None and "Hardline branch built around" in hardline
+    assert hardline is not None and "Stable while hardline reads stay live" in hardline
+    assert hardline is not None and "High:" in hardline
+    assert consensus is not None and "Consensus branch built around" in consensus
     assert consensus is not None and "trust loops hold" in consensus
-    assert consensus is not None and "high" in consensus
+    assert consensus is not None and "High:" in consensus
 
 
 def test_civil_war_framing_uses_normalized_featured_signals_deterministically() -> None:
