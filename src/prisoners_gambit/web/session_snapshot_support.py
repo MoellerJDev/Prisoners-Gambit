@@ -2,7 +2,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from prisoners_gambit.content.session_text import (
+    floor_pressure_unresolved,
+    lineage_cause_phrase as build_lineage_cause_phrase,
+    lineage_direction_forming,
+    risk_posture_civil_war,
+    risk_posture_instability,
+    risk_posture_named,
+    stability_posture_contested,
+    stability_posture_controlled,
+    strategic_snapshot_civil_war_detail,
+    strategic_snapshot_headline,
+    strategic_snapshot_lineage_chip,
+    strategic_snapshot_pressure_chip,
+    strategic_snapshot_pressure_detail,
+    strategic_snapshot_rival_chip,
+    strategic_snapshot_rival_detail,
+    strategic_snapshot_rival_name,
+    strategic_snapshot_rival_signal,
+)
 from prisoners_gambit.core.analysis import analyze_agent_identity
+from prisoners_gambit.core.choice_presenters import doctrine_commitment_summary
 from prisoners_gambit.core.interaction import DynastyBoardEntryView, DynastyBoardState, RunSnapshot, StrategicSnapshotState
 from prisoners_gambit.core.models import Agent
 
@@ -19,8 +39,7 @@ class DynastyBoardBuildContext:
 
 def lineage_cause_phrase(shaping_causes: list[str], fallback: str) -> str:
     lead = shaping_causes[0] if shaping_causes else fallback
-    compact = lead.strip().rstrip(".")
-    return f"because {compact}"
+    return build_lineage_cause_phrase(lead=lead)
 
 
 def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor_number: int) -> StrategicSnapshotState:
@@ -33,7 +52,7 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
     board_entries = dynasty_board.entries if dynasty_board else []
     central_rival = next((entry for entry in board_entries if entry.is_central_rival), None)
 
-    floor_pressure = "Floor pressure unresolved"
+    floor_pressure = floor_pressure_unresolved()
     if floor_identity is not None:
         floor_pressure = floor_identity.dominant_pressure
     elif snapshot.civil_war_context is not None:
@@ -48,7 +67,7 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
         heir_pressure = snapshot.floor_summary.heir_pressure
         floor_pressure = heir_pressure.future_threats[0].name if heir_pressure.future_threats else heir_pressure.branch_doctrine
 
-    lineage_direction = "Lineage direction forming"
+    lineage_direction = lineage_direction_forming()
     if floor_identity is not None:
         lineage_direction = floor_identity.lineage_direction
     elif snapshot.successor_options and snapshot.successor_options.lineage_doctrine:
@@ -57,15 +76,15 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
         lineage_direction = snapshot.floor_summary.heir_pressure.branch_doctrine
 
     if snapshot.current_phase == "civil_war":
-        immediate_posture = "Risk posture: coercive pressure"
+        immediate_posture = risk_posture_civil_war()
     elif snapshot.successor_options and snapshot.successor_options.civil_war_pressure:
-        immediate_posture = f"Risk posture: {snapshot.successor_options.civil_war_pressure}"
+        immediate_posture = risk_posture_named(pressure=snapshot.successor_options.civil_war_pressure)
     elif central_rival and central_rival.has_civil_war_danger:
-        immediate_posture = "Risk posture: instability rising"
+        immediate_posture = risk_posture_instability()
     elif central_rival and central_rival.has_successor_pressure:
-        immediate_posture = "Stability posture: contested succession"
+        immediate_posture = stability_posture_contested()
     else:
-        immediate_posture = "Stability posture: controlled"
+        immediate_posture = stability_posture_controlled()
 
     pressure_cause = None
     if floor_identity is not None:
@@ -79,34 +98,36 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
     if snapshot.civil_war_context is not None and snapshot.civil_war_context.doctrine_pressure:
         civil_war_signal = snapshot.civil_war_context.doctrine_pressure[0]
 
-    doctrine_chip = "Doctrine: unresolved"
-    if snapshot.primary_doctrine_family:
-        doctrine_chip = f"Doctrine: {snapshot.primary_doctrine_family}"
-    if snapshot.secondary_doctrine_family:
-        doctrine_chip = f"Doctrine: {snapshot.primary_doctrine_family} → {snapshot.secondary_doctrine_family}"
-    elif snapshot.house_doctrine_family and snapshot.primary_doctrine_family != snapshot.house_doctrine_family:
-        doctrine_chip = f"Doctrine: {snapshot.house_doctrine_family} house → {snapshot.primary_doctrine_family}"
+    doctrine_chip, doctrine_detail = doctrine_commitment_summary(
+        house=snapshot.house_doctrine_family,
+        primary=snapshot.primary_doctrine_family,
+        secondary=snapshot.secondary_doctrine_family,
+    )
 
-    headline = f"Host {host_name} · F{floor_number}"
-    if snapshot.current_phase == "civil_war":
-        headline = f"Host {host_name} · Civil-war floor F{floor_number}"
-
-    rival_name = central_rival.name if central_rival is not None else "none"
-    rival_signal = central_rival.doctrine_signal if central_rival is not None else "waiting for floor ranking"
+    headline = strategic_snapshot_headline(
+        host_name=host_name,
+        floor_number=floor_number,
+        civil_war=snapshot.current_phase == "civil_war",
+    )
+    rival_name = strategic_snapshot_rival_name(rival_name=central_rival.name if central_rival is not None else None)
+    rival_signal = strategic_snapshot_rival_signal(
+        rival_signal=central_rival.doctrine_signal if central_rival is not None else None
+    )
 
     return StrategicSnapshotState(
         headline=headline,
         chips=[
-            f"Rival: {rival_name}",
-            f"Pressure: {floor_pressure}",
-            f"Lineage: {lineage_direction}",
+            strategic_snapshot_rival_chip(rival_name=rival_name),
+            strategic_snapshot_pressure_chip(floor_pressure=floor_pressure),
+            strategic_snapshot_lineage_chip(lineage_direction=lineage_direction),
             doctrine_chip,
         ],
         details=[
             immediate_posture,
-            f"Central rival signal: {rival_signal}",
-            *([f"Why dangerous now: {pressure_cause}"] if pressure_cause else []),
-            *([f"Civil-war buildup: {civil_war_signal}"] if civil_war_signal else []),
+            doctrine_detail,
+            strategic_snapshot_rival_detail(rival_signal=rival_signal),
+            *([strategic_snapshot_pressure_detail(pressure_cause=pressure_cause)] if pressure_cause else []),
+            *([strategic_snapshot_civil_war_detail(civil_war_signal=civil_war_signal)] if civil_war_signal else []),
         ],
     )
 

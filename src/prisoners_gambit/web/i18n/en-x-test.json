@@ -46,6 +46,16 @@
       "label": "Review successor options [test]",
       "explanation": "Next host selection is ready [test].",
       "action_meta": "Open successor options [test]"
+    },
+    "reward_selection": {
+      "label": "Continue to reward selection [test]",
+      "explanation": "Reward selection is ready [test].",
+      "action_meta": "Open reward selection [test]"
+    },
+    "civil_war_start": {
+      "label": "Start civil-war round [test]",
+      "explanation": "Civil war is ready [test].",
+      "action_meta": "Begin civil-war round [test]"
     }
   }
 }

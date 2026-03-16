@@ -3,6 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from prisoners_gambit.content.strategic_text import (
+    doctrine_relation_text,
+    successor_anti_score_text,
+    successor_current_fit_text,
+    successor_future_risk_text,
+    successor_lineage_future_text,
+    successor_liability_text,
+    successor_shaping_cause,
+    successor_succession_pitch_text,
+    successor_succession_risk_text,
+    successor_strength_text,
+    successor_tradeoff_text,
+)
 from prisoners_gambit.core.doctrines import BranchRole
 from prisoners_gambit.core.identity_analysis import AgentIdentity, analyze_agent_identity
 from prisoners_gambit.core.models import Agent
@@ -43,17 +56,17 @@ def classify_branch_role(agent: Agent, identity: AgentIdentity, top_score: int) 
 def shaping_causes_for_agent(agent: Agent, identity: AgentIdentity) -> list[str]:
     causes: list[str] = []
     if "Cooperative" in identity.tags:
-        causes.append("Cooperative opener and reciprocity bias")
+        causes.append(successor_shaping_cause("cooperative"))
     if "Aggressive" in identity.tags:
-        causes.append("Aggressive opener with duel pressure")
+        causes.append(successor_shaping_cause("aggressive"))
     if "Referendum" in identity.tags:
-        causes.append("Referendum-oriented perk package")
+        causes.append(successor_shaping_cause("referendum"))
     if "Control" in identity.tags:
-        causes.append("Control directives shaping move outcomes")
+        causes.append(successor_shaping_cause("control"))
     if "Unstable" in identity.tags or agent.genome.noise >= 0.20:
-        causes.append("High-noise behavior increases variance")
+        causes.append(successor_shaping_cause("unstable"))
     if not causes:
-        causes.append("Mixed profile from prior edits and inheritance")
+        causes.append(successor_shaping_cause("default"))
     return causes[:3]
 
 
@@ -101,6 +114,7 @@ def assess_successor_candidate(
     danger_later = _future_risk_reason(role=role, tags=tags, phase=phase)
     lineage_future = _lineage_future_reason(
         tradeoffs=tradeoffs,
+        tags=tags,
         phase=phase,
         lineage_doctrine=lineage_doctrine,
         doctrine_relation=doctrine_relation,
@@ -139,38 +153,38 @@ def _build_tradeoffs(*, agent: Agent, tags: set[str]) -> list[str]:
     control_side = "Coercive" if ({"Control", "Punishing"} & tags) else "Trust-based"
     referendum_side = "Referendum value" if "Referendum" in tags else "Duel value"
     return [
-        f"Safe vs explosive: {safe_side}",
-        f"Ecosystem vs civil war: {phase_side}",
-        f"Stable vs volatile: {stability_side}",
-        f"Trust vs coercion: {control_side}",
-        f"Referendum vs duel: {referendum_side}",
+        successor_tradeoff_text("safety", safe_side),
+        successor_tradeoff_text("phase", phase_side),
+        successor_tradeoff_text("stability", stability_side),
+        successor_tradeoff_text("control", control_side),
+        successor_tradeoff_text("referendum", referendum_side),
     ]
 
 
 def _build_strengths_and_liabilities(*, agent: Agent, tags: set[str]) -> tuple[list[str], list[str]]:
     strengths: list[str] = []
     if "Cooperative" in tags or "Consensus" in tags:
-        strengths.append("Can stabilize alliances and referendum pacing")
+        strengths.append(successor_strength_text("coalition"))
     if {"Aggressive", "Exploitative", "Tempo"} & tags:
-        strengths.append("Punishes passivity and can swing duels quickly")
+        strengths.append(successor_strength_text("tempo"))
     if "Referendum" in tags:
-        strengths.append("Can convert floor vote dynamics into value")
+        strengths.append(successor_strength_text("referendum"))
     if "Control" in tags:
-        strengths.append("Applies directive pressure that scales in branch mirrors")
+        strengths.append(successor_strength_text("control"))
     if not strengths:
-        strengths.append("Balanced profile with flexible adaptation")
+        strengths.append(successor_strength_text("default"))
 
     liabilities: list[str] = []
     if "Unstable" in tags or agent.genome.noise >= 0.20:
-        liabilities.append("Volatility can throw critical successor turns")
+        liabilities.append(successor_liability_text("volatility"))
     if "Aggressive" in tags and "Defensive" not in tags:
-        liabilities.append("Can trigger retaliation spirals in long rounds")
+        liabilities.append(successor_liability_text("retaliation"))
     if "Referendum" not in tags:
-        liabilities.append("May underperform in referendum-heavy floors")
+        liabilities.append(successor_liability_text("referendum"))
     if "Cooperative" in tags and "Retaliatory" not in tags:
-        liabilities.append("May get farmed by exploiters before adapting")
+        liabilities.append(successor_liability_text("exploitation"))
     if not liabilities:
-        liabilities.append("No obvious hard weakness, but ceiling may be lower")
+        liabilities.append(successor_liability_text("default"))
 
     return strengths[:3], liabilities[:3]
 
@@ -191,68 +205,107 @@ def _doctrine_relation(*, tags: set[str], lineage_doctrine: str | None) -> Doctr
 
 def _current_fit_reason(*, tags: set[str], threat_tags: set[str]) -> str:
     if not threat_tags:
-        return "No dominant threat lane, so this heir gives broad coverage."
+        if {"Aggressive", "Exploitative", "Tempo"} & tags:
+            return successor_current_fit_text("no_threat_tempo")
+        if "Referendum" in tags:
+            return successor_current_fit_text("no_threat_referendum")
+        if {"Cooperative", "Defensive"} & tags:
+            return successor_current_fit_text("no_threat_stability")
+        return successor_current_fit_text("no_threat_flexible")
     if "Aggressive" in threat_tags and ("Defensive" in tags or "Cooperative" in tags):
-        return "Absorbs aggressive table pressure without immediate collapse."
+        return successor_current_fit_text("vs_aggressive_absorb")
+    if "Aggressive" in threat_tags and ({"Control", "Punishing"} & tags):
+        return successor_current_fit_text("vs_aggressive_discipline")
     if "Referendum" in threat_tags and "Referendum" in tags:
-        return "Contests referendum value before specialists snowball."
+        return successor_current_fit_text("vs_referendum_contest")
     if "Control" in threat_tags and "Control" in tags:
-        return "Can answer directive-heavy opponents on equal footing."
-    return "Offers workable matchup coverage against the current threat mix."
+        return successor_current_fit_text("vs_control_answer")
+    if "Cooperative" in threat_tags and {"Aggressive", "Exploitative"} & tags:
+        return successor_current_fit_text("vs_cooperative_punish")
+    if "Unstable" in threat_tags and {"Precise", "Defensive"} & tags:
+        return successor_current_fit_text("vs_unstable_contain")
+    if {"Aggressive", "Exploitative", "Tempo"} & tags:
+        return successor_current_fit_text("default_tempo")
+    if "Referendum" in tags:
+        return successor_current_fit_text("default_referendum")
+    return successor_current_fit_text("default_flexible")
 
 
 def _future_risk_reason(*, role: BranchRole, tags: set[str], phase: str | None) -> str:
     if role == "Future civil-war monster":
-        return "Visible power spikes can draw concentrated anti-lineage focus."
+        return successor_future_risk_text("civil_war_monster")
     if role == "Unstable heir":
-        return "Volatility can flip elimination-thin civil-war rounds against you."
+        return successor_future_risk_text("unstable")
     if phase == "civil_war" and ("Referendum" in tags):
-        return "Referendum tools lose relative value once branch mirrors dominate."
+        return successor_future_risk_text("referendum_in_civil_war")
+    if {"Control", "Punishing"} & tags and phase == "ecosystem":
+        return successor_future_risk_text("hardline_in_ecosystem")
+    if "Cooperative" in tags and "Retaliatory" not in tags:
+        return successor_future_risk_text("pure_trust")
     if role == "Safe heir":
-        return "Stable pacing can lose race tempo to explosive cousins."
-    return "Role specialization can become a liability if the phase pivots."
+        return successor_future_risk_text("safe_heir")
+    return successor_future_risk_text("default")
 
 
 def _lineage_future_reason(
     *,
     tradeoffs: list[str],
+    tags: set[str],
     phase: str | None,
     lineage_doctrine: str | None,
     doctrine_relation: DoctrineRelation,
 ) -> str:
     phase_side = next((item for item in tradeoffs if item.startswith("Ecosystem vs civil war:")), "")
 
-    relation_text = {
-        "continues": "continues the current lineage doctrine",
-        "moderates": "moderates the current doctrine",
-        "pivots": "pivots sharply away from the current doctrine",
-    }[doctrine_relation]
+    relation_text = doctrine_relation_text(doctrine_relation)
 
     if phase == "civil_war" or "Civil-war-ready" in phase_side:
-        return f"{relation_text} and commits to branch-mirror endgame pressure."
+        if {"Control", "Punishing", "Aggressive"} & tags:
+            return successor_lineage_future_text("civil_war_force", relation_text=relation_text)
+        return successor_lineage_future_text("civil_war_survival", relation_text=relation_text)
+    if "Referendum" in tags:
+        return successor_lineage_future_text("referendum", relation_text=relation_text)
+    if {"Cooperative", "Consensus", "Forgiving"} & tags:
+        return successor_lineage_future_text("legitimacy", relation_text=relation_text)
+    if {"Aggressive", "Exploitative", "Tempo"} & tags:
+        return successor_lineage_future_text("tempo", relation_text=relation_text)
+    if "Unstable" in tags:
+        return successor_lineage_future_text("unstable", relation_text=relation_text)
     if lineage_doctrine and "Lineage trend:" in lineage_doctrine:
-        return f"{relation_text} relative to '{lineage_doctrine}'."
-    return f"{relation_text} while keeping the branch arc open."
+        return successor_lineage_future_text("quoted_lineage", relation_text=relation_text, lineage_doctrine=lineage_doctrine)
+    return successor_lineage_future_text("default", relation_text=relation_text)
 
 
 def _succession_pitch(*, tags: set[str], phase: str | None, threat_tags: set[str], doctrine_relation: DoctrineRelation) -> str:
     if phase == "civil_war" and {"Punishing", "Control", "Aggressive"} & tags:
-        return "Pick this heir to impose duel tempo in branch mirrors now."
+        return successor_succession_pitch_text("civil_war_force")
     if doctrine_relation == "pivots":
-        return "Pick this heir if you want a deliberate doctrine reset next floor."
+        return successor_succession_pitch_text("pivot")
     if "Referendum" in threat_tags and "Referendum" in tags:
-        return "Pick this heir to secure referendum leverage while outsiders remain."
-    return "Pick this heir for a balanced transition into the next pressure cycle."
+        return successor_succession_pitch_text("referendum_contest")
+    if {"Cooperative", "Retaliatory"} <= tags:
+        return successor_succession_pitch_text("reciprocal")
+    if {"Aggressive", "Exploitative"} <= tags:
+        return successor_succession_pitch_text("knife_first")
+    if {"Control", "Punishing"} & tags:
+        return successor_succession_pitch_text("discipline")
+    if "Referendum" in tags:
+        return successor_succession_pitch_text("referendum")
+    return successor_succession_pitch_text("default")
 
 
 def _succession_risk(*, tags: set[str], phase: str | None, threat_tags: set[str]) -> str:
     if "Unstable" in tags:
-        return "Inherits swing-heavy variance, including self-inflicted elimination turns."
+        return successor_succession_risk_text("unstable")
     if phase == "ecosystem" and {"Control", "Punishing"} & tags:
-        return "Coercive lines can unite outsiders before civil war starts."
+        return successor_succession_risk_text("hardline_in_ecosystem")
     if "Referendum" not in tags and "Referendum" in threat_tags:
-        return "Low referendum resilience can leak value every ecosystem floor."
-    return "Narrows your fallback plans if incoming threats change profile."
+        return successor_succession_risk_text("weak_referendum")
+    if {"Aggressive", "Exploitative"} & tags and "Defensive" not in tags:
+        return successor_succession_risk_text("thin_recovery")
+    if {"Cooperative", "Consensus"} & tags and "Retaliatory" not in tags:
+        return successor_succession_risk_text("peace_without_punish")
+    return successor_succession_risk_text("default")
 
 
 def _anti_score_note(
@@ -267,13 +320,13 @@ def _anti_score_note(
     trailing = top_score - agent.score
 
     if trailing > 0 and "Referendum" in tags and "Referendum" in threat_tags:
-        return "Score trails, but referendum resilience can outperform raw duel totals next floor."
+        return successor_anti_score_text("referendum_trail")
     if trailing > 0 and doctrine_relation in {"continues", "moderates"}:
-        return "Score trails, but doctrine fit reduces transition risk for the current threat cycle."
+        return successor_anti_score_text("fit_trail")
     if trailing > 0 and phase == "civil_war" and {"Aggressive", "Control", "Punishing", "Tempo"} & tags:
-        return "Score trails, but civil-war readiness is stronger than the current scoreboard suggests."
+        return successor_anti_score_text("war_ready_trail")
     if agent.score == top_score and phase == "ecosystem" and {"Aggressive", "Tempo"} & tags and "Defensive" not in tags:
-        return "Top score is tempo-driven and may be fragile against retaliation-heavy tables."
+        return successor_anti_score_text("tempo_lead_brittle")
     if agent.score == top_score and "Referendum" not in tags and "Referendum" in threat_tags:
-        return "Top score hides referendum exposure; floor-value losses can erase that lead quickly."
-    return "Score is a signal, but matchup coverage and doctrine trajectory should break ties."
+        return successor_anti_score_text("referendum_lead_exposed")
+    return successor_anti_score_text("default")

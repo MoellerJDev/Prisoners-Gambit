@@ -588,11 +588,11 @@ def test_opening_betrayal_bridges_into_last_laugh_cashout() -> None:
 def test_offer_view_exposes_powerup_role_in_branch_identity_and_tags() -> None:
     offer = to_powerup_offer_view(CoerciveControl(), relevance_hint="Build fit")
 
-    assert offer.branch_identity is not None and "(anchor)" in offer.branch_identity
-    assert offer.tags is not None and "anchor" in offer.tags and "creates_force" in offer.tags
-    assert offer.trigger is not None and offer.trigger.startswith("Trigger:")
-    assert offer.effect is not None and offer.effect.startswith("Effect:")
-    assert offer.role == "Role: anchor."
+    assert offer.branch_identity is not None and "(Control anchor)" in offer.branch_identity
+    assert offer.tags is not None and "Anchor Piece" in offer.tags and "Forced Line" in offer.tags
+    assert offer.trigger is not None and not offer.trigger.startswith("Trigger:")
+    assert offer.effect is not None and not offer.effect.startswith("Effect:")
+    assert offer.role == "Control anchor"
     assert offer.relevance_hint == "Build fit"
 
 
@@ -633,7 +633,7 @@ def test_referendum_combo_events_detect_controlled_bloc_win() -> None:
 def test_crown_powerup_offer_view_exposes_crown_hint() -> None:
     offer = to_powerup_offer_view(ConcordatProtocol(), relevance_hint="Power risk")
 
-    assert offer.crown_hint == "Crown piece · dynasty-defining"
+    assert offer.crown_hint == CROWN_HINT
 
 
 def test_all_powerups_have_declared_presentation_metadata() -> None:
@@ -643,17 +643,24 @@ def test_all_powerups_have_declared_presentation_metadata() -> None:
 def test_presentation_metadata_entries_are_complete_and_non_empty() -> None:
     for powerup_type, metadata in POWERUP_PRESENTATION_METADATA.items():
         assert powerup_type in ALL_POWERUP_TYPES
-        assert metadata.trigger.startswith("Trigger:")
-        assert metadata.effect.startswith("Effect:")
+        assert metadata.trigger
+        assert metadata.effect
+        assert not metadata.trigger.startswith("Trigger:")
+        assert not metadata.effect.startswith("Effect:")
         assert metadata.role_hint
-        assert metadata.role_text == f"Role: {metadata.role_hint}."
+        assert metadata.role_text == metadata.role_hint
 
 
 def test_presentation_role_hint_matches_powerup_keywords() -> None:
     for powerup_type in ALL_POWERUP_TYPES:
         powerup = powerup_type()
         metadata = presentation_for_powerup(powerup)
-        assert metadata.role_hint in powerup.keywords
+        offer = to_powerup_offer_view(powerup)
+
+        assert metadata.role_hint
+        assert offer.tags is not None
+        assert all("_" not in tag for tag in offer.tags)
+        assert offer.role == metadata.role_hint
 
 
 def test_crown_piece_metadata_stays_coherent_with_powerup_flags() -> None:
@@ -676,3 +683,4 @@ def test_offer_view_generation_works_for_all_powerups() -> None:
         assert offer.role == metadata.role_text
         assert offer.crown_hint == metadata.crown_hint
         assert offer.branch_identity is not None and f"({metadata.role_hint})" in offer.branch_identity
+

@@ -3,12 +3,46 @@ from __future__ import annotations
 from dataclasses import asdict
 import random
 
+from prisoners_gambit.content.session_text import (
+    CIVIL_WAR_RIVAL_NAME,
+    UNKNOWN_OPPONENT_LABEL,
+    civil_war_round_start_summary,
+    civil_war_started_fallback,
+    civil_war_started_summary,
+    doctrine_shift_summary,
+    dominant_pressure_fallback,
+    ecosystem_floor_start_summary,
+    featured_round_clue_channels,
+    featured_round_inference_focus,
+    featured_round_pattern_focus,
+    floor_complete_summary,
+    floor_identity_focus,
+    floor_identity_focus_with_cause,
+    floor_identity_focus_with_clue,
+    floor_identity_headline,
+    floor_identity_pressure_reason,
+    floor_pressure_label,
+    heir_tag_fallback,
+    host_shift_summary,
+    lineage_direction_text,
+    no_solid_clue_read_this_floor,
+    pending_civil_war_start_message,
+    pending_floor_complete_message,
+    run_outcome_summary,
+    run_start_summary,
+    successor_pressure_cause_fallback,
+    successor_pressure_summary,
+    transition_action_label,
+    unclear_playstyle_trend,
+)
+from prisoners_gambit.core.choice_presenters import doctrine_commitment_summary, offer_fit_detail
 from prisoners_gambit.app.heir_view_mapping import to_successor_candidate_view
 from prisoners_gambit.app.interaction_controller import RunSession
 from prisoners_gambit.core.analysis import analyze_agent_identity, assess_successor_candidate
 from prisoners_gambit.core.civil_war import build_civil_war_context
 from prisoners_gambit.core.featured_inference import (
     normalize_featured_inference_signals,
+    successor_featured_inference_brief,
     successor_featured_inference_context,
 )
 from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
@@ -112,7 +146,7 @@ class FeaturedMatchWebSession:
         self.session = RunSession()
         self.snapshot = RunSnapshot()
         self.player = Agent(name="You", genome=self._default_genome(), is_player=True, lineage_id=1)
-        self.opponent = Agent(name="Unknown Opponent", genome=self._opponent_genome())
+        self.opponent = Agent(name=UNKNOWN_OPPONENT_LABEL, genome=self._opponent_genome())
         self.player.powerups.append(ComplianceDividend())
         self.opponent.powerups.append(CounterIntel())
         self._branch_roster: list[Agent] = self._build_initial_branch_roster()
@@ -287,7 +321,7 @@ class FeaturedMatchWebSession:
             event_id=f"run_start:seed:{self.seed}",
             event_type="run_start",
             floor_number=self.floor_number,
-            summary=f"Run started (seed {self.seed}) in ecosystem play.",
+            summary=run_start_summary(seed=self.seed),
         )
         self._rebuild_dynasty_board()
         self._begin_featured_round_decision()
@@ -342,7 +376,8 @@ class FeaturedMatchWebSession:
 
     def view(self) -> dict:
         self._refresh_strategic_snapshot()
-        transition_label = self._transition_action_label()
+        transition_kind = self._transition_action_kind()
+        transition_label = transition_action_label(transition_kind) if transition_kind is not None else None
         return {
             "status": self.session.status,
             "decision_type": type(self.session.current_decision).__name__ if self.session.current_decision else None,
@@ -350,6 +385,7 @@ class FeaturedMatchWebSession:
             "snapshot": asdict(self.snapshot),
             "pending_screen": self._pending_screen,
             "pending_message": self._pending_message,
+            "transition_action_kind": transition_kind,
             "transition_action_label": transition_label,
             "transition_action_visible": transition_label is not None,
         }
@@ -362,15 +398,15 @@ class FeaturedMatchWebSession:
         )
 
 
-    def _transition_action_label(self) -> str | None:
+    def _transition_action_kind(self) -> str | None:
         if self.session.current_decision is not None:
             return None
         if self._pending_screen == "floor_summary":
-            return "Review successor options" if self.floor_number == 1 else "Continue to reward selection"
+            return "successor_review" if self.floor_number == 1 else "reward_selection"
         if self._pending_screen == "civil_war_transition":
-            return "Start civil-war round"
+            return "civil_war_start"
         if self.session.status == "running":
-            return "Continue to next phase"
+            return "generic"
         return None
 
     @property
@@ -382,7 +418,7 @@ class FeaturedMatchWebSession:
         state = FeaturedRoundDecisionState(
             prompt=FeaturedMatchPrompt(
                 floor_number=self.floor_number,
-                masked_opponent_label="Unknown Opponent",
+                masked_opponent_label=UNKNOWN_OPPONENT_LABEL,
                 round_index=self.round_index,
                 total_rounds=self.rounds,
                 my_history=list(self.player_history),
@@ -391,16 +427,15 @@ class FeaturedMatchWebSession:
                 opp_match_score=self.opponent_score,
                 suggested_move=suggested_move,
                 roster_entries=[],
-                clue_channels=[
-                    f"Profile signal: {self.opponent.public_profile}",
-                    f"Known powerups: {', '.join(powerup.name for powerup in self.opponent.powerups) if self.opponent.powerups else 'none'}",
-                    "Move-pattern signal: compare opening and retaliation cadence.",
-                ],
+                clue_channels=featured_round_clue_channels(
+                    public_profile=self.opponent.public_profile,
+                    powerup_names=[powerup.name for powerup in self.opponent.powerups],
+                ),
                 floor_clue_log=list(self._floor_clue_log),
                 inference_focus=(
-                    "Opening read: stress-test profile clues."
+                    featured_round_inference_focus()
                     if self.round_index == 0
-                    else "Pattern read: update tag confidence from response behavior."
+                    else featured_round_pattern_focus()
                 ),
             )
         )
@@ -513,7 +548,7 @@ class FeaturedMatchWebSession:
         self.opponent_history.append(opponent_move)
 
         self.snapshot.latest_featured_round = FeaturedRoundResult(
-            masked_opponent_label="Unknown Opponent",
+            masked_opponent_label=UNKNOWN_OPPONENT_LABEL,
             round_index=self.round_index,
             total_rounds=self.rounds,
             player_move=player_move,
@@ -699,22 +734,33 @@ class FeaturedMatchWebSession:
 
         self.snapshot.session_status = "running"
         self._pending_screen = "floor_summary"
-        next_step = "review successor options" if self.floor_number == 1 else "continue to reward selection"
-        self._pending_message = f"Floor {self.floor_number} complete — {next_step}."
-        featured_note = self.snapshot.floor_summary.featured_inference_summary[0] if self.snapshot.floor_summary.featured_inference_summary else "No solid clue read survived this floor."
-        doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else "Playstyle trend is unclear."
+        next_step_kind = "successor_review" if self.floor_number == 1 else "reward_selection"
+        self._pending_message = pending_floor_complete_message(
+            floor_number=self.floor_number,
+            next_step_label=transition_action_label(next_step_kind),
+        )
+        featured_note = (
+            self.snapshot.floor_summary.featured_inference_summary[0]
+            if self.snapshot.floor_summary.featured_inference_summary
+            else no_solid_clue_read_this_floor()
+        )
+        doctrine_note = heir_pressure.branch_doctrine if heir_pressure is not None else unclear_playstyle_trend()
         doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
         self._append_chronicle_entry(
             event_id=f"floor_complete:{self.floor_number}",
             event_type="floor_complete",
             floor_number=self.floor_number,
-            summary=f"Floor {self.floor_number} ended at {self.player_score} points. {featured_note}",
+            summary=floor_complete_summary(
+                floor_number=self.floor_number,
+                player_score=self.player_score,
+                featured_note=featured_note,
+            ),
         )
         self._append_chronicle_entry(
             event_id=f"doctrine_pivot:{self.floor_number}",
             event_type="doctrine_pivot",
             floor_number=self.floor_number,
-            summary=f"Lineage trend: {doctrine_note}. {doctrine_chip}",
+            summary=doctrine_shift_summary(doctrine_note=doctrine_note, doctrine_chip=doctrine_chip),
             cause=self._lineage_cause_phrase(
                 self.snapshot.floor_summary.featured_inference_summary,
                 doctrine_note,
@@ -729,6 +775,7 @@ class FeaturedMatchWebSession:
             top_score = max((agent.score for agent in self._successor_candidates), default=0)
             threat_tags: set[str] = set()
             lineage_doctrine: str | None = None
+            featured_signals = normalize_featured_inference_signals(self._floor_clue_log)
             if self.snapshot.floor_summary and self.snapshot.floor_summary.heir_pressure:
                 lineage_doctrine = self.snapshot.floor_summary.heir_pressure.branch_doctrine
                 for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
@@ -743,6 +790,10 @@ class FeaturedMatchWebSession:
                     threat_tags=threat_tags,
                     lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
                 )
+                inference_brief = successor_featured_inference_brief(
+                    candidate_tags=identity.tags,
+                    featured_inference_signals=featured_signals,
+                )
                 candidates.append(
                     to_successor_candidate_view(
                         agent=agent,
@@ -750,8 +801,9 @@ class FeaturedMatchWebSession:
                         assessment=assessment,
                         featured_inference_context=successor_featured_inference_context(
                             candidate_tags=identity.tags,
-                            featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
+                            featured_inference_signals=featured_signals,
                         ),
+                        featured_inference_brief=inference_brief,
                     )
                 )
             civil_war_pressure = civil_war_pressure_for_threat_tags(threat_tags)
@@ -774,10 +826,13 @@ class FeaturedMatchWebSession:
                 event_id=f"successor_pressure:{self.floor_number}",
                 event_type="successor_pressure",
                 floor_number=self.floor_number,
-                summary=f"Succession pressure is {civil_war_pressure}; top threats: {', '.join(sorted(threat_tags)) or 'none' }.",
+                summary=successor_pressure_summary(
+                    civil_war_pressure=civil_war_pressure,
+                    threat_tags=sorted(threat_tags),
+                ),
                 cause=self._lineage_cause_phrase(
                     list(self.snapshot.floor_summary.featured_inference_summary) if self.snapshot.floor_summary else [],
-                    f"threat mix {', '.join(sorted(threat_tags)) or 'none'}",
+                    successor_pressure_cause_fallback(threat_tags=sorted(threat_tags)),
                 ),
             )
             self.session.begin_decision(state, (ChooseSuccessorAction,), self.snapshot)
@@ -801,7 +856,17 @@ class FeaturedMatchWebSession:
             ),
         )
         self._powerup_offers = [entry.powerup for entry in generated]
-        offers = [to_powerup_offer_view(entry.powerup, relevance_hint=offer_category_hint(entry.category)) for entry in generated]
+        offers = [
+            to_powerup_offer_view(
+                entry.powerup,
+                relevance_hint=offer_category_hint(entry.category),
+                fit_detail=offer_fit_detail(entry.category),
+                house_doctrine_family=self.snapshot.house_doctrine_family,
+                primary_doctrine_family=self.snapshot.primary_doctrine_family,
+                secondary_doctrine_family=self.snapshot.secondary_doctrine_family,
+            )
+            for entry in generated
+        ]
         state = PowerupChoiceState(floor_number=self.floor_number, offers=offers)
         self.session.begin_decision(state, (ChoosePowerupAction,), self.snapshot)
         self.snapshot.session_status = "awaiting_decision"
@@ -820,7 +885,7 @@ class FeaturedMatchWebSession:
             event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
             event_type="successor_choice",
             floor_number=1,
-            summary=f"Host shifted from {previous_host} to {chosen.name}.",
+            summary=host_shift_summary(previous_host=previous_host, chosen_name=chosen.name),
         )
 
         if self._should_start_civil_war():
@@ -837,12 +902,12 @@ class FeaturedMatchWebSession:
             self.floor_number = 2
             self.snapshot.current_floor = self.floor_number
             self._pending_screen = "civil_war_transition"
-            self._pending_message = f"{self.snapshot.civil_war_context.thesis} Start the civil-war round."
+            self._pending_message = pending_civil_war_start_message(thesis=self.snapshot.civil_war_context.thesis)
             self._append_chronicle_entry(
                 event_id="phase_transition:civil_war",
                 event_type="phase_transition",
                 floor_number=self.floor_number,
-                summary=f"Civil war started: {self.snapshot.civil_war_context.thesis}",
+                summary=civil_war_started_summary(thesis=self.snapshot.civil_war_context.thesis),
                 cause=self._lineage_cause_phrase(
                     list(self.snapshot.civil_war_context.doctrine_pressure),
                     self.snapshot.civil_war_context.thesis,
@@ -860,45 +925,18 @@ class FeaturedMatchWebSession:
 
 
     def _doctrine_state_framing(self) -> tuple[str, str]:
-        house = self.snapshot.house_doctrine_family
-        primary = self.snapshot.primary_doctrine_family
-        secondary = self.snapshot.secondary_doctrine_family
-
-        if not primary:
-            return (
-                "Doctrine status: unresolved",
-                "The lineage has not stabilized around a doctrine yet.",
-            )
-        if house is None or house == primary:
-            if secondary:
-                return (
-                    f"Doctrine status: {primary} house with {secondary} hybrid wing",
-                    f"The lineage is deepening house doctrine while mutating toward {secondary}.",
-                )
-            return (
-                f"Doctrine status: {primary} house holding",
-                "The lineage is reinforcing inherited doctrine with low internal fracture.",
-            )
-        if secondary:
-            return (
-                f"Doctrine status: mutated from {house} to {primary} (hybrid {secondary})",
-                f"Doctrine fracture risk is rising: {house} inheritance is colliding with {primary}/{secondary} ambitions.",
-            )
-        return (
-            f"Doctrine status: mutated from {house} to {primary}",
-            f"The lineage has pivoted away from its house doctrine ({house}) toward {primary}.",
+        return doctrine_commitment_summary(
+            house=self.snapshot.house_doctrine_family,
+            primary=self.snapshot.primary_doctrine_family,
+            secondary=self.snapshot.secondary_doctrine_family,
         )
 
     def _build_next_floor_identity(self, decision: SuccessorChoiceState, chosen: SuccessorCandidateView) -> FloorIdentityState:
         threat_profile = list(decision.threat_profile or [])
-        pressure_label = {
-            "high": "Containment floor",
-            "rising": "Pressure-test floor",
-            "low": "Expansion floor",
-        }.get(decision.civil_war_pressure or "", "Lineage floor")
-        top_threat = threat_profile[0] if threat_profile else "no dominant threat tag"
-        heir_tag = chosen.tags[0] if chosen.tags else "untyped"
-        dominant_pressure = top_threat if top_threat != "no dominant threat tag" else heir_tag
+        pressure_label = floor_pressure_label(decision.civil_war_pressure)
+        top_threat = threat_profile[0] if threat_profile else dominant_pressure_fallback()
+        heir_tag = chosen.tags[0] if chosen.tags else heir_tag_fallback()
+        dominant_pressure = top_threat if top_threat != dominant_pressure_fallback() else heir_tag
         clue_signal = (decision.featured_inference_summary[0] if decision.featured_inference_summary else None)
         doctrine = decision.lineage_doctrine or chosen.branch_doctrine
         floor_summary = self.snapshot.floor_summary
@@ -909,30 +947,43 @@ class FeaturedMatchWebSession:
         chosen_cause = (chosen.shaping_causes[0] if chosen.shaping_causes else chosen.succession_pitch).strip().rstrip(".")
         focus_name = branch_focus.name if branch_focus is not None else chosen.name
         focus_role = branch_focus.branch_role.lower() if branch_focus is not None else chosen.branch_role.lower()
-        pressure_reason = f"{dominant_pressure} pressure via {focus_name} ({focus_role}) under {chosen.name}."
+        pressure_reason = floor_identity_pressure_reason(
+            dominant_pressure=dominant_pressure,
+            focus_name=focus_name,
+            focus_role=focus_role,
+            chosen_name=chosen.name,
+        )
 
-        attractive_focus = chosen.attractive_now.lower()
+        attractive_focus = (chosen.why_now or chosen.attractive_now).lower()
         if len(attractive_focus) > 44:
             attractive_focus = attractive_focus[:41].rstrip() + "..."
-        danger_focus = chosen.danger_later.lower()
+        danger_focus = (chosen.watch_out or chosen.danger_later).lower()
         if len(danger_focus) > 44:
             danger_focus = danger_focus[:41].rstrip() + "..."
-        strategic_focus = f"Push {chosen.name.lower()}: {attractive_focus}; hedge {danger_focus}."
+        strategic_focus = floor_identity_focus(
+            chosen_name=chosen.name,
+            attractive_focus=attractive_focus,
+            danger_focus=danger_focus,
+        )
         if clue_signal is not None:
             clue_focus = clue_signal.split("|", 1)[0].strip().rstrip(".")
             if len(clue_focus) > 44:
                 clue_focus = clue_focus[:41].rstrip() + "..."
-            strategic_focus = f"{strategic_focus[:-1]} Track clue: {clue_focus.lower()}."
+            strategic_focus = floor_identity_focus_with_clue(base_focus=strategic_focus, clue_focus=clue_focus)
         elif chosen_cause:
             cause_focus = chosen_cause
             if len(cause_focus) > 44:
                 cause_focus = cause_focus[:41].rstrip() + "..."
-            strategic_focus = f"{strategic_focus[:-1]} Cause: {cause_focus.lower()}."
+            strategic_focus = floor_identity_focus_with_cause(base_focus=strategic_focus, cause_focus=cause_focus)
 
         if len(strategic_focus) > 160:
             strategic_focus = strategic_focus[:157].rstrip() + "..."
 
-        headline = f"{pressure_label}: {chosen.name} · {chosen.branch_role}"
+        headline = floor_identity_headline(
+            pressure_label=pressure_label,
+            chosen_name=chosen.name,
+            branch_role=chosen.branch_role,
+        )
         return FloorIdentityState(
             target_floor=self.floor_number + 1,
             host_name=chosen.name,
@@ -940,7 +991,7 @@ class FeaturedMatchWebSession:
             pressure_label=pressure_label,
             dominant_pressure=dominant_pressure,
             pressure_reason=pressure_reason,
-            lineage_direction=f"Doctrine path: {doctrine}",
+            lineage_direction=lineage_direction_text(doctrine=doctrine),
             strategic_focus=strategic_focus,
             key_signal=clue_signal,
         )
@@ -958,7 +1009,7 @@ class FeaturedMatchWebSession:
         if rivals:
             self.opponent = max(rivals, key=lambda agent: (agent.score, agent.wins, -agent.agent_id))
         else:
-            self.opponent = Agent(name="Civil War Rival", genome=self._opponent_genome())
+            self.opponent = Agent(name=CIVIL_WAR_RIVAL_NAME, genome=self._opponent_genome())
         self.opponent.is_player = False
 
         context = self.snapshot.civil_war_context
@@ -972,10 +1023,10 @@ class FeaturedMatchWebSession:
             event_id=f"civil_war_floor_start:{self.floor_number}:{self.opponent.name}",
             event_type="civil_war_round_start",
             floor_number=self.floor_number,
-            summary=f"Civil-war round started against {self.opponent.name}.",
+            summary=civil_war_round_start_summary(opponent_name=self.opponent.name),
             cause=self._lineage_cause_phrase(
                 doctrine_pressure,
-                "civil-war pressure forces a direct duel",
+                civil_war_started_fallback(),
             ),
         )
         self._begin_featured_round_decision()
@@ -1002,7 +1053,10 @@ class FeaturedMatchWebSession:
             event_id=f"floor_start:{self.floor_number}",
             event_type="floor_start",
             floor_number=self.floor_number,
-            summary=f"Floor {self.floor_number} started in ecosystem play.{identity_note}",
+            summary=ecosystem_floor_start_summary(
+                floor_number=self.floor_number,
+                identity_note=identity_note,
+            ),
         )
         self._begin_featured_round_decision()
 
@@ -1043,6 +1097,9 @@ class FeaturedMatchWebSession:
                     offer,
                     current_summary=self.player.genome.summary(),
                     projected_summary=offer.apply(self.player.genome).summary(),
+                    house_doctrine_family=self.snapshot.house_doctrine_family,
+                    primary_doctrine_family=self.snapshot.primary_doctrine_family,
+                    secondary_doctrine_family=self.snapshot.secondary_doctrine_family,
                 )
                 for offer in self._genome_offers
             ],
@@ -1068,7 +1125,11 @@ class FeaturedMatchWebSession:
                 event_id=f"run_outcome:{completion.outcome}",
                 event_type="run_outcome",
                 floor_number=self.floor_number,
-                summary=f"Run ended in {completion.outcome} on floor {self.floor_number} as {self.player.name}.",
+                summary=run_outcome_summary(
+                    outcome=completion.outcome,
+                    floor_number=self.floor_number,
+                    player_name=self.player.name,
+                ),
             )
             self.session.complete(completion, self.snapshot)
             self.snapshot.session_status = "completed"
@@ -1248,7 +1309,7 @@ class FeaturedMatchWebSession:
     def _select_floor_opponent(self) -> Agent:
         rivals = [agent for agent in self._branch_roster if agent is not self.player]
         if not rivals:
-            return Agent(name="Civil War Rival", genome=self._opponent_genome())
+            return Agent(name=CIVIL_WAR_RIVAL_NAME, genome=self._opponent_genome())
         opponent = max(rivals, key=lambda agent: (agent.score, agent.wins, -agent.agent_id))
         opponent.is_player = False
         return opponent

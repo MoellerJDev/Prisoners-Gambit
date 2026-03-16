@@ -192,6 +192,14 @@ class PowerupOfferView:
     tags: list[str] | None = None
     relevance_hint: str | None = None
     crown_hint: str | None = None
+    hook: str | None = None
+    timing: str | None = None
+    plan: str | None = None
+    cost: str | None = None
+    fit_detail: str | None = None
+    doctrine_commitment: str | None = None
+    player_tags: list[str] | None = None
+    crown_label: str | None = None
 
 
 @dataclass(slots=True)
@@ -207,6 +215,11 @@ class GenomeEditOfferView:
     current_summary: str | None = None
     projected_summary: str | None = None
     doctrine_drift: str | None = None
+    rewrite: str | None = None
+    doctrine_shift: str | None = None
+    tempo_note: str | None = None
+    stability_note: str | None = None
+    doctrine_commitment: str | None = None
 
 
 @dataclass(slots=True)
@@ -232,6 +245,16 @@ class SuccessorCandidateView:
     genome_summary: str
     powerups: list[str]
     featured_inference_context: str | None = None
+    headline: str | None = None
+    play_pattern: str | None = None
+    why_now: str | None = None
+    watch_out: str | None = None
+    dynasty_future: str | None = None
+    doctrine_arc: str | None = None
+    clue_future: str | None = None
+    clue_stability: str | None = None
+    clue_confidence: str | None = None
+    clue_confidence_label: str | None = None
 
 
 @dataclass(slots=True)
