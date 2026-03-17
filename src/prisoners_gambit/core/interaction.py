@@ -102,6 +102,43 @@ class RunHeaderState:
 
 
 @dataclass(slots=True)
+class DynastyResourcesState:
+    legitimacy: int
+    cohesion: int
+    leverage: int
+    claimant_name: str | None = None
+    claimant_depth: int | None = None
+    contingencies: int = 0
+
+
+@dataclass(slots=True)
+class FloorEventResponseView:
+    name: str
+    summary: str
+    duel_angle: str
+    vote_angle: str
+    dynasty_impact: str
+    offer_drift: str
+    risk: str
+    cost: str | None = None
+
+
+@dataclass(slots=True)
+class FloorEventState:
+    floor_number: int
+    title: str
+    summary: str
+    pressure: str
+    rule_text: str
+    clue_reliability: str
+    favored_doctrines: list[str] = field(default_factory=list)
+    threat_tags: list[str] = field(default_factory=list)
+    response_name: str | None = None
+    response_summary: str | None = None
+    response_tradeoff: str | None = None
+
+
+@dataclass(slots=True)
 class FloorRosterState:
     floor_number: int
     roster_entries: list[FloorRosterEntryView]
@@ -312,6 +349,19 @@ def validated_stance_rounds(stance: str, rounds: int | None) -> int | None:
 
 
 @dataclass(slots=True)
+class FloorEventChoiceState:
+    floor_number: int
+    phase: Literal["ecosystem", "civil_war"]
+    title: str
+    summary: str
+    pressure: str
+    rule_text: str
+    clue_reliability: str
+    responses: list[FloorEventResponseView]
+    valid_actions: tuple[Literal["choose_floor_event"], ...] = ("choose_floor_event",)
+
+
+@dataclass(slots=True)
 class FloorVoteDecisionState:
     prompt: FloorVotePrompt
     valid_actions: tuple[Literal["manual_vote", "autopilot_vote"], ...] = ("manual_vote", "autopilot_vote")
@@ -353,12 +403,18 @@ class CivilWarContext:
 
 
 DecisionState = (
-    FeaturedRoundDecisionState
+    FloorEventChoiceState
+    | FeaturedRoundDecisionState
     | FloorVoteDecisionState
     | PowerupChoiceState
     | GenomeEditChoiceState
     | SuccessorChoiceState
 )
+
+
+@dataclass(slots=True)
+class ChooseFloorEventAction:
+    response_index: int
 
 
 @dataclass(slots=True)
@@ -418,7 +474,8 @@ class ChooseSuccessorAction:
 
 
 PlayerAction = (
-    ChooseRoundMoveAction
+    ChooseFloorEventAction
+    | ChooseRoundMoveAction
     | ChooseRoundAutopilotAction
     | ChooseRoundStanceAction
     | ChooseFloorVoteAction
@@ -489,6 +546,8 @@ class RunSnapshot:
     header: RunHeaderState | None = None
     current_floor: int | None = None
     current_phase: Literal["ecosystem", "civil_war"] | None = None
+    dynasty_resources: DynastyResourcesState | None = None
+    active_floor_event: FloorEventState | None = None
     floor_roster: FloorRosterState | None = None
     latest_featured_round: FeaturedRoundResult | None = None
     floor_summary: FloorSummaryState | None = None

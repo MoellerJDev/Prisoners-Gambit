@@ -40,6 +40,7 @@ class PowerupOfferContext:
     house_doctrine_family: str | None = None
     primary_doctrine_family: str | None = None
     secondary_doctrine_family: str | None = None
+    event_bias_families: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +57,7 @@ class _BuildSignal:
     mutation_targets: frozenset[str]
     owned_families: frozenset[str]
     owned_tags: frozenset[str]
+    event_bias_families: frozenset[str]
     floor_number: int
     phase: str
 
@@ -163,6 +165,7 @@ def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
             mutation_targets=frozenset(_HYBRID_PAIRS.get(doctrine.primary_doctrine_family, ())),
             owned_families=frozenset(),
             owned_tags=frozenset(),
+            event_bias_families=frozenset(),
             floor_number=1,
             phase="both",
         )
@@ -185,6 +188,7 @@ def _signal_from_context(context: PowerupOfferContext | None) -> _BuildSignal:
         mutation_targets=frozenset(_HYBRID_PAIRS.get(primary, ())),
         owned_families=frozenset(powerup.doctrine_family for powerup in context.owned_powerups),
         owned_tags=frozenset(tag for powerup in context.owned_powerups for tag in powerup.keywords),
+        event_bias_families=frozenset(family for family in context.event_bias_families if family in _DOCTRINE_FAMILIES),
         floor_number=max(1, context.floor_number),
         phase=context.phase,
     )
@@ -237,6 +241,8 @@ def _category_weight(
             weight += 6.0
         if family == signal.house_family:
             weight += 1.2
+        if family in signal.event_bias_families:
+            weight += 1.8
         if signal.floor_number <= 3 and "anchor" in tags:
             weight += 0.8
         weight += shared_tags * 0.8
@@ -250,6 +256,8 @@ def _category_weight(
             weight += 6.4
         if signal.secondary_family and family == signal.secondary_family:
             weight += 4.8
+        if family in signal.event_bias_families:
+            weight += 2.2
         if family == signal.primary_family:
             weight += 0.4
         if shared_tags > 0:
@@ -261,6 +269,8 @@ def _category_weight(
     weight = 0.5
     if family != signal.primary_family and (signal.secondary_family is None or family != signal.secondary_family):
         weight += 2.2
+    if family in signal.event_bias_families:
+        weight += 2.4
     if powerup.crown_piece:
         weight += 6.5
     if shared_tags == 0:

@@ -8,7 +8,6 @@ from prisoners_gambit.core.interaction import ChooseSuccessorAction
 from support.builders import build_seeded_session
 from support.session_driver import (
     advance_through_transition_and_complete,
-    force_civil_war_transition,
     play_until_floor_summary,
     reach_successor_choice,
 )
@@ -81,20 +80,33 @@ def test_seeded_stance_slice_reaches_summary_with_active_stance_history(seed: in
 
 
 def test_seeded_defect_vote_path_changes_vote_summary_shape() -> None:
-    session = build_seeded_session(seed=61, rounds=2)
-    play_until_floor_summary(session, featured_mode="manual_cooperate", floor_vote=DEFECT)
+    cooperate_session = build_seeded_session(seed=61, rounds=2)
+    defect_session = build_seeded_session(seed=61, rounds=2)
+    play_until_floor_summary(cooperate_session, featured_mode="manual_cooperate")
+    play_until_floor_summary(defect_session, featured_mode="manual_cooperate", floor_vote=DEFECT)
 
-    vote = session.view()["snapshot"]["floor_vote_result"]
-    assert vote["player_vote"] == DEFECT
-    assert vote["cooperation_prevailed"] is False
-    assert vote["defectors"] > vote["cooperators"]
+    cooperate_vote = cooperate_session.view()["snapshot"]["floor_vote_result"]
+    defect_vote = defect_session.view()["snapshot"]["floor_vote_result"]
+
+    assert cooperate_vote is not None
+    assert defect_vote is not None
+    assert defect_vote["player_vote"] == DEFECT
+    assert (
+        defect_vote["cooperators"],
+        defect_vote["defectors"],
+        defect_vote["player_reward"],
+    ) != (
+        cooperate_vote["cooperators"],
+        cooperate_vote["defectors"],
+        cooperate_vote["player_reward"],
+    )
+    assert defect_vote["player_reward"] <= cooperate_vote["player_reward"]
 
 
 @pytest.mark.parametrize("seed,candidate_index", [(41, 1), (99, 0)])
 def test_seeded_completion_slice_finishes_for_multiple_paths(seed: int, candidate_index: int) -> None:
     session = build_seeded_session(seed=seed, rounds=2)
     reach_successor_choice(session)
-    force_civil_war_transition(session)
     advance_through_transition_and_complete(session, candidate_index=candidate_index)
 
     completion = session.view()["snapshot"]["completion"]

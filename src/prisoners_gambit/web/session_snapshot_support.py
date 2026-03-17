@@ -97,6 +97,8 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
     civil_war_signal = None
     if snapshot.civil_war_context is not None and snapshot.civil_war_context.doctrine_pressure:
         civil_war_signal = snapshot.civil_war_context.doctrine_pressure[0]
+    active_event = snapshot.active_floor_event
+    dynasty_resources = snapshot.dynasty_resources
 
     doctrine_chip, doctrine_detail = doctrine_commitment_summary(
         house=snapshot.house_doctrine_family,
@@ -121,11 +123,17 @@ def refresh_strategic_snapshot(snapshot: RunSnapshot, *, player_name: str, floor
             strategic_snapshot_pressure_chip(floor_pressure=floor_pressure),
             strategic_snapshot_lineage_chip(lineage_direction=lineage_direction),
             doctrine_chip,
+            *([f"Event: {active_event.title}"] if active_event is not None else []),
+            *([f"Legitimacy {dynasty_resources.legitimacy}/9"] if dynasty_resources is not None else []),
+            *([f"Cohesion {dynasty_resources.cohesion}/9"] if dynasty_resources is not None else []),
+            *([f"Leverage {dynasty_resources.leverage}/9"] if dynasty_resources is not None else []),
         ],
         details=[
             immediate_posture,
             doctrine_detail,
             strategic_snapshot_rival_detail(rival_signal=rival_signal),
+            *([f"Active response: {active_event.response_name}. {active_event.response_summary}" ] if active_event is not None and active_event.response_name and active_event.response_summary else []),
+            *([f"Claimant: {dynasty_resources.claimant_name or 'uncommitted'}; contingencies {dynasty_resources.contingencies}" ] if dynasty_resources is not None else []),
             *([strategic_snapshot_pressure_detail(pressure_cause=pressure_cause)] if pressure_cause else []),
             *([strategic_snapshot_civil_war_detail(civil_war_signal=civil_war_signal)] if civil_war_signal else []),
         ],

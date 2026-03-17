@@ -8,6 +8,7 @@ successor choice, completion) so tests can assert contracts at each boundary.
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
+    ChooseFloorEventAction,
     ChooseFloorVoteAction,
     ChooseGenomeEditAction,
     ChoosePowerupAction,
@@ -39,6 +40,7 @@ def session_milestone(session: FeaturedMatchWebSession) -> str:
 
     current = decision_type(session)
     milestones = {
+        "FloorEventChoiceState": "floor_event_decision",
         "FeaturedRoundDecisionState": "featured_round_decision",
         "FloorVoteDecisionState": "floor_vote_decision",
         "SuccessorChoiceState": "successor_choice_decision",
@@ -59,11 +61,16 @@ def advance_until_decision(session: FeaturedMatchWebSession, expected: str, *, m
 def play_featured_rounds(
     session: FeaturedMatchWebSession,
     *,
+    event_response_index: int = 0,
     mode: str = "manual_cooperate",
     stance_rounds: int = 2,
     manual_move: int = COOPERATE,
 ) -> None:
     """Resolve featured rounds until floor vote using a compact action mode."""
+    if decision_type(session) == "FloorEventChoiceState":
+        session.submit_action(ChooseFloorEventAction(response_index=event_response_index))
+        session.advance()
+
     first_round = True
     while decision_type(session) == "FeaturedRoundDecisionState":
         if mode == "manual_cooperate":
@@ -97,11 +104,12 @@ def play_featured_rounds(
 def play_until_floor_summary(
     session: FeaturedMatchWebSession,
     *,
+    event_response_index: int = 0,
     featured_mode: str = "manual_cooperate",
     floor_vote: int = COOPERATE,
 ) -> None:
     """Drive one seeded match slice up to the floor-summary pending screen."""
-    play_featured_rounds(session, mode=featured_mode)
+    play_featured_rounds(session, event_response_index=event_response_index, mode=featured_mode)
 
     if decision_type(session) != "FloorVoteDecisionState":
         raise AssertionError("Expected floor-vote decision after featured rounds")
@@ -110,11 +118,19 @@ def play_until_floor_summary(
     session.advance()
 
 
-def reach_successor_choice(session: FeaturedMatchWebSession, *, featured_mode: str = "manual_cooperate", floor_vote: int = COOPERATE) -> None:
-    play_until_floor_summary(session, featured_mode=featured_mode, floor_vote=floor_vote)
+def reach_successor_choice(
+    session: FeaturedMatchWebSession,
+    *,
+    event_response_index: int = 0,
+    featured_mode: str = "manual_cooperate",
+    floor_vote: int = COOPERATE,
+) -> None:
+    play_until_floor_summary(session, event_response_index=event_response_index, featured_mode=featured_mode, floor_vote=floor_vote)
     if session.view()["pending_screen"] != "floor_summary":
         raise AssertionError("Expected floor summary pending screen before successor choice")
     session.advance()
+    if decision_type(session) != "SuccessorChoiceState":
+        force_civil_war_transition(session)
     if decision_type(session) != "SuccessorChoiceState":
         raise AssertionError("Expected successor-choice decision")
 
@@ -127,6 +143,57 @@ def force_civil_war_transition(session: FeaturedMatchWebSession) -> None:
     current_host = session.player if session._current_host_survived_floor() else lineage_survivors[0]
     session._upcoming_phase = "civil_war"
     session.snapshot.civil_war_context = session._build_civil_war_context(current_host=current_host)
+    session._pending_successor_reason = "civil_war_claimant"
+    session._pending_screen = None
+    session._pending_message = None
+    session.snapshot.successor_options = None
+    session.session.current_decision = None
+    session.session.status = "running"
+    session.snapshot.session_status = "running"
+    session._begin_post_summary_flow()
+
+
+def force_host_elimination_transition(session: FeaturedMatchWebSession) -> None:
+    lineage_survivors = [
+        agent
+        for agent in session._branch_roster
+        if agent.lineage_id == session.player.lineage_id and agent.agent_id != session.player.agent_id
+    ]
+    outsiders = [agent for agent in session._branch_roster if agent.lineage_id != session.player.lineage_id]
+    if not lineage_survivors:
+        raise AssertionError("Expected at least one surviving lineage branch besides the current host")
+    if not outsiders:
+        raise AssertionError("Expected outsiders to remain for ecosystem host-elimination transition")
+
+    session._branch_roster = [*lineage_survivors, *outsiders]
+    session._upcoming_phase = "ecosystem"
+    session.snapshot.civil_war_context = None
+    session._pending_successor_reason = "host_eliminated"
+    session._pending_screen = None
+    session._pending_message = None
+    session.snapshot.successor_options = None
+    session.session.current_decision = None
+    session.session.status = "running"
+    session.snapshot.session_status = "running"
+    session._begin_post_summary_flow()
+
+
+def advance_through_reward_selection(
+    session: FeaturedMatchWebSession,
+    *,
+    powerup_index: int = 0,
+    genome_index: int = 0,
+) -> None:
+    if decision_type(session) == "PowerupChoiceState":
+        offers = session.view()["decision"]["offers"]
+        choice = min(powerup_index, len(offers) - 1)
+        session.submit_action(ChoosePowerupAction(offer_index=choice))
+        session.advance()
+    if decision_type(session) == "GenomeEditChoiceState":
+        offers = session.view()["decision"]["offers"]
+        choice = min(genome_index, len(offers) - 1)
+        session.submit_action(ChooseGenomeEditAction(offer_index=choice))
+        session.advance()
 
 
 def advance_through_transition_and_complete(

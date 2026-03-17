@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
+    ChooseFloorEventAction,
     ChooseFloorVoteAction,
     ChooseGenomeEditAction,
     ChoosePowerupAction,
@@ -287,6 +288,8 @@ class Handler(BaseHTTPRequestHandler):
                 action = ChooseGenomeEditAction(offer_index=int(payload.get("offer_index", -1)))
             elif action_type == "choose_successor":
                 action = ChooseSuccessorAction(candidate_index=int(payload.get("candidate_index", -1)))
+            elif action_type == "choose_floor_event":
+                action = ChooseFloorEventAction(response_index=int(payload.get("response_index", -1)))
             else:
                 self._json({"error": "invalid action"}, status=400)
                 return

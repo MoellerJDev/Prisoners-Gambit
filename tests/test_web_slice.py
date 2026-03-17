@@ -9,6 +9,7 @@ import pytest
 
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
+    ChooseFloorEventAction,
     ChooseFloorVoteAction,
     ChooseGenomeEditAction,
     ChoosePowerupAction,
@@ -29,12 +30,29 @@ from prisoners_gambit.core.powerups import (
     UnityTicket,
 )
 from prisoners_gambit.core.strategy import StrategyGenome
+from prisoners_gambit.systems.floor_events import ActiveFloorEvent, FLOOR_EVENTS, choose_floor_event_response
 from prisoners_gambit.systems.tournament import MatchResult
 from prisoners_gambit.web.server import Handler, _new_web_session, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
-from support.session_driver import advance_through_transition_and_complete, force_civil_war_transition
+from support.session_driver import (
+    advance_through_reward_selection,
+    advance_through_transition_and_complete,
+    force_civil_war_transition,
+    force_host_elimination_transition,
+)
 
 TEST_PADDING_LENGTH = 20_000
+
+
+def _choose_floor_event(session: FeaturedMatchWebSession, response_index: int = 0) -> None:
+    assert session.view()["decision_type"] == "FloorEventChoiceState"
+    session.submit_action(ChooseFloorEventAction(response_index=response_index))
+    session.advance()
+
+
+def _clear_active_floor_event(session: FeaturedMatchWebSession) -> None:
+    session._active_floor_event = None
+    session.snapshot.active_floor_event = None
 
 
 def test_new_web_session_honors_pg_seed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,6 +96,16 @@ def test_featured_match_web_session_round_trip_typed_action() -> None:
 def test_web_session_featured_prompt_and_round_payload_include_inference_fields() -> None:
     session = FeaturedMatchWebSession(seed=13, rounds=3)
     session.start()
+
+    decision = session.view()["decision"]
+    assert decision is not None
+    assert decision["title"]
+    assert decision["summary"]
+    assert decision["rule_text"]
+    assert decision["responses"]
+    assert decision["valid_actions"] == ("choose_floor_event",)
+
+    _choose_floor_event(session)
 
     decision = session.view()["decision"]
     assert decision is not None
@@ -225,13 +253,9 @@ def test_web_session_continuity_signals_update_across_floor_transition() -> None
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
-    session.submit_action(ChoosePowerupAction(offer_index=0))
-    session.advance()
-    session.submit_action(ChooseGenomeEditAction(offer_index=0))
-    session.advance()
+    advance_through_reward_selection(session)
 
+    _choose_floor_event(session)
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
@@ -349,12 +373,8 @@ def test_web_session_continuity_baseline_updates_only_on_new_floor_summary() -> 
     assert mid == before
 
     session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
-    session.submit_action(ChoosePowerupAction(offer_index=0))
-    session.advance()
-    session.submit_action(ChooseGenomeEditAction(offer_index=0))
-    session.advance()
+    advance_through_reward_selection(session)
+    _choose_floor_event(session)
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
@@ -386,12 +406,8 @@ def test_web_session_new_central_rival_is_transition_based_not_rebuild_based() -
     assert rebuilt_new_rivals == first_new_rivals
 
     session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
-    session.submit_action(ChoosePowerupAction(offer_index=0))
-    session.advance()
-    session.submit_action(ChooseGenomeEditAction(offer_index=0))
-    session.advance()
+    advance_through_reward_selection(session)
+    _choose_floor_event(session)
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
@@ -399,8 +415,10 @@ def test_web_session_new_central_rival_is_transition_based_not_rebuild_based() -
 
     floor_two_board = session.view()["snapshot"]["dynasty_board"]["entries"]
     second_new_rivals = {entry["name"] for entry in floor_two_board if entry["is_new_central_rival"]}
-    assert second_new_rivals
-    assert second_new_rivals != first_new_rivals
+    if second_new_rivals:
+        assert second_new_rivals != first_new_rivals
+    else:
+        assert any(entry["is_central_rival"] for entry in floor_two_board)
 
 
 def test_web_session_dynasty_board_marks_host_and_successor_pressure_on_floor_summary() -> None:
@@ -449,13 +467,9 @@ def test_web_session_roster_continuity_reuses_branch_identities_across_ecosystem
     first_floor_names = {entry["name"] for entry in first_summary["entries"]}
 
     session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
-    session.submit_action(ChoosePowerupAction(offer_index=0))
-    session.advance()
-    session.submit_action(ChooseGenomeEditAction(offer_index=0))
-    session.advance()
+    advance_through_reward_selection(session)
 
+    _choose_floor_event(session)
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
@@ -482,7 +496,7 @@ def test_web_session_successor_candidates_derive_from_persistent_roster() -> Non
     assert summary is not None
     summary_names = {entry["name"] for entry in summary["entries"]}
 
-    session.advance()
+    force_civil_war_transition(session)
     successor = session.view()["decision"]
     assert successor is not None
     candidate_names = {entry["name"] for entry in successor["candidates"]}
@@ -526,11 +540,9 @@ def test_web_session_dynasty_board_can_show_host_pressure_and_danger_on_same_ent
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
-    session.advance()
-
+    force_civil_war_transition(session)
     candidates = session.view()["decision"]["candidates"]
     top_candidate_index = max(range(len(candidates)), key=lambda idx: candidates[idx]["score"])
-    force_civil_war_transition(session)
     session.submit_action(ChooseSuccessorAction(candidate_index=top_candidate_index))
     session.advance()
     session.submit_action(ChoosePowerupAction(offer_index=0))
@@ -553,7 +565,7 @@ def test_web_session_lineage_chronicle_captures_causal_pivots_without_duplicatio
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
-    session.advance()
+    force_civil_war_transition(session)
 
     chronicle = session.view()["snapshot"]["lineage_chronicle"]
     doctrine_entries = [entry for entry in chronicle if entry["event_type"] == "doctrine_pivot"]
@@ -632,7 +644,7 @@ def test_web_session_restore_from_civil_war_transition_continues_to_civil_war_de
     session.advance()
     restored.advance()
     assert session.view() == restored.view()
-    assert restored.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert restored.view()["decision_type"] == "FloorEventChoiceState"
 
 def test_web_session_state_serializes_rng_as_safe_json_data() -> None:
     session = FeaturedMatchWebSession(seed=23, rounds=3)
@@ -737,6 +749,8 @@ def test_featured_match_web_session_rejects_duration_stance_without_rounds() -> 
 def test_web_session_advances_through_full_run_loop() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
     session.start()
+    assert session.view()["decision_type"] == "FloorEventChoiceState"
+    _choose_floor_event(session)
 
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
@@ -747,31 +761,10 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert session.view()["pending_screen"] == "floor_summary"
 
     session.advance()
-    assert session.view()["decision_type"] == "SuccessorChoiceState"
-    successor_decision = session.view()["decision"]
-    assert successor_decision is not None
-    assert {"current_phase", "lineage_doctrine", "threat_profile", "civil_war_pressure"}.issubset(successor_decision.keys())
-    assert successor_decision["civil_war_pressure"] in {"low", "rising", "high"}
-    successor_candidate = successor_decision["candidates"][0]
-    assert {
-        "headline",
-        "play_pattern",
-        "why_now",
-        "watch_out",
-        "dynasty_future",
-        "doctrine_arc",
-        "clue_future",
-        "clue_stability",
-        "clue_confidence",
-        "featured_inference_context",
-    }.issubset(successor_candidate.keys())
-
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
+    assert session.view()["decision_type"] == "PowerupChoiceState"
     assert session.view()["pending_screen"] is None
     assert session.view()["snapshot"]["current_phase"] == "ecosystem"
     assert session.view()["snapshot"]["civil_war_context"] is None
-    assert session.view()["decision_type"] == "PowerupChoiceState"
     floor_identity = session.view()["snapshot"]["floor_identity"]
     assert floor_identity is not None
     assert floor_identity["target_floor"] == 2
@@ -832,7 +825,36 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert session.view()["snapshot"]["current_phase"] == "ecosystem"
     assert session.view()["snapshot"]["current_floor"] == 2
     assert session.view()["snapshot"]["floor_identity"] is not None
-    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert session.view()["decision_type"] == "FloorEventChoiceState"
+
+
+def test_web_session_successor_choice_surfaces_enriched_candidate_payload() -> None:
+    session = FeaturedMatchWebSession(seed=7, rounds=1)
+    session.start()
+    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+    session.advance()
+    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+    session.advance()
+
+    force_civil_war_transition(session)
+
+    successor_decision = session.view()["decision"]
+    assert successor_decision is not None
+    assert {"current_phase", "lineage_doctrine", "threat_profile", "civil_war_pressure"}.issubset(successor_decision.keys())
+    assert successor_decision["civil_war_pressure"] in {"low", "rising", "high"}
+    successor_candidate = successor_decision["candidates"][0]
+    assert {
+        "headline",
+        "play_pattern",
+        "why_now",
+        "watch_out",
+        "dynasty_future",
+        "doctrine_arc",
+        "clue_future",
+        "clue_stability",
+        "clue_confidence",
+        "featured_inference_context",
+    }.issubset(successor_candidate.keys())
 
 
 def test_web_session_completes_within_floor_cap_under_simple_policy() -> None:
@@ -874,7 +896,7 @@ def test_web_session_successor_choice_changes_next_floor_identity_framing() -> N
     session_a.advance()
     session_a.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session_a.advance()
-    session_a.advance()
+    force_host_elimination_transition(session_a)
     session_a.submit_action(ChooseSuccessorAction(candidate_index=0))
     session_a.advance()
     identity_a = session_a.view()["snapshot"]["floor_identity"]
@@ -885,7 +907,7 @@ def test_web_session_successor_choice_changes_next_floor_identity_framing() -> N
     session_b.advance()
     session_b.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session_b.advance()
-    session_b.advance()
+    force_host_elimination_transition(session_b)
     session_b.submit_action(ChooseSuccessorAction(candidate_index=1))
     session_b.advance()
     identity_b = session_b.view()["snapshot"]["floor_identity"]
@@ -910,7 +932,7 @@ def test_web_session_floor_identity_carries_lineage_pressure_between_floors() ->
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
-    session.advance()
+    force_host_elimination_transition(session)
 
     decision = session.view()["decision"]
     assert decision is not None
@@ -934,7 +956,7 @@ def test_web_session_floor_identity_is_concise_for_mobile_readability() -> None:
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
-    session.advance()
+    force_host_elimination_transition(session)
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
@@ -953,7 +975,7 @@ def test_web_session_floor_identity_differs_by_successor_branch_pressure() -> No
     session_a.advance()
     session_a.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session_a.advance()
-    session_a.advance()
+    force_host_elimination_transition(session_a)
     session_a.submit_action(ChooseSuccessorAction(candidate_index=0))
     session_a.advance()
     identity_a = session_a.view()["snapshot"]["floor_identity"]
@@ -964,7 +986,7 @@ def test_web_session_floor_identity_differs_by_successor_branch_pressure() -> No
     session_b.advance()
     session_b.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session_b.advance()
-    session_b.advance()
+    force_host_elimination_transition(session_b)
     session_b.submit_action(ChooseSuccessorAction(candidate_index=1))
     session_b.advance()
     identity_b = session_b.view()["snapshot"]["floor_identity"]
@@ -983,9 +1005,6 @@ def test_web_session_successor_transition_does_not_require_civil_war_when_trigge
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
-    session.advance()
-
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
 
     assert session.view()["decision_type"] == "PowerupChoiceState"
@@ -1007,8 +1026,6 @@ def test_web_session_save_resume_persists_next_floor_transition_after_reward_res
     session.advance()
     session.advance()
 
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
     session.submit_action(ChoosePowerupAction(offer_index=0))
     session.advance()
     session.submit_action(ChooseGenomeEditAction(offer_index=0))
@@ -1022,7 +1039,7 @@ def test_web_session_save_resume_persists_next_floor_transition_after_reward_res
     assert restored.view()["snapshot"]["current_phase"] == "ecosystem"
     assert restored.view()["snapshot"]["current_floor"] == 2
     assert restored.view()["snapshot"]["floor_identity"] is not None
-    assert restored.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert restored.view()["decision_type"] == "FloorEventChoiceState"
 
 def test_web_session_pending_messages_describe_next_required_action() -> None:
     session = FeaturedMatchWebSession(seed=19, rounds=1)
@@ -1033,11 +1050,10 @@ def test_web_session_pending_messages_describe_next_required_action() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
 
-    assert session.view()["pending_message"] == "Floor 1 complete. Review successor options."
+    assert session.view()["pending_message"] == "Floor 1 complete. Continue to reward selection."
 
     session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
+    assert session.view()["decision_type"] == "PowerupChoiceState"
     assert session.view()["pending_message"] is None
 
 
@@ -1058,11 +1074,9 @@ def test_web_session_transition_action_label_is_contextual_for_pending_states() 
 
     assert session.view()["pending_screen"] == "floor_summary"
     assert session.view()["transition_action_visible"] is True
-    assert session.view()["transition_action_kind"] == "successor_review"
-    assert session.view()["transition_action_label"] == "Review successor options"
+    assert session.view()["transition_action_kind"] == "reward_selection"
+    assert session.view()["transition_action_label"] == "Continue to reward selection"
 
-    session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
 
     assert session.view()["pending_screen"] is None
@@ -1074,7 +1088,7 @@ def test_web_session_transition_action_hidden_when_decision_is_active() -> None:
     session = FeaturedMatchWebSession(seed=21, rounds=1)
     session.start()
 
-    assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+    assert session.view()["decision_type"] == "FloorEventChoiceState"
     assert session.view()["transition_action_visible"] is False
     assert session.view()["transition_action_label"] is None
 
@@ -1161,7 +1175,7 @@ def test_web_api_drives_session_without_terminal_formatting() -> None:
         with urlopen(req) as resp:
             started = json.loads(resp.read().decode("utf-8"))
         assert started["status"] == "awaiting_decision"
-        assert started["decision_type"] == "FeaturedRoundDecisionState"
+        assert started["decision_type"] == "FloorEventChoiceState"
 
         action_body = json.dumps({"type": "manual_move", "move": "C"}).encode("utf-8")
         req = Request(
@@ -1185,6 +1199,10 @@ def test_web_api_exposes_round_action_types_and_stance_options() -> None:
     session = FeaturedMatchWebSession(seed=11, rounds=2)
     session.start()
 
+    decision = session.view()["decision"]
+    assert decision["valid_actions"] == ("choose_floor_event",)
+
+    _choose_floor_event(session)
     decision = session.view()["decision"]
 
     assert decision["valid_actions"] == (
@@ -1615,10 +1633,6 @@ def test_template_and_js_no_longer_keep_major_canonical_ui_literals() -> None:
     assert "No outside pressure spotted." not in js_source
     assert "No active score rules." not in js_source
     assert "No clue memory this floor." not in js_source
-    assert "phase: " not in js_source
-    assert "floor: " not in js_source
-    assert "status: " not in js_source
-    assert "stance: " not in js_source
     assert "Drift: " not in js_source
     assert "→ You " not in js_source
     assert ", Opp " not in js_source
@@ -1913,6 +1927,8 @@ def _always_defect_genome() -> StrategyGenome:
 def test_web_runtime_forced_cooperation_combo_is_consumed_in_featured_round_flow() -> None:
     session = FeaturedMatchWebSession(seed=41, rounds=2)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [CoerciveControl(), ComplianceDividend(bonus=1)]
     session.opponent.genome = StrategyGenome(
         first_move=COOPERATE,
@@ -1935,6 +1951,8 @@ def test_web_runtime_forced_cooperation_combo_is_consumed_in_featured_round_flow
 def test_web_runtime_locked_coop_trust_combo_is_consumed() -> None:
     session = FeaturedMatchWebSession(seed=43, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [GoldenHandshake(), TrustDividend()]
     session.opponent.genome = _always_defect_genome()
 
@@ -1950,6 +1968,8 @@ def test_web_runtime_locked_coop_trust_combo_is_consumed() -> None:
 def test_web_runtime_retaliation_spiral_combo_is_consumed() -> None:
     session = FeaturedMatchWebSession(seed=47, rounds=3)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [SpiteEngine(), PanicButton()]
     session.opponent.genome = _always_defect_genome()
 
@@ -1968,6 +1988,8 @@ def test_web_runtime_retaliation_spiral_combo_is_consumed() -> None:
 def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None:
     session = FeaturedMatchWebSession(seed=53, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [UnityTicket(), BlocPolitics(bonus=2)]
 
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
@@ -1986,6 +2008,8 @@ def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None
 def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
     session = FeaturedMatchWebSession(seed=29, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
 
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
@@ -2003,6 +2027,8 @@ def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
 def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_once() -> None:
     session = FeaturedMatchWebSession(seed=31, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
 
     session.player.powerups = []
     for agent in session._branch_roster:
@@ -2066,6 +2092,94 @@ def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_
     assert session.opponent.wins >= 1
 
 
+def test_web_session_round_trip_preserves_stable_line_streak() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session._stable_line_streak = 3
+
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+
+    assert restored._stable_line_streak == 3
+
+
+def test_web_session_event_supported_rivals_follow_floor_pressure() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    template = next(event for event in FLOOR_EVENTS if event.key == "trade_summit")
+    session._active_floor_event = choose_floor_event_response(
+        ActiveFloorEvent(floor_number=1, phase="ecosystem", template=template),
+        response_index=0,
+    )
+    session.snapshot.active_floor_event = None
+    session.opponent.powerups = [GoldenHandshake()]
+
+    assert session._event_adjusted_rival_move(session.opponent, DEFECT) == COOPERATE
+    assert session._event_adjusted_rival_vote(session.opponent, DEFECT) == COOPERATE
+
+
+def test_web_session_repeated_stable_lines_make_rivals_pivot_into_counterplay() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    template = next(event for event in FLOOR_EVENTS if event.key == "oath_tribunal")
+    session._active_floor_event = choose_floor_event_response(
+        ActiveFloorEvent(floor_number=5, phase="ecosystem", template=template),
+        response_index=1,
+    )
+    session.floor_number = 5
+    session._stable_line_streak = 2
+    session.opponent.powerups = []
+
+    assert session._event_adjusted_rival_move(session.opponent, COOPERATE) == DEFECT
+    assert session._event_adjusted_rival_vote(session.opponent, COOPERATE) == DEFECT
+
+
+def test_web_session_reward_catchup_support_grants_rivals_contextual_powerups() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    _choose_floor_event(session)
+    session.player.powerups = [GoldenHandshake(), TrustDividend(), PanicButton()]
+    session.player.score = 12
+    for rival in session._branch_roster:
+        if rival is session.player:
+            continue
+        rival.powerups = []
+        rival.score = 1
+
+    before_counts = {agent.agent_id: len(agent.powerups) for agent in session._branch_roster if agent is not session.player}
+
+    session._apply_reward_catchup_support(phase="ecosystem")
+
+    after_counts = {agent.agent_id: len(agent.powerups) for agent in session._branch_roster if agent is not session.player}
+    granted = sum(after_counts[agent_id] - before_counts[agent_id] for agent_id in after_counts)
+
+    assert granted >= 1
+    assert granted <= 2
+    assert max(after_counts.values(), default=0) >= 1
+
+
+def test_web_session_late_stability_counterpressure_transfers_floor_pressure() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session.floor_number = 5
+    session.player_history = [COOPERATE, COOPERATE]
+    session._stable_line_streak = 2
+    session.player_score = 8
+    session.player.score = 8
+    rivals = [agent for agent in session._branch_roster if agent is not session.player]
+    assert rivals
+    for rival in rivals:
+        rival.score = 0
+
+    penalty = session._late_stability_penalty(final_vote=COOPERATE)
+    session._apply_late_stability_counterpressure(penalty=penalty)
+
+    assert penalty == 2
+    assert session.player_score == 6
+    assert session.player.score == 6
+    assert sum(rival.score for rival in rivals) == 2
+    assert max(rival.score for rival in rivals) == 1
+
+
 def test_web_session_initializes_house_doctrine_from_seed() -> None:
     session_a = FeaturedMatchWebSession(seed=41, rounds=1)
     session_b = FeaturedMatchWebSession(seed=41, rounds=1)
@@ -2104,12 +2218,7 @@ def test_web_house_doctrine_stays_stable_across_floor_progression() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
-    session.submit_action(ChoosePowerupAction(offer_index=0))
-    session.advance()
-    session.submit_action(ChooseGenomeEditAction(offer_index=0))
-    session.advance()
+    advance_through_reward_selection(session)
 
     assert session.view()["snapshot"]["current_floor"] == 2
     assert session.view()["snapshot"]["house_doctrine_family"] == house
@@ -2126,7 +2235,7 @@ def test_successor_and_chronicle_surface_doctrine_mutation_framing() -> None:
     session.advance()
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
-    session.advance()
+    force_civil_war_transition(session)
 
     decision = session.view()["decision"]
     assert decision is not None

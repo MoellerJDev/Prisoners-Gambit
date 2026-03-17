@@ -14,7 +14,7 @@ from support.builders import (
     build_successor_candidates,
     random_seed_set,
 )
-from support.session_driver import play_until_floor_summary, reach_successor_choice
+from support.session_driver import force_civil_war_transition, play_until_floor_summary, reach_successor_choice
 
 
 def _seeded_summary_digest(seed: int) -> dict:
@@ -105,6 +105,17 @@ def test_invariant_floor_summary_heir_pressure_shape_across_multiple_seeds() -> 
 
 def test_invariant_no_missing_required_fields_in_decision_payloads() -> None:
     required_by_state = {
+        "FloorEventChoiceState": {
+            "floor_number",
+            "phase",
+            "title",
+            "summary",
+            "pressure",
+            "rule_text",
+            "clue_reliability",
+            "responses",
+            "valid_actions",
+        },
         "FeaturedRoundDecisionState": {"prompt", "valid_actions", "stance_options"},
         "SuccessorChoiceState": {
             "floor_number",
@@ -127,6 +138,9 @@ def test_invariant_no_missing_required_fields_in_decision_payloads() -> None:
         play_until_floor_summary(session)
         session.advance()
         successor = session.view()
+        if successor["decision_type"] != "SuccessorChoiceState":
+            force_civil_war_transition(session)
+            successor = session.view()
         assert required_by_state[successor["decision_type"]].issubset(successor["decision"].keys())
 
         session.submit_action(ChooseSuccessorAction(candidate_index=0))

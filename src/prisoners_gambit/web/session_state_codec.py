@@ -11,6 +11,7 @@ from typing import Any, get_type_hints
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.genome_edits import GenomeEdit
 from prisoners_gambit.core.interaction import (
+    ChooseFloorEventAction,
     ChooseFloorVoteAction,
     ChooseGenomeEditAction,
     ChoosePowerupAction,
@@ -18,6 +19,7 @@ from prisoners_gambit.core.interaction import (
     ChooseRoundMoveAction,
     ChooseRoundStanceAction,
     ChooseSuccessorAction,
+    FloorEventChoiceState,
     FloorVoteDecisionState,
     GenomeEditChoiceState,
     PowerupChoiceState,
@@ -181,6 +183,7 @@ def deserialize_decision(decision_type_name: str | None, payload: dict | None, d
 def resolve_expected_action_types(expected_type_names: list[str], decision) -> tuple[type, ...]:
     if expected_type_names:
         type_map = {
+            "ChooseFloorEventAction": ChooseFloorEventAction,
             "ChooseRoundMoveAction": ChooseRoundMoveAction,
             "ChooseRoundAutopilotAction": ChooseRoundAutopilotAction,
             "ChooseRoundStanceAction": ChooseRoundStanceAction,
@@ -197,6 +200,8 @@ def resolve_expected_action_types(expected_type_names: list[str], decision) -> t
         return tuple(resolved_types)
     if isinstance(decision, FeaturedRoundDecisionState):
         return (ChooseRoundMoveAction, ChooseRoundAutopilotAction, ChooseRoundStanceAction)
+    if isinstance(decision, FloorEventChoiceState):
+        return (ChooseFloorEventAction,)
     if isinstance(decision, FloorVoteDecisionState):
         return (ChooseFloorVoteAction,)
     if isinstance(decision, PowerupChoiceState):

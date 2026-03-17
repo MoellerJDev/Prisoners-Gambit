@@ -118,8 +118,6 @@ def test_refresh_strategic_snapshot_surfaces_floor_identity_consequence_cause() 
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
 
     strategic = refresh_strategic_snapshot(session.snapshot, player_name=session.player.name, floor_number=session.floor_number)
     assert any(line.startswith("Why dangerous now: ") for line in strategic.details)

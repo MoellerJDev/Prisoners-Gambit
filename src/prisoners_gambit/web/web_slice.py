@@ -49,6 +49,7 @@ from prisoners_gambit.core.featured_inference import (
 from prisoners_gambit.core.successor_analysis import civil_war_pressure_for_threat_tags
 from prisoners_gambit.core.constants import COOPERATE, DEFECT
 from prisoners_gambit.core.interaction import (
+    ChooseFloorEventAction,
     ChooseFloorVoteAction,
     ChooseGenomeEditAction,
     ChoosePowerupAction,
@@ -61,6 +62,7 @@ from prisoners_gambit.core.interaction import (
     FeaturedRoundResult,
     FeaturedRoundStanceView,
     FloorIdentityState,
+    FloorEventChoiceState,
     FloorVoteDecisionState,
     FloorVotePrompt,
     FloorVoteResult,
@@ -75,6 +77,18 @@ from prisoners_gambit.core.interaction import (
     SuccessorCandidateView,
     SuccessorChoiceState,
     validated_stance_rounds,
+)
+from prisoners_gambit.core.dynasty import (
+    DynastyState,
+    adjust_dynasty_state,
+    can_use_contingency,
+    clear_claimant,
+    initial_dynasty_state,
+    is_claimant_alive,
+    set_claimant,
+    spend_contingency,
+    to_view as dynasty_to_view,
+    update_after_floor,
 )
 from prisoners_gambit.core.models import Agent
 from prisoners_gambit.core.offer_views import to_genome_edit_offer_view, to_powerup_offer_view
@@ -101,6 +115,22 @@ from prisoners_gambit.systems.offers import (
     seed_run_house_doctrine,
 )
 from prisoners_gambit.systems.evolution import EvolutionEngine
+from prisoners_gambit.systems.floor_events import (
+    ActiveFloorEvent,
+    DynastyModifier,
+    apply_match_event_bonus,
+    apply_referendum_event_bonus,
+    choose_floor_event_response,
+    clue_prefix,
+    favored_offer_biases,
+    generate_floor_event,
+    preferred_round_move,
+    preferred_vote,
+    response_dynasty_modifier,
+    response_commitment_modifier,
+    to_choice_state as floor_event_choice_state,
+    to_snapshot_state as floor_event_snapshot_state,
+)
 from prisoners_gambit.systems.progression import ProgressionEngine
 from prisoners_gambit.systems.tournament import TournamentEngine
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
@@ -111,6 +141,7 @@ from prisoners_gambit.web.session_snapshot_support import (
     refresh_strategic_snapshot,
 )
 from prisoners_gambit.web.session_state_codec import (
+    build_dataclass,
     deserialize_agent,
     deserialize_decision,
     deserialize_genome_edit,
@@ -130,6 +161,7 @@ from prisoners_gambit.web.session_state_codec import (
 
 SAVE_STATE_VERSION = 1
 _DECISION_TYPES = {
+    "FloorEventChoiceState": FloorEventChoiceState,
     "FeaturedRoundDecisionState": FeaturedRoundDecisionState,
     "FloorVoteDecisionState": FloorVoteDecisionState,
     "PowerupChoiceState": PowerupChoiceState,
@@ -160,6 +192,7 @@ class FeaturedMatchWebSession:
         self.descendant_mutation_bonus = descendant_mutation_bonus
         self.session = RunSession()
         self.snapshot = RunSnapshot()
+        self._dynasty_state = initial_dynasty_state()
         self.player = Agent(name="You", genome=self._default_genome(), is_player=True, lineage_id=1)
         self.opponent = Agent(name=UNKNOWN_OPPONENT_LABEL, genome=self._opponent_genome())
         self.player.powerups.append(ComplianceDividend())
@@ -179,9 +212,13 @@ class FeaturedMatchWebSession:
         self._pending_screen: str | None = None
         self._pending_message: str | None = None
         self._upcoming_phase: str | None = None
+        self._pending_successor_reason: str | None = None
         self._powerup_offers = []
         self._genome_offers = []
         self._successor_candidates: list[Agent] = []
+        self._active_floor_event: ActiveFloorEvent | None = None
+        self._previous_event_key: str | None = None
+        self._stable_line_streak = 0
         self._floor_clue_log: list[str] = []
         self._chronicle_event_ids: set[str] = set()
         self._branch_continuity_streaks: dict[str, int] = {}
@@ -233,10 +270,15 @@ class FeaturedMatchWebSession:
             "pending_screen": self._pending_screen,
             "pending_message": self._pending_message,
             "upcoming_phase": self._upcoming_phase,
+            "pending_successor_reason": self._pending_successor_reason,
             "powerup_offers": [serialize_powerup(powerup) for powerup in self._powerup_offers],
             "genome_offers": [serialize_genome_edit(edit) for edit in self._genome_offers],
             "successor_candidates": [serialize_agent(agent) for agent in self._successor_candidates],
             "branch_roster": [serialize_agent(agent) for agent in self._branch_roster],
+            "dynasty_state": asdict(self._dynasty_state),
+            "active_floor_event": asdict(self._active_floor_event) if self._active_floor_event is not None else None,
+            "previous_event_key": self._previous_event_key,
+            "stable_line_streak": self._stable_line_streak,
             "floor_clue_log": list(self._floor_clue_log),
             "chronicle_event_ids": sorted(self._chronicle_event_ids),
             "branch_continuity_streaks": dict(self._branch_continuity_streaks),
@@ -290,10 +332,16 @@ class FeaturedMatchWebSession:
             session._pending_screen = payload.get("pending_screen")
             session._pending_message = payload.get("pending_message")
             session._upcoming_phase = payload.get("upcoming_phase")
+            session._pending_successor_reason = payload.get("pending_successor_reason")
             session._powerup_offers = [deserialize_powerup(entry, _POWERUP_TYPES) for entry in payload.get("powerup_offers", [])]
             session._genome_offers = [deserialize_genome_edit(entry, _GENOME_EDIT_TYPES) for entry in payload.get("genome_offers", [])]
             session._successor_candidates = [deserialize_agent(entry, powerup_types=_POWERUP_TYPES) for entry in payload.get("successor_candidates", [])]
             session._branch_roster = [deserialize_agent(entry, powerup_types=_POWERUP_TYPES) for entry in payload.get("branch_roster", [])]
+            session._dynasty_state = build_dataclass(DynastyState, payload.get("dynasty_state", {})) if payload.get("dynasty_state") else initial_dynasty_state()
+            active_floor_event = payload.get("active_floor_event")
+            session._active_floor_event = build_dataclass(ActiveFloorEvent, active_floor_event) if active_floor_event else None
+            session._previous_event_key = payload.get("previous_event_key")
+            session._stable_line_streak = int(payload.get("stable_line_streak", 0))
             if not session._branch_roster:
                 session._branch_roster = session._build_initial_branch_roster()
             matched_player = next((agent for agent in session._branch_roster if agent.name == session.player.name), None)
@@ -352,6 +400,7 @@ class FeaturedMatchWebSession:
         )
         self.snapshot.primary_doctrine_family = doctrine_state.primary_doctrine_family
         self.snapshot.secondary_doctrine_family = doctrine_state.secondary_doctrine_family
+        self.snapshot.dynasty_resources = dynasty_to_view(self._dynasty_state)
         self._floor_clue_log = []
         self._append_chronicle_entry(
             event_id=f"run_start:seed:{self.seed}",
@@ -360,11 +409,13 @@ class FeaturedMatchWebSession:
             summary=run_start_summary(seed=self.seed),
         )
         self._rebuild_dynasty_board()
-        self._begin_featured_round_decision()
+        self._begin_floor_event_choice()
 
     def submit_action(
         self,
         action: (
+            ChooseFloorEventAction
+            |
             ChooseRoundMoveAction
             | ChooseRoundAutopilotAction
             | ChooseRoundStanceAction
@@ -374,6 +425,15 @@ class FeaturedMatchWebSession:
             | ChooseSuccessorAction
         ),
     ) -> None:
+        # Compatibility shim for direct test/session driving code that was written
+        # before floor events became the first explicit decision of each floor.
+        if (
+            self.session.current_decision is not None
+            and isinstance(self.session.current_decision, FloorEventChoiceState)
+            and not isinstance(action, ChooseFloorEventAction)
+        ):
+            self.session.submit_action(ChooseFloorEventAction(response_index=0))
+            self.advance()
         self.session.submit_action(action)
 
     def advance(self) -> None:
@@ -394,6 +454,9 @@ class FeaturedMatchWebSession:
             return
 
         decision = self.session.current_decision
+        if isinstance(decision, FloorEventChoiceState):
+            self._resolve_floor_event_choice(decision)
+            return
         if isinstance(decision, FeaturedRoundDecisionState):
             self._resolve_featured_round(decision)
             return
@@ -453,8 +516,7 @@ class FeaturedMatchWebSession:
         return any(agent.agent_id == self.player.agent_id for agent in self._branch_roster)
 
     def _should_review_successor_options(self) -> bool:
-        lineage_survivors = self._lineage_survivors()
-        return len(lineage_survivors) > 1
+        return self._pending_successor_reason is not None
 
     def _post_summary_phase(self) -> str:
         return self._upcoming_phase or self.snapshot.current_phase or "ecosystem"
@@ -516,8 +578,151 @@ class FeaturedMatchWebSession:
     def should_autopilot_featured_match(self) -> bool:
         return self._match_autopilot_active
 
+    def _sync_dynasty_snapshot(self) -> None:
+        self.snapshot.dynasty_resources = dynasty_to_view(self._dynasty_state)
+        self.snapshot.active_floor_event = (
+            floor_event_snapshot_state(self._active_floor_event)
+            if self._active_floor_event is not None and self._active_floor_event.response is not None
+            else None
+        )
+
+    def _begin_floor_event_choice(self) -> None:
+        phase = self.snapshot.current_phase or "ecosystem"
+        self._active_floor_event = generate_floor_event(
+            self.rng,
+            floor_number=self.floor_number,
+            phase=phase,
+            dynasty_state=self._dynasty_state,
+            previous_event_key=self._previous_event_key,
+            stable_line_streak=self._stable_line_streak,
+        )
+        self.snapshot.active_floor_event = floor_event_snapshot_state(self._active_floor_event)
+        state = floor_event_choice_state(self._active_floor_event)
+        self.session.begin_decision(state, (ChooseFloorEventAction,), self.snapshot)
+        self.snapshot.session_status = "awaiting_decision"
+
+    def _resolve_floor_event_choice(self, decision: FloorEventChoiceState) -> None:
+        action = self.session.resolve_current_decision(lambda _: ChooseFloorEventAction(response_index=0))
+        self._active_floor_event = choose_floor_event_response(self._active_floor_event, action.response_index)
+        self._previous_event_key = self._active_floor_event.template.key
+        event_change = response_dynasty_modifier(self._active_floor_event)
+        self._dynasty_state = adjust_dynasty_state(
+            self._dynasty_state,
+            legitimacy_delta=event_change.legitimacy_delta,
+            cohesion_delta=event_change.cohesion_delta,
+            leverage_delta=event_change.leverage_delta,
+            contingencies_delta=event_change.contingencies_delta,
+        )
+        self._sync_dynasty_snapshot()
+        self._append_chronicle_entry(
+            event_id=f"floor_event:{self.floor_number}:{self._active_floor_event.template.key}",
+            event_type="floor_start",
+            floor_number=self.floor_number,
+            summary=f"{self._active_floor_event.template.title}: {self._active_floor_event.response.name}",
+            cause=self._active_floor_event.response.summary,
+        )
+        self._begin_featured_round_decision()
+
+    def _agent_house_doctrine_family(self, agent: Agent) -> str:
+        if agent.powerups:
+            return agent.powerups[0].doctrine_family
+        return self.snapshot.house_doctrine_family or seed_run_house_doctrine(seed=self.seed)
+
+    def _event_support_score_for_agent(self, agent: Agent) -> int:
+        if self._active_floor_event is None:
+            return 0
+        doctrine_state = derive_doctrine_state(
+            owned_powerups=tuple(agent.powerups),
+            genome=agent.genome,
+            house_doctrine_family=self._agent_house_doctrine_family(agent),
+        )
+        families = {
+            doctrine_state.house_doctrine_family,
+            doctrine_state.primary_doctrine_family,
+            *( [doctrine_state.secondary_doctrine_family] if doctrine_state.secondary_doctrine_family else [] ),
+        }
+        score = sum(2 for family in families if family in self._active_floor_event.favored_doctrines)
+        identity = analyze_agent_identity(agent)
+        score += sum(1 for tag in identity.tags if tag in self._active_floor_event.threat_tags)
+        return score
+
+    def _event_adjusted_rival_move(self, agent: Agent, suggested_move: int) -> int:
+        preferred_move = preferred_round_move(self._active_floor_event)
+        if preferred_move is None:
+            return suggested_move
+        score = self._event_support_score_for_agent(agent)
+        threshold = 2
+        if self.snapshot.current_phase == "civil_war":
+            score += 1
+            threshold = 1
+        if self._stable_line_streak >= 2 and self.floor_number >= 4 and preferred_move == DEFECT:
+            score += 1
+            threshold = 1
+        if score >= threshold:
+            return preferred_move
+        return suggested_move
+
+    def _event_adjusted_rival_vote(self, agent: Agent, suggested_vote: int) -> int:
+        preferred_vote_choice = preferred_vote(self._active_floor_event)
+        if preferred_vote_choice is None:
+            return suggested_vote
+        score = self._event_support_score_for_agent(agent)
+        threshold = 2
+        if self.snapshot.current_phase == "civil_war":
+            score += 1
+            threshold = 1
+        if self._stable_line_streak >= 2 and self.floor_number >= 4 and preferred_vote_choice == DEFECT:
+            score += 1
+            threshold = 1
+        if score >= threshold:
+            return preferred_vote_choice
+        return suggested_vote
+
+    def _late_stability_penalty(self, *, final_vote: int) -> int:
+        stable_round = (
+            bool(self.player_history)
+            and sum(1 for move in self.player_history if move == COOPERATE) > (len(self.player_history) // 2)
+        )
+        if not stable_round or final_vote != COOPERATE:
+            return 0
+        next_streak = self._stable_line_streak + 1
+        if next_streak < 2 or self.floor_number < 4:
+            return 0
+        penalty = 1 + min(2, next_streak - 2)
+        if self.floor_number >= 8:
+            penalty += 1
+        return min(4, penalty)
+
+    def _apply_late_stability_counterpressure(self, *, penalty: int) -> None:
+        if penalty <= 0:
+            return
+        self.player_score = max(0, self.player_score - penalty)
+        self.player.score = max(0, self.player.score - penalty)
+        rivals = [agent for agent in self._branch_roster if agent is not self.player]
+        if not rivals:
+            return
+        ranked_rivals = sorted(
+            rivals,
+            key=lambda agent: (
+                self._event_support_score_for_agent(agent),
+                agent.score,
+                agent.wins,
+                -agent.agent_id,
+            ),
+            reverse=True,
+        )
+        for index in range(penalty):
+            ranked_rivals[index % len(ranked_rivals)].score += 1
+
     def _begin_featured_round_decision(self) -> None:
         suggested_move = self.player.genome.choose_move(self.player_history, self.opponent_history, self.rng)
+        event_prefix = clue_prefix(self._active_floor_event)
+        clue_channels = featured_round_clue_channels(
+            public_profile=self.opponent.public_profile,
+            powerup_names=[powerup.name for powerup in self.opponent.powerups],
+        )
+        if event_prefix is not None:
+            clue_channels = [event_prefix, *clue_channels]
         state = FeaturedRoundDecisionState(
             prompt=FeaturedMatchPrompt(
                 floor_number=self.floor_number,
@@ -530,10 +735,7 @@ class FeaturedMatchWebSession:
                 opp_match_score=self.opponent_score,
                 suggested_move=suggested_move,
                 roster_entries=[],
-                clue_channels=featured_round_clue_channels(
-                    public_profile=self.opponent.public_profile,
-                    powerup_names=[powerup.name for powerup in self.opponent.powerups],
-                ),
+                clue_channels=clue_channels,
                 floor_clue_log=list(self._floor_clue_log),
                 inference_focus=(
                     featured_round_inference_focus()
@@ -588,6 +790,7 @@ class FeaturedMatchWebSession:
             raise ValueError(f"Unsupported featured round action type: {type(action).__name__}")
 
         opponent_plan = self.opponent.genome.choose_move(self.opponent_history, self.player_history, self.rng)
+        opponent_plan = self._event_adjusted_rival_move(self.opponent, opponent_plan)
         player_context = RoundContext(
             round_index=self.round_index,
             total_rounds=self.rounds,
@@ -644,11 +847,63 @@ class FeaturedMatchWebSession:
         adjustments: list[ScoreAdjustment] = []
         p_points, o_points = self._apply_score(self.player, self.opponent, player_move, opponent_move, p_points, o_points, player_score_context, "player", adjustments)
         o_points, p_points = self._apply_score(self.opponent, self.player, opponent_move, player_move, o_points, p_points, opponent_score_context, "opponent", adjustments)
+        p_points, player_event_bonus = apply_match_event_bonus(
+            self._active_floor_event,
+            owner_is_player=True,
+            my_move=player_move,
+            opp_move=opponent_move,
+            context=player_score_context,
+            my_points=p_points,
+        )
+        if player_event_bonus:
+            source = self._active_floor_event.response.name if self._active_floor_event and self._active_floor_event.response else self._active_floor_event.template.title if self._active_floor_event else "Floor event"
+            adjustments.append(ScoreAdjustment(source=source, player_delta=player_event_bonus, opponent_delta=0))
+        o_points, opponent_event_bonus = apply_match_event_bonus(
+            self._active_floor_event,
+            owner_is_player=False,
+            my_move=opponent_move,
+            opp_move=player_move,
+            context=opponent_score_context,
+            my_points=o_points,
+        )
+        if opponent_event_bonus:
+            source = self._active_floor_event.template.title if self._active_floor_event else "Floor event"
+            adjustments.append(ScoreAdjustment(source=source, player_delta=0, opponent_delta=opponent_event_bonus))
 
         self.player_score += p_points
         self.opponent_score += o_points
         self.player_history.append(player_move)
         self.opponent_history.append(opponent_move)
+
+        if self._active_floor_event is not None and self._active_floor_event.clue_reliability == "murky":
+            inference_update = [
+                "Signals were distorted by the floor event; branch read is noisy.",
+                "Treat this clue as provisional until the summary confirms a pattern.",
+            ]
+        elif self._active_floor_event is not None and self._active_floor_event.clue_reliability == "clear":
+            inference_update = [
+                (
+                    "Signal came through cleanly; the rival opener exposed a real branch tendency."
+                    if self.round_index == 0
+                    else "This floor is unusually readable; pattern confidence increased."
+                ),
+                "Carry the cleaner read into succession and threat planning.",
+            ]
+        else:
+            inference_update = [
+                (
+                    "Opened cooperatively; cooperative tag read strengthened."
+                    if self.round_index == 0 and opponent_move == COOPERATE
+                    else "Opened aggressively; aggressive tag read strengthened."
+                )
+                if self.round_index == 0
+                else (
+                    "Retaliated after pressure; retaliatory read strengthened."
+                    if self.player_history and self.player_history[-1] == DEFECT and opponent_move == DEFECT
+                    else "Pattern remained mixed; keep branch read probabilistic."
+                ),
+                "Carry this clue into floor summary and successor threat interpretation.",
+            ]
 
         self.snapshot.latest_featured_round = FeaturedRoundResult(
             masked_opponent_label=UNKNOWN_OPPONENT_LABEL,
@@ -662,20 +917,7 @@ class FeaturedMatchWebSession:
             opponent_total=self.opponent_score,
             player_reason=player_res.reason,
             opponent_reason=opp_res.reason,
-            inference_update=[
-                (
-                    "Opened cooperatively; cooperative tag read strengthened."
-                    if self.round_index == 0 and opponent_move == COOPERATE
-                    else "Opened aggressively; aggressive tag read strengthened."
-                )
-                if self.round_index == 0
-                else (
-                    "Retaliated after pressure; retaliatory read strengthened."
-                    if self.player_history and self.player_history[-1] == DEFECT and opponent_move == DEFECT
-                    else "Pattern remained mixed; keep branch read probabilistic."
-                ),
-                "Carry this clue into floor summary and successor threat interpretation.",
-            ],
+            inference_update=inference_update,
             breakdown=RoundResolutionBreakdown(
                 player_plan=player_plan,
                 opponent_plan=opponent_plan,
@@ -697,7 +939,11 @@ class FeaturedMatchWebSession:
 
         vote_prompt = FloorVotePrompt(
             floor_number=self.floor_number,
-            floor_label=f"Floor {self.floor_number}",
+            floor_label=(
+                f"Floor {self.floor_number} - {self._active_floor_event.template.title}"
+                if self._active_floor_event is not None
+                else f"Floor {self.floor_number}"
+            ),
             suggested_vote=COOPERATE,
             current_floor_score=self.player_score,
             powerups=[p.name for p in self.player.powerups],
@@ -732,6 +978,7 @@ class FeaturedMatchWebSession:
             if rival is self.player:
                 continue
             rival_base_vote = rival.genome.first_move
+            rival_base_vote = self._event_adjusted_rival_vote(rival, rival_base_vote)
             rival_context = ReferendumContext(
                 floor_number=self.floor_number,
                 total_agents=total_agents,
@@ -772,6 +1019,13 @@ class FeaturedMatchWebSession:
                     current_reward=player_reward,
                     context=reward_context,
                 )
+        player_reward, _ = apply_referendum_event_bonus(
+            self._active_floor_event,
+            owner_is_player=True,
+            my_vote=final_vote,
+            cooperation_prevailed=cooperation_prevailed,
+            current_reward=player_reward,
+        )
 
         result = FloorVoteResult(
             floor_number=self.floor_number,
@@ -809,7 +1063,17 @@ class FeaturedMatchWebSession:
                         current_reward=rival_reward,
                         context=rival_reward_context,
                     )
+                rival_reward, _ = apply_referendum_event_bonus(
+                    self._active_floor_event,
+                    owner_is_player=False,
+                    my_vote=votes[rival.agent_id],
+                    cooperation_prevailed=cooperation_prevailed,
+                    current_reward=rival_reward,
+                )
                 rival.score += rival_reward
+
+        late_stability_penalty = self._late_stability_penalty(final_vote=final_vote)
+        self._apply_late_stability_counterpressure(penalty=late_stability_penalty)
 
         ranked = self._rank_agents(self._branch_roster)
         summary_agents = self._branch_floor_ranking(ranked)
@@ -874,6 +1138,44 @@ class FeaturedMatchWebSession:
             for agent in survivors
             if agent.lineage_id == self.player.lineage_id
         ]
+        current_host_survived = any(agent.agent_id == self.player.agent_id for agent in lineage_survivors)
+        stable_round = (
+            bool(self.player_history)
+            and sum(1 for move in self.player_history if move == COOPERATE) > (len(self.player_history) // 2)
+        )
+        if stable_round and final_vote == COOPERATE:
+            self._stable_line_streak += 1
+        else:
+            self._stable_line_streak = 0
+        self._dynasty_state = update_after_floor(
+            self._dynasty_state,
+            ranked=ranked,
+            player=self.player,
+            vote_result=result,
+            phase=current_phase,
+            host_changed=not current_host_survived,
+        )
+        commitment_change = response_commitment_modifier(
+            self._active_floor_event,
+            round_history=list(self.player_history),
+            final_vote=final_vote,
+        )
+        if late_stability_penalty:
+            commitment_change = DynastyModifier(
+                legitimacy_delta=commitment_change.legitimacy_delta - late_stability_penalty,
+                cohesion_delta=commitment_change.cohesion_delta - max(1, late_stability_penalty - 1),
+                leverage_delta=commitment_change.leverage_delta,
+                contingencies_delta=commitment_change.contingencies_delta,
+            )
+        self._dynasty_state = adjust_dynasty_state(
+            self._dynasty_state,
+            legitimacy_delta=commitment_change.legitimacy_delta,
+            cohesion_delta=commitment_change.cohesion_delta,
+            leverage_delta=commitment_change.leverage_delta,
+            contingencies_delta=commitment_change.contingencies_delta,
+        )
+        self._sync_dynasty_snapshot()
+
         if not lineage_survivors:
             self._branch_roster = []
             self._successor_candidates = []
@@ -881,17 +1183,14 @@ class FeaturedMatchWebSession:
             self._complete_run(outcome="eliminated")
             return
 
-        self._branch_roster = list(
-            lineage_survivors
-            if current_phase == "civil_war"
-            else survivors
-        )
         self._successor_candidates = []
         self.snapshot.successor_options = None
         self.snapshot.civil_war_context = None
+        self._pending_successor_reason = None
         self._upcoming_phase = current_phase
 
         if current_phase == "ecosystem":
+            self._branch_roster = list(survivors)
             outsiders_remaining = [
                 agent
                 for agent in survivors
@@ -905,12 +1204,36 @@ class FeaturedMatchWebSession:
                         event_id=f"successor_choice:{self.floor_number}:sole_survivor",
                         floor_number=self.floor_number,
                     )
+                    self._dynasty_state = set_claimant(self._dynasty_state, agent=lineage_survivors[0], allow_contingency=False)
+                    self._sync_dynasty_snapshot()
                     self._complete_run(outcome="victory")
                     return
                 self._branch_roster = list(lineage_survivors)
                 self._upcoming_phase = "civil_war"
-                current_host = self.player if self._current_host_survived_floor() else None
+                self._pending_successor_reason = "civil_war_claimant"
+                current_host = self.player if current_host_survived else None
                 self.snapshot.civil_war_context = self._build_civil_war_context(current_host=current_host)
+            elif not current_host_survived:
+                self._pending_successor_reason = "host_eliminated"
+        else:
+            self._branch_roster = list(lineage_survivors)
+            claimant_alive = is_claimant_alive(self._dynasty_state, lineage_survivors)
+            if not claimant_alive:
+                if can_use_contingency(self._dynasty_state):
+                    self._dynasty_state = spend_contingency(self._dynasty_state)
+                    self._pending_successor_reason = "civil_war_contingency"
+                    self._sync_dynasty_snapshot()
+                else:
+                    self._complete_run(outcome="eliminated")
+                    return
+            elif len(lineage_survivors) == 1:
+                self._record_host_choice(
+                    chosen=lineage_survivors[0],
+                    event_id=f"civil_war_victory:{self.floor_number}",
+                    floor_number=self.floor_number,
+                )
+                self._complete_run(outcome="victory")
+                return
 
         next_step_kind = "successor_review" if self._should_review_successor_options() else "reward_selection"
         self.snapshot.session_status = "running"
@@ -925,7 +1248,26 @@ class FeaturedMatchWebSession:
         lineage_survivors = self._lineage_survivors()
         if not lineage_survivors:
             return
-        if len(lineage_survivors) > 1:
+        if self._pending_successor_reason is not None and len(lineage_survivors) == 1:
+            sole_survivor = lineage_survivors[0]
+            self._record_host_choice(
+                chosen=sole_survivor,
+                event_id=f"successor_choice:{self.floor_number}:{self._pending_successor_reason}:sole",
+                floor_number=self.floor_number,
+            )
+            if self._post_summary_phase() == "civil_war":
+                self._dynasty_state = set_claimant(self._dynasty_state, agent=sole_survivor, allow_contingency=False)
+            self._pending_successor_reason = None
+            self._sync_dynasty_snapshot()
+            if self._post_summary_phase() == "civil_war":
+                self.snapshot.floor_identity = None
+                self.snapshot.civil_war_context = self._build_civil_war_context(current_host=self.player)
+            else:
+                self.snapshot.floor_identity = self._build_next_floor_identity_for_agent(sole_survivor)
+            self._begin_powerup_choice()
+            return
+
+        if self._pending_successor_reason is not None:
             self._successor_candidates = self._build_successor_candidates()
             candidates = []
             top_score = max((agent.score for agent in self._successor_candidates), default=0)
@@ -936,6 +1278,8 @@ class FeaturedMatchWebSession:
                 lineage_doctrine = self.snapshot.floor_summary.heir_pressure.branch_doctrine
                 for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
                     threat_tags.update(threat.tags)
+            if self._active_floor_event is not None:
+                threat_tags.update(self._active_floor_event.threat_tags)
             doctrine_chip, _ = self._doctrine_state_framing()
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
@@ -995,19 +1339,13 @@ class FeaturedMatchWebSession:
             self.snapshot.session_status = "awaiting_decision"
             return
 
-        sole_survivor = lineage_survivors[0]
-        self._record_host_choice(
-            chosen=sole_survivor,
-            event_id=f"successor_choice:{self.floor_number}:sole_survivor_post_summary",
-            floor_number=self.floor_number,
-        )
         self.snapshot.successor_options = None
         self._successor_candidates = []
         if self._post_summary_phase() == "civil_war":
             self.snapshot.floor_identity = None
             self.snapshot.civil_war_context = self._build_civil_war_context(current_host=self.player)
         else:
-            self.snapshot.floor_identity = self._build_next_floor_identity_for_agent(sole_survivor)
+            self.snapshot.floor_identity = self._build_next_floor_identity_for_agent(self.player)
         self._begin_powerup_choice()
 
     def _begin_powerup_choice(self) -> None:
@@ -1023,6 +1361,7 @@ class FeaturedMatchWebSession:
                 house_doctrine_family=self.snapshot.house_doctrine_family,
                 primary_doctrine_family=self.snapshot.primary_doctrine_family,
                 secondary_doctrine_family=self.snapshot.secondary_doctrine_family,
+                event_bias_families=favored_offer_biases(self._active_floor_event),
             ),
         )
         self._powerup_offers = [entry.powerup for entry in generated]
@@ -1047,13 +1386,20 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid successor index")
         chosen = self._successor_candidates[action.candidate_index]
         chosen_view = decision.candidates[action.candidate_index]
+        reason = self._pending_successor_reason
         self._record_host_choice(
             chosen=chosen,
-            event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
+            event_id=f"successor_choice:{self.floor_number}:{reason or 'review'}:{action.candidate_index}",
             floor_number=self.floor_number,
         )
+        self._pending_successor_reason = None
 
         if self._post_summary_phase() == "civil_war":
+            self._dynasty_state = set_claimant(
+                self._dynasty_state,
+                agent=chosen,
+                allow_contingency=True,
+            )
             self.snapshot.floor_identity = None
             self.snapshot.civil_war_context = self._build_civil_war_context(current_host=chosen)
             self._pending_screen = None
@@ -1066,6 +1412,7 @@ class FeaturedMatchWebSession:
             self._pending_screen = None
             self._pending_message = None
             self._begin_powerup_choice()
+        self._sync_dynasty_snapshot()
         self._rebuild_dynasty_board()
 
 
@@ -1150,6 +1497,8 @@ class FeaturedMatchWebSession:
             lineage_doctrine = floor_summary.heir_pressure.branch_doctrine
             for threat in floor_summary.heir_pressure.future_threats:
                 threat_tags.update(threat.tags)
+        if self._active_floor_event is not None:
+            threat_tags.update(self._active_floor_event.threat_tags)
 
         doctrine_chip, _ = self._doctrine_state_framing()
         identity = analyze_agent_identity(chosen)
@@ -1211,7 +1560,7 @@ class FeaturedMatchWebSession:
                 civil_war_started_fallback(),
             ),
         )
-        self._begin_featured_round_decision()
+        self._begin_floor_event_choice()
 
     def _begin_next_ecosystem_floor(self) -> None:
         self.floor_number += 1
@@ -1219,6 +1568,8 @@ class FeaturedMatchWebSession:
         self.snapshot.current_phase = "ecosystem"
         self.snapshot.civil_war_context = None
         self.snapshot.successor_options = None
+        self._dynasty_state = clear_claimant(self._dynasty_state)
+        self._sync_dynasty_snapshot()
         self._upcoming_phase = None
         self._pending_screen = None
         self._pending_message = None
@@ -1241,7 +1592,7 @@ class FeaturedMatchWebSession:
                 identity_note=identity_note,
             ),
         )
-        self._begin_featured_round_decision()
+        self._begin_floor_event_choice()
 
     def _reset_floor_state_for_new_match(self) -> None:
         self.round_index = 0
@@ -1249,11 +1600,78 @@ class FeaturedMatchWebSession:
         self.opponent_history = []
         self.player_score = 0
         self.opponent_score = 0
+        self._active_floor_event = None
         self.snapshot.floor_vote_result = None
         self.snapshot.floor_summary = None
+        self.snapshot.active_floor_event = None
         self._floor_clue_log = []
         for agent in self._branch_roster:
             agent.reset_for_floor()
+
+    def _grant_contextual_rival_powerup(self, agent: Agent, *, phase: str) -> bool:
+        if len(agent.powerups) >= 5:
+            return False
+        doctrine_state = derive_doctrine_state(
+            owned_powerups=tuple(agent.powerups),
+            genome=agent.genome,
+            house_doctrine_family=self._agent_house_doctrine_family(agent),
+        )
+        generated = generate_powerup_offer_set(
+            1,
+            self.rng,
+            context=PowerupOfferContext(
+                owned_powerups=tuple(agent.powerups),
+                genome=agent.genome,
+                floor_number=self.floor_number + 1,
+                phase=phase,
+                house_doctrine_family=doctrine_state.house_doctrine_family,
+                primary_doctrine_family=doctrine_state.primary_doctrine_family,
+                secondary_doctrine_family=doctrine_state.secondary_doctrine_family,
+                event_bias_families=favored_offer_biases(self._active_floor_event),
+            ),
+        )
+        if not generated:
+            return False
+        agent.powerups.append(generated[0].powerup)
+        return True
+
+    def _apply_reward_catchup_support(self, *, phase: str) -> None:
+        rivals = [agent for agent in self._branch_roster if agent is not self.player]
+        if not rivals:
+            return
+
+        player_powerup_count = len(self.player.powerups)
+        top_rival_powerup_count = max((len(agent.powerups) for agent in rivals), default=0)
+        top_rival_score = max((agent.score for agent in rivals), default=0)
+        support_budget = 0
+        if player_powerup_count >= top_rival_powerup_count + (1 if self.floor_number >= 4 else 2):
+            support_budget += 1
+        if self.player.score >= top_rival_score + 4:
+            support_budget += 1
+        if self._stable_line_streak >= 2 and self.floor_number >= 4:
+            support_budget += 1
+        if self.floor_number >= 7 and self.player.score >= top_rival_score + 2:
+            support_budget += 1
+        support_budget = min(3, support_budget)
+        if support_budget == 0:
+            return
+
+        ranked_rivals = sorted(
+            rivals,
+            key=lambda agent: (
+                self._event_support_score_for_agent(agent),
+                agent.score,
+                agent.wins,
+                -agent.agent_id,
+            ),
+            reverse=True,
+        )
+        granted = 0
+        for rival in ranked_rivals:
+            if self._grant_contextual_rival_powerup(rival, phase=phase):
+                granted += 1
+            if granted >= support_budget:
+                break
 
     def _resolve_powerup_choice(self, decision: PowerupChoiceState) -> None:
         action = self.session.resolve_current_decision(lambda _: ChoosePowerupAction(offer_index=0))
@@ -1302,6 +1720,7 @@ class FeaturedMatchWebSession:
             player=self.player,
             floor_config=floor_config,
         )
+        self._apply_reward_catchup_support(phase=self._post_summary_phase())
 
         current_phase = self.snapshot.current_phase or "ecosystem"
         upcoming_phase = self._post_summary_phase()

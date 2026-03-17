@@ -84,6 +84,16 @@ function renderGenomeChoiceCard(offer, idx){
   `;
 }
 
+function renderFloorEventChoiceCard(response, idx){
+  const label = `${idx + 1}. ${response.name}`;
+  const tags = [response.duel_angle, response.vote_angle, response.dynasty_impact].filter(Boolean).slice(0, 3);
+  return `
+    <span class='action-tile-title'>${escapeHtml(label)}</span>
+    <span class='choice-card-effect'>${escapeHtml(response.summary || t('fallbacks.not_available'))}</span>
+    ${renderCardTags(tags, 3)}
+  `;
+}
+
 function stableSerialize(value){
   if (value === null || value === undefined) return 'null';
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
@@ -96,6 +106,14 @@ function stableSerialize(value){
 
 function choicePayloadForSignature(decisionType, decision){
   if (!decision) return null;
+  if (decisionType === 'FloorEventChoiceState') {
+    return {
+      floor_number: decision.floor_number || null,
+      phase: decision.phase || null,
+      title: decision.title || '',
+      responses: decision.responses || [],
+    };
+  }
   if (decisionType === 'PowerupChoiceState' || decisionType === 'GenomeEditChoiceState') {
     return {
       floor_number: decision.floor_number || null,
@@ -145,6 +163,26 @@ function renderChoiceSelectionPrompt(){
 function detailRow(label, value){
   if (!value) return '';
   return `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`;
+}
+
+function renderFloorEventChoiceDetails(decision, response, idx){
+  const listItems = [
+    detailRow(t('labels.pressure', 'Pressure'), decision.pressure),
+    detailRow(t('labels.floor_rule', 'Floor rule'), decision.rule_text),
+    detailRow(t('labels.read_quality', 'Read quality'), decision.clue_reliability),
+    detailRow(t('labels.duel_angle', 'Duel angle'), response.duel_angle),
+    detailRow(t('labels.vote_angle', 'Vote angle'), response.vote_angle),
+    detailRow(t('labels.dynasty_impact', 'Dynasty impact'), response.dynasty_impact),
+    detailRow(t('labels.offer_drift', 'Offer drift'), response.offer_drift),
+    detailRow(t('labels.cost', 'Cost'), response.cost),
+    detailRow(t('labels.watch_out', 'Watch out'), response.risk),
+  ].filter(Boolean).join('');
+  return `
+    <div class='choice-details-title'>${escapeHtml(`${idx + 1}. ${response.name}`)}</div>
+    <div class='muted choice-event-summary'>${escapeHtml(decision.title)} · ${escapeHtml(decision.summary)}</div>
+    <ul class='list tight choice-details-list'>${listItems || `<li>${escapeHtml(t('fallbacks.not_available'))}</li>`}</ul>
+    <button class='btn primary-action choice-confirm-btn' onclick="sendAction({type:'choose_floor_event', response_index:${idx}})">${escapeHtml(t('buttons.confirm_choice'))}</button>
+  `;
 }
 
 function renderPowerupChoiceDetails(offer, idx){
@@ -285,6 +323,7 @@ const GLOSSARY_TERMS = Object.freeze({
 });
 
 const DECISION_HELP_TEXT = Object.freeze({
+  FloorEventChoiceState: getNestedText('decision_help.floor_event_choice'),
   FeaturedRoundDecisionState: getNestedText('decision_help.featured_round'),
   FloorVoteDecisionState: getNestedText('decision_help.floor_vote'),
   PowerupChoiceState: getNestedText('decision_help.powerup_choice'),
@@ -343,6 +382,7 @@ function maybeShowOnboarding(){
 
 function shortDecisionLabel(type){
   const labels = {
+    FloorEventChoiceState: getNestedText('decision_types.floor_event_choice'),
     FeaturedRoundDecisionState: getNestedText('decision_types.featured_round'),
     FloorVoteDecisionState: getNestedText('decision_types.floor_vote'),
     PowerupChoiceState: getNestedText('decision_types.powerup_choice'),
@@ -475,6 +515,29 @@ function renderDecision(data){
     actionsPrimaryLabel.textContent = '';
     phaseActionHelper.textContent = '';
     decisionView.innerHTML = getNestedText('fallbacks.no_active_decision');
+    return;
+  }
+
+  if (decisionType === 'FloorEventChoiceState') {
+    actionsPrimaryLabel.textContent = getNestedText('labels.choose_response');
+    phaseActionHelper.textContent = getNestedText('decision_helpers.floor_event_choice');
+    const choiceSignature = choiceSignatureFor(decisionType, decision);
+    const selectedIdx = getPendingChoiceSelection(decisionType, choiceSignature, decision.responses.length);
+    decisionView.className = 'muted choice-details-surface';
+    decisionView.innerHTML = selectedIdx === null
+      ? renderChoiceSelectionPrompt()
+      : renderFloorEventChoiceDetails(decision, decision.responses[selectedIdx], selectedIdx);
+    decision.responses.forEach((response, idx) => {
+      const btn = document.createElement('button');
+      btn.className = `btn action-tile-secondary choice-option ${selectedIdx === idx ? 'choice-option-selected' : ''}`;
+      btn.innerHTML = renderFloorEventChoiceCard(response, idx);
+      btn.title = [response.duel_angle, response.vote_angle, response.dynasty_impact, response.offer_drift, response.risk].filter(Boolean).join(' | ');
+      btn.onclick = () => {
+        setPendingChoiceSelection(decisionType, choiceSignature, idx);
+        renderDecision(data);
+      };
+      actions.appendChild(btn);
+    });
     return;
   }
 
