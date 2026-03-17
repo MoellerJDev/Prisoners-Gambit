@@ -30,6 +30,7 @@ from prisoners_gambit.core.powerups import (
     UnityTicket,
 )
 from prisoners_gambit.core.strategy import StrategyGenome
+from prisoners_gambit.systems.floor_events import ActiveFloorEvent, FLOOR_EVENTS, choose_floor_event_response
 from prisoners_gambit.systems.tournament import MatchResult
 from prisoners_gambit.web.server import Handler, _new_web_session, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
@@ -47,6 +48,11 @@ def _choose_floor_event(session: FeaturedMatchWebSession, response_index: int = 
     assert session.view()["decision_type"] == "FloorEventChoiceState"
     session.submit_action(ChooseFloorEventAction(response_index=response_index))
     session.advance()
+
+
+def _clear_active_floor_event(session: FeaturedMatchWebSession) -> None:
+    session._active_floor_event = None
+    session.snapshot.active_floor_event = None
 
 
 def test_new_web_session_honors_pg_seed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1921,6 +1927,8 @@ def _always_defect_genome() -> StrategyGenome:
 def test_web_runtime_forced_cooperation_combo_is_consumed_in_featured_round_flow() -> None:
     session = FeaturedMatchWebSession(seed=41, rounds=2)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [CoerciveControl(), ComplianceDividend(bonus=1)]
     session.opponent.genome = StrategyGenome(
         first_move=COOPERATE,
@@ -1943,6 +1951,8 @@ def test_web_runtime_forced_cooperation_combo_is_consumed_in_featured_round_flow
 def test_web_runtime_locked_coop_trust_combo_is_consumed() -> None:
     session = FeaturedMatchWebSession(seed=43, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [GoldenHandshake(), TrustDividend()]
     session.opponent.genome = _always_defect_genome()
 
@@ -1958,6 +1968,8 @@ def test_web_runtime_locked_coop_trust_combo_is_consumed() -> None:
 def test_web_runtime_retaliation_spiral_combo_is_consumed() -> None:
     session = FeaturedMatchWebSession(seed=47, rounds=3)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [SpiteEngine(), PanicButton()]
     session.opponent.genome = _always_defect_genome()
 
@@ -1976,6 +1988,8 @@ def test_web_runtime_retaliation_spiral_combo_is_consumed() -> None:
 def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None:
     session = FeaturedMatchWebSession(seed=53, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
     session.player.powerups = [UnityTicket(), BlocPolitics(bonus=2)]
 
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
@@ -1994,6 +2008,8 @@ def test_web_runtime_referendum_controlled_vote_bloc_combo_is_consumed() -> None
 def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
     session = FeaturedMatchWebSession(seed=29, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
 
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
@@ -2011,6 +2027,8 @@ def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
 def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_once() -> None:
     session = FeaturedMatchWebSession(seed=31, rounds=1)
     session.start()
+    _choose_floor_event(session)
+    _clear_active_floor_event(session)
 
     session.player.powerups = []
     for agent in session._branch_roster:
@@ -2072,6 +2090,94 @@ def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_
 
     assert session.opponent.score >= session.opponent_score
     assert session.opponent.wins >= 1
+
+
+def test_web_session_round_trip_preserves_stable_line_streak() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session._stable_line_streak = 3
+
+    restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
+
+    assert restored._stable_line_streak == 3
+
+
+def test_web_session_event_supported_rivals_follow_floor_pressure() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    template = next(event for event in FLOOR_EVENTS if event.key == "trade_summit")
+    session._active_floor_event = choose_floor_event_response(
+        ActiveFloorEvent(floor_number=1, phase="ecosystem", template=template),
+        response_index=0,
+    )
+    session.snapshot.active_floor_event = None
+    session.opponent.powerups = [GoldenHandshake()]
+
+    assert session._event_adjusted_rival_move(session.opponent, DEFECT) == COOPERATE
+    assert session._event_adjusted_rival_vote(session.opponent, DEFECT) == COOPERATE
+
+
+def test_web_session_repeated_stable_lines_make_rivals_pivot_into_counterplay() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    template = next(event for event in FLOOR_EVENTS if event.key == "oath_tribunal")
+    session._active_floor_event = choose_floor_event_response(
+        ActiveFloorEvent(floor_number=5, phase="ecosystem", template=template),
+        response_index=1,
+    )
+    session.floor_number = 5
+    session._stable_line_streak = 2
+    session.opponent.powerups = []
+
+    assert session._event_adjusted_rival_move(session.opponent, COOPERATE) == DEFECT
+    assert session._event_adjusted_rival_vote(session.opponent, COOPERATE) == DEFECT
+
+
+def test_web_session_reward_catchup_support_grants_rivals_contextual_powerups() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    _choose_floor_event(session)
+    session.player.powerups = [GoldenHandshake(), TrustDividend(), PanicButton()]
+    session.player.score = 12
+    for rival in session._branch_roster:
+        if rival is session.player:
+            continue
+        rival.powerups = []
+        rival.score = 1
+
+    before_counts = {agent.agent_id: len(agent.powerups) for agent in session._branch_roster if agent is not session.player}
+
+    session._apply_reward_catchup_support(phase="ecosystem")
+
+    after_counts = {agent.agent_id: len(agent.powerups) for agent in session._branch_roster if agent is not session.player}
+    granted = sum(after_counts[agent_id] - before_counts[agent_id] for agent_id in after_counts)
+
+    assert granted >= 1
+    assert granted <= 2
+    assert max(after_counts.values(), default=0) >= 1
+
+
+def test_web_session_late_stability_counterpressure_transfers_floor_pressure() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1)
+    session.start()
+    session.floor_number = 5
+    session.player_history = [COOPERATE, COOPERATE]
+    session._stable_line_streak = 2
+    session.player_score = 8
+    session.player.score = 8
+    rivals = [agent for agent in session._branch_roster if agent is not session.player]
+    assert rivals
+    for rival in rivals:
+        rival.score = 0
+
+    penalty = session._late_stability_penalty(final_vote=COOPERATE)
+    session._apply_late_stability_counterpressure(penalty=penalty)
+
+    assert penalty == 2
+    assert session.player_score == 6
+    assert session.player.score == 6
+    assert sum(rival.score for rival in rivals) == 2
+    assert max(rival.score for rival in rivals) == 1
 
 
 def test_web_session_initializes_house_doctrine_from_seed() -> None:

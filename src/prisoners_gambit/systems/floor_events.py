@@ -497,6 +497,125 @@ FLOOR_EVENTS: tuple[FloorEventTemplate, ...] = (
             ),
         ),
     ),
+    FloorEventTemplate(
+        key="embargo_shock",
+        title="Embargo Shock",
+        summary="Supply routes locked up overnight. Every promise now has to survive scarcity.",
+        pressure="Leverage is being rationed.",
+        rule_text="This floor rewards houses that can either share pain cleanly or weaponize shortages faster than rivals can answer.",
+        clue_reliability="shaky",
+        favored_doctrines=("referendum", "opportunist", "control"),
+        threat_tags=("supply", "leverage", "tempo"),
+        global_match_modifier=MatchModifier(mutual_coop_bonus=1, defect_bonus=1),
+        responses=(
+            _response(
+                "ration_share",
+                name="Ration and Share",
+                summary="Take the political hit early and turn discipline into credibility.",
+                duel_angle="Stable cooperation lines stay efficient under pressure.",
+                vote_angle="Backing cooperation reads like stewardship rather than weakness.",
+                dynasty_impact="Legitimacy and cohesion rise, but leverage is spent.",
+                offer_drift="Offers lean toward trust, referendum, and endurance tools.",
+                risk="You can fall behind if sharper houses cash the shortage out faster.",
+                cost="Spend leverage to calm the table.",
+                match_modifier=MatchModifier(cooperate_bonus=1, mutual_coop_bonus=1),
+                referendum_modifier=ReferendumModifier(vote_cooperate_bonus=1, cooperation_win_bonus=1),
+                dynasty_modifier=DynastyModifier(legitimacy_delta=1, cohesion_delta=1, leverage_delta=-1),
+                favored_doctrine_bias=("trust", "referendum"),
+                clue_shift=1,
+            ),
+            _response(
+                "smuggle",
+                name="Smuggle Through",
+                summary="Build private channels and let scarcity turn into private leverage.",
+                duel_angle="Betrayal and sharp defect lines hit harder if you find a clean mark.",
+                vote_angle="Defection gains value because the floor already assumes hoarding.",
+                dynasty_impact="Leverage spikes, but legitimacy softens.",
+                offer_drift="Offers lean toward opportunist and chaos pivots.",
+                risk="If the smuggling ring is obvious, the whole house starts to look crooked.",
+                match_modifier=MatchModifier(defect_bonus=1, betrayal_bonus=1),
+                referendum_modifier=ReferendumModifier(vote_defect_bonus=1, sabotage_win_bonus=1),
+                dynasty_modifier=DynastyModifier(legitimacy_delta=-1, leverage_delta=2),
+                favored_doctrine_bias=("opportunist", "chaos"),
+                threat_tags=("deception",),
+                clue_shift=-1,
+            ),
+            _response(
+                "seize_stores",
+                name="Seize the Stores",
+                summary="Make the shortage everyone else's problem and govern through coercion.",
+                duel_angle="Control and retaliation lines become easier to justify openly.",
+                vote_angle="Defection becomes a threat-backed mandate rather than a gamble.",
+                dynasty_impact="Leverage rises, cohesion frays.",
+                offer_drift="Offers lean toward control and retaliation.",
+                risk="A hard seizure makes every future promise more expensive.",
+                match_modifier=MatchModifier(defect_bonus=1, retaliation_bonus=1),
+                referendum_modifier=ReferendumModifier(vote_defect_bonus=1),
+                dynasty_modifier=DynastyModifier(cohesion_delta=-1, leverage_delta=1),
+                favored_doctrine_bias=("control", "retaliation"),
+                threat_tags=("coercion",),
+            ),
+        ),
+    ),
+    FloorEventTemplate(
+        key="oath_tribunal",
+        title="Oath Tribunal",
+        summary="Old betrayals are back on the record, and the floor is judging whether your line can justify its own history.",
+        pressure="Memory is prosecuting the present.",
+        rule_text="Predictable lines become easier to punish here unless you can reconcile them, redirect the blame, or bury the record in noise.",
+        clue_reliability="clear",
+        favored_doctrines=("trust", "retaliation", "control"),
+        threat_tags=("legitimacy", "memory", "punishment"),
+        global_match_modifier=MatchModifier(retaliation_bonus=1, mutual_coop_bonus=1),
+        global_referendum_modifier=ReferendumModifier(cooperation_win_bonus=1),
+        responses=(
+            _response(
+                "confess",
+                name="Confess and Reconcile",
+                summary="Admit enough to look principled and turn transparency into a shield.",
+                duel_angle="Cooperation and honest retaliation reads more clearly.",
+                vote_angle="Backing cooperation reinforces that the house is answering its own past.",
+                dynasty_impact="Legitimacy and cohesion improve together.",
+                offer_drift="Offers lean toward trust and referendum continuity.",
+                risk="If you break the reconciled line, the tribunal remembers.",
+                match_modifier=MatchModifier(cooperate_bonus=1, retaliation_bonus=1),
+                referendum_modifier=ReferendumModifier(vote_cooperate_bonus=1, cooperation_win_bonus=1),
+                dynasty_modifier=DynastyModifier(legitimacy_delta=1, cohesion_delta=1),
+                favored_doctrine_bias=("trust", "referendum"),
+                clue_shift=1,
+            ),
+            _response(
+                "cross_examine",
+                name="Cross-Examine Rivals",
+                summary="Turn judgment outward and make every other branch defend its own record first.",
+                duel_angle="Retaliation and opportunistic defections punish soft targets more cleanly.",
+                vote_angle="Defection becomes easier to justify as necessary exposure.",
+                dynasty_impact="Leverage rises, legitimacy stays contested.",
+                offer_drift="Offers lean toward control-retaliation hybrids.",
+                risk="If the attack looks theatrical, the tribunal only gets hungrier.",
+                match_modifier=MatchModifier(defect_bonus=1, retaliation_bonus=1),
+                referendum_modifier=ReferendumModifier(vote_defect_bonus=1),
+                dynasty_modifier=DynastyModifier(leverage_delta=1),
+                favored_doctrine_bias=("control", "retaliation"),
+                threat_tags=("counterattack",),
+            ),
+            _response(
+                "stonewall",
+                name="Stonewall the Tribunal",
+                summary="Drown the record in noise and dare the room to prove anything cleanly.",
+                duel_angle="Deception and flexible lines get more room, but read quality collapses.",
+                vote_angle="Either vote can be sold if you can muddy motive fast enough.",
+                dynasty_impact="Leverage rises, legitimacy bleeds.",
+                offer_drift="Offers lean toward chaos and opportunist lines.",
+                risk="Your own heirs inherit the same poisoned record later.",
+                match_modifier=MatchModifier(betrayal_bonus=1, defect_bonus=1),
+                dynasty_modifier=DynastyModifier(legitimacy_delta=-1, leverage_delta=1),
+                favored_doctrine_bias=("chaos", "opportunist"),
+                threat_tags=("ambiguity", "memory"),
+                clue_shift=-2,
+            ),
+        ),
+    ),
 )
 
 
@@ -507,6 +626,7 @@ def generate_floor_event(
     phase: Literal["ecosystem", "civil_war"],
     dynasty_state: DynastyState,
     previous_event_key: str | None = None,
+    stable_line_streak: int = 0,
 ) -> ActiveFloorEvent:
     templates = list(FLOOR_EVENTS)
     weights: list[float] = []
@@ -524,6 +644,13 @@ def generate_floor_event(
             weight += 1.3
         if floor_number <= 2 and template.key in {"trade_summit", "sacred_festival", "public_unrest"}:
             weight += 0.6
+        if stable_line_streak >= 2 and floor_number >= 4 and template.key in {
+            "intelligence_leak",
+            "border_raid",
+            "embargo_shock",
+            "oath_tribunal",
+        }:
+            weight += 1.6 + (stable_line_streak - 2) * 0.45
         weights.append(weight)
     template = rng.choices(templates, weights=weights, k=1)[0]
     return ActiveFloorEvent(floor_number=floor_number, phase=phase, template=template)
@@ -597,7 +724,9 @@ def _dominant_round_move(round_history: list[int]) -> int | None:
     return COOPERATE if cooperate_count > defect_count else DEFECT
 
 
-def _preferred_round_move(active_event: ActiveFloorEvent) -> int | None:
+def preferred_round_move(active_event: ActiveFloorEvent | None) -> int | None:
+    if active_event is None:
+        return None
     response = active_event.response
     if response is None:
         return None
@@ -612,7 +741,9 @@ def _preferred_round_move(active_event: ActiveFloorEvent) -> int | None:
     return COOPERATE if cooperative_weight > aggressive_weight else DEFECT
 
 
-def _preferred_vote(active_event: ActiveFloorEvent) -> int | None:
+def preferred_vote(active_event: ActiveFloorEvent | None) -> int | None:
+    if active_event is None:
+        return None
     response = active_event.response
     if response is None:
         return None
@@ -641,13 +772,13 @@ def response_commitment_modifier(
     legitimacy_delta = 0
     cohesion_delta = 0
 
-    preferred_round = _preferred_round_move(active_event)
+    preferred_round = preferred_round_move(active_event)
     actual_round = _dominant_round_move(round_history)
     if preferred_round is not None and actual_round is not None and actual_round != preferred_round:
         legitimacy_delta -= 1
 
-    preferred_vote = _preferred_vote(active_event)
-    if preferred_vote is not None and final_vote != preferred_vote:
+    preferred_vote_choice = preferred_vote(active_event)
+    if preferred_vote_choice is not None and final_vote != preferred_vote_choice:
         legitimacy_delta -= 1
 
     if legitimacy_delta <= -2:
