@@ -13,7 +13,6 @@ from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 from support.session_driver import (
     advance_through_transition_and_complete,
     decision_type,
-    force_civil_war_transition,
     pending_screen,
     reach_successor_choice,
     session_milestone,
@@ -22,6 +21,13 @@ from support.session_driver import (
 
 def _decision_sequence_to_floor_summary(session: FeaturedMatchWebSession) -> list[str]:
     sequence: list[str] = [session_milestone(session)]
+    if decision_type(session) == "FloorEventChoiceState":
+        from prisoners_gambit.core.interaction import ChooseFloorEventAction
+
+        session.submit_action(ChooseFloorEventAction(response_index=0))
+        session.advance()
+        sequence.append(session_milestone(session))
+
     while decision_type(session) == "FeaturedRoundDecisionState":
         session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
         session.advance()
@@ -42,7 +48,8 @@ def test_contract_featured_round_to_floor_summary_transition_order() -> None:
 
     sequence = _decision_sequence_to_floor_summary(session)
 
-    assert sequence[0] == "featured_round_decision"
+    assert sequence[0] == "floor_event_decision"
+    assert sequence[1] == "featured_round_decision"
     assert "floor_vote_decision" in sequence
     assert sequence[-1] == "floor_summary_pending"
     assert pending_screen(session) == "floor_summary"
@@ -71,7 +78,6 @@ def test_contract_completion_flow_semantics() -> None:
     session = FeaturedMatchWebSession(seed=21, rounds=2)
     session.start()
     reach_successor_choice(session)
-    force_civil_war_transition(session)
 
     advance_through_transition_and_complete(session, candidate_index=0)
 

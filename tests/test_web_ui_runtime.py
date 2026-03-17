@@ -6,6 +6,10 @@ from urllib.request import Request, urlopen
 import pytest
 
 from prisoners_gambit.web.server import Handler
+from support.session_driver import force_civil_war_transition
+
+
+_RUNTIME_SERVER_REGISTRY: dict[str, ThreadingHTTPServer] = {}
 
 
 def _post_json(base_url: str, path: str, payload: dict | None = None) -> dict:
@@ -16,11 +20,26 @@ def _post_json(base_url: str, path: str, payload: dict | None = None) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _drive_to_successor_choice(base_url: str) -> None:
+def _runtime_session(base_url: str):
+    server = _RUNTIME_SERVER_REGISTRY[base_url]
+    return getattr(server, "_prisoners_gambit_session")
+
+
+def _runtime_lock(base_url: str):
+    server = _RUNTIME_SERVER_REGISTRY[base_url]
+    return getattr(server, "_prisoners_gambit_lock")
+
+
+def _drive_to_reward_transition(base_url: str) -> None:
     _post_json(base_url, "/api/run/start")
     _post_json(base_url, "/api/action", {"type": "manual_move", "move": "C"})
     _post_json(base_url, "/api/action", {"type": "manual_vote", "vote": "C"})
-    _post_json(base_url, "/api/advance")
+
+
+def _drive_to_successor_choice(base_url: str) -> None:
+    _drive_to_reward_transition(base_url)
+    with _runtime_lock(base_url):
+        force_civil_war_transition(_runtime_session(base_url))
 
 
 def _drive_to_powerup_choice(base_url: str) -> None:
@@ -38,10 +57,12 @@ def web_server_runtime(monkeypatch: pytest.MonkeyPatch):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     base_url = f"http://127.0.0.1:{port}"
+    _RUNTIME_SERVER_REGISTRY[base_url] = server
 
     try:
         yield base_url
     finally:
+        _RUNTIME_SERVER_REGISTRY.pop(base_url, None)
         server.shutdown()
         server.server_close()
         thread.join(timeout=1)
@@ -72,10 +93,9 @@ def test_runtime_non_default_language_changes_multiple_visible_areas_and_runtime
 
     page.click("#startRunBtn")
     page.wait_for_timeout(150)
-    assert "Next pick [test]" in page.locator("#decisionView").inner_text()
+    assert "Floor event" in page.locator("#decisionType").inner_text()
     assert "status[test]: awaiting_decision" in page.locator("#status").inner_text()
-    assert page.locator("#actions button", has_text="Cooperate").count() >= 1
-    assert page.locator("#actions button", has_text="Defect").count() >= 1
+    assert page.locator("#actions button").count() >= 2
 
 def test_runtime_tabs_switch_and_debug_not_default(web_server_runtime, playwright_page) -> None:
     page = playwright_page
@@ -95,22 +115,20 @@ def test_runtime_tabs_switch_and_debug_not_default(web_server_runtime, playwrigh
 
 
 def test_runtime_transition_only_state_renders_primary_action_in_current_decision(web_server_runtime, playwright_page) -> None:
-    _post_json(web_server_runtime, "/api/run/start")
-    _post_json(web_server_runtime, "/api/action", {"type": "manual_move", "move": "C"})
-    _post_json(web_server_runtime, "/api/action", {"type": "manual_vote", "vote": "C"})
+    _drive_to_reward_transition(web_server_runtime)
 
     page = playwright_page
     page.goto(f"{web_server_runtime}/?lang=en-x-test", wait_until="networkidle")
     page.evaluate("refresh()")
     page.wait_for_timeout(150)
 
-    assert "Review successor options [test]" in page.locator("#decisionType").inner_text()
-    assert "Next host selection is ready [test]." in page.locator("#decisionView").inner_text()
-    assert page.locator("#actions button.primary-action", has_text="Review successor options [test]").count() == 1
+    assert "Continue to reward selection [test]" in page.locator("#decisionType").inner_text()
+    assert "Reward selection is ready [test]." in page.locator("#decisionView").inner_text()
+    assert page.locator("#actions button.primary-action", has_text="Continue to reward selection [test]").count() == 1
 
-    page.locator("#actions button.primary-action", has_text="Review successor options [test]").click()
+    page.locator("#actions button.primary-action", has_text="Continue to reward selection [test]").click()
     page.wait_for_timeout(150)
-    assert "Successor choice" in page.locator("#decisionType").inner_text()
+    assert "Powerup choice" in page.locator("#decisionType").inner_text()
 
 
 def test_runtime_powerup_cards_render_compact_and_click_to_genome(web_server_runtime, playwright_page) -> None:

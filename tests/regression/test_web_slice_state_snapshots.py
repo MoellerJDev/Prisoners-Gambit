@@ -10,7 +10,6 @@ from prisoners_gambit.core.interaction import ChooseGenomeEditAction, ChoosePowe
 from support.builders import build_seeded_session
 from support.session_driver import (
     advance_through_transition_and_complete,
-    force_civil_war_transition,
     play_until_floor_summary,
     reach_successor_choice,
 )
@@ -86,7 +85,6 @@ def test_regression_successor_transition_payload_contract() -> None:
 def test_regression_completion_snapshot_contract() -> None:
     session = build_seeded_session(seed=7, rounds=1)
     reach_successor_choice(session)
-    force_civil_war_transition(session)
     advance_through_transition_and_complete(session, candidate_index=0)
 
     view = session.view()
@@ -120,7 +118,6 @@ def test_regression_successor_transition_requires_civil_war_decision() -> None:
 def test_regression_civil_war_transition_occurs_when_outsiders_are_exhausted() -> None:
     session = build_seeded_session(seed=7, rounds=1)
     reach_successor_choice(session)
-    force_civil_war_transition(session)
 
     from prisoners_gambit.core.interaction import ChooseSuccessorAction
 
