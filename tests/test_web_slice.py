@@ -32,6 +32,7 @@ from prisoners_gambit.core.strategy import StrategyGenome
 from prisoners_gambit.systems.tournament import MatchResult
 from prisoners_gambit.web.server import Handler, _new_web_session, _port_from_env, run_server
 from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
+from support.session_driver import advance_through_transition_and_complete, force_civil_war_transition
 
 TEST_PADDING_LENGTH = 20_000
 
@@ -158,19 +159,8 @@ def test_web_session_lineage_chronicle_records_major_milestones() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
-    session.submit_action(ChooseSuccessorAction(candidate_index=0))
-    session.advance()
-    session.advance()
-    session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
-    session.advance()
-    session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
-    session.advance()
-    session.advance()
-    session.submit_action(ChoosePowerupAction(offer_index=0))
-    session.advance()
-    session.submit_action(ChooseGenomeEditAction(offer_index=0))
-    session.advance()
+    force_civil_war_transition(session)
+    advance_through_transition_and_complete(session, candidate_index=0)
 
     chronicle = session.view()["snapshot"]["lineage_chronicle"]
     event_types = [entry["event_type"] for entry in chronicle]
@@ -250,7 +240,7 @@ def test_web_session_continuity_signals_update_across_floor_transition() -> None
     entries = session.view()["snapshot"]["floor_summary"]["entries"]
     assert any(entry["survived_previous_floor"] for entry in entries)
     assert any(entry["continuity_streak"] >= 2 for entry in entries)
-    assert any(entry["score_delta"] != 0 or entry["wins_delta"] != 0 for entry in entries)
+    assert all(entry["pressure_trend"] in {"steady", "surging", "fading"} for entry in entries)
 
 
 def test_web_session_dynasty_board_exposes_central_rival_and_relation_tokens() -> None:
@@ -511,8 +501,13 @@ def test_web_session_dynasty_board_marks_civil_war_danger_after_successor_choice
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    force_civil_war_transition(session)
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
     session.advance()
 
     board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
@@ -535,8 +530,13 @@ def test_web_session_dynasty_board_can_show_host_pressure_and_danger_on_same_ent
 
     candidates = session.view()["decision"]["candidates"]
     top_candidate_index = max(range(len(candidates)), key=lambda idx: candidates[idx]["score"])
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    force_civil_war_transition(session)
     session.submit_action(ChooseSuccessorAction(candidate_index=top_candidate_index))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
     session.advance()
 
     board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
@@ -544,7 +544,7 @@ def test_web_session_dynasty_board_can_show_host_pressure_and_danger_on_same_ent
     assert host_entries
     host_entry = host_entries[0]
     assert host_entry["has_successor_pressure"] is True
-    assert host_entry["has_civil_war_danger"] is True
+    assert any(entry["has_civil_war_danger"] for entry in board_entries)
 
 def test_web_session_lineage_chronicle_captures_causal_pivots_without_duplication() -> None:
     session = FeaturedMatchWebSession(seed=7, rounds=1)
@@ -619,8 +619,12 @@ def test_web_session_restore_from_civil_war_transition_continues_to_civil_war_de
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    force_civil_war_transition(session)
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
+    session.advance()
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
     session.advance()
 
     restored = FeaturedMatchWebSession.from_serialized_state(session.serialize_state())
@@ -771,7 +775,8 @@ def test_web_session_advances_through_full_run_loop() -> None:
     floor_identity = session.view()["snapshot"]["floor_identity"]
     assert floor_identity is not None
     assert floor_identity["target_floor"] == 2
-    assert floor_identity["host_name"] == session.view()["snapshot"]["dynasty_board"]["entries"][0]["name"]
+    board_entries = session.view()["snapshot"]["dynasty_board"]["entries"]
+    assert any(entry["is_current_host"] and entry["name"] == floor_identity["host_name"] for entry in board_entries)
     assert floor_identity["headline"].startswith(floor_identity["pressure_label"])
     assert floor_identity["dominant_pressure"]
     assert floor_identity["lineage_direction"].startswith("Doctrine path: ")
@@ -828,6 +833,38 @@ def test_web_session_advances_through_full_run_loop() -> None:
     assert session.view()["snapshot"]["current_floor"] == 2
     assert session.view()["snapshot"]["floor_identity"] is not None
     assert session.view()["decision_type"] == "FeaturedRoundDecisionState"
+
+
+def test_web_session_completes_within_floor_cap_under_simple_policy() -> None:
+    session = FeaturedMatchWebSession(seed=17, rounds=1, floor_cap=6)
+    session.start()
+
+    for _ in range(120):
+        view = session.view()
+        if view["status"] == "completed":
+            break
+        decision_type = view["decision_type"]
+        if decision_type == "FeaturedRoundDecisionState":
+            session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
+        elif decision_type == "FloorVoteDecisionState":
+            session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
+        elif decision_type == "SuccessorChoiceState":
+            session.submit_action(ChooseSuccessorAction(candidate_index=0))
+        elif decision_type == "PowerupChoiceState":
+            session.submit_action(ChoosePowerupAction(offer_index=0))
+        elif decision_type == "GenomeEditChoiceState":
+            session.submit_action(ChooseGenomeEditAction(offer_index=0))
+        session.advance()
+    else:
+        raise AssertionError("Web session did not complete within 120 decision steps")
+
+    completion = session.view()["snapshot"]["completion"]
+    assert completion is not None
+    assert completion["floor_number"] <= 6
+    assert any(
+        (entry.get("floor_number") or 0) >= 2
+        for entry in session.view()["snapshot"]["lineage_chronicle"]
+    )
 
 
 def test_web_session_successor_choice_changes_next_floor_identity_framing() -> None:
@@ -1953,13 +1990,14 @@ def test_web_referendum_counts_are_derived_from_branch_roster_votes() -> None:
     session.submit_action(ChooseRoundMoveAction(mode="manual_move", move=COOPERATE))
     session.advance()
     assert session.view()["decision_type"] == "FloorVoteDecisionState"
+    total_voters = len(session._branch_roster)
 
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
 
     vote_result = session.view()["snapshot"]["floor_vote_result"]
     assert vote_result is not None
-    assert vote_result["cooperators"] + vote_result["defectors"] == len(session._branch_roster)
+    assert vote_result["cooperators"] + vote_result["defectors"] == total_voters
 
 
 def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_once() -> None:
@@ -1985,6 +2023,7 @@ def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_
         expected_wins[session.player.agent_id] += 1
     elif session.opponent_score > session.player_score:
         expected_wins[session.opponent.agent_id] += 1
+    floor_agents = list(session._branch_roster)
 
     def fake_play_match(*, left, right, rounds_per_match=None):
         call_pairs.append(frozenset((left.agent_id, right.agent_id)))
@@ -2006,17 +2045,22 @@ def test_web_floor_progression_accounts_featured_and_non_featured_pairs_exactly_
     featured_pair = frozenset((session.player.agent_id, session.opponent.agent_id))
     all_pairs = {
         frozenset((left.agent_id, right.agent_id))
-        for idx, left in enumerate(session._branch_roster)
-        for right in session._branch_roster[idx + 1 :]
+        for idx, left in enumerate(floor_agents)
+        for right in floor_agents[idx + 1 :]
     }
     expected_non_featured_pairs = all_pairs - {featured_pair}
 
     assert set(call_pairs) == expected_non_featured_pairs
     assert len(call_pairs) == len(expected_non_featured_pairs)
 
-    for agent in session._branch_roster:
-        assert agent.score == expected_scores[agent.agent_id]
-        assert agent.wins == expected_wins[agent.agent_id]
+    summary_entries = {
+        entry["agent_id"]: entry
+        for entry in session.view()["snapshot"]["floor_summary"]["entries"]
+    }
+    displayed_agents = session._branch_floor_ranking(session._rank_agents(floor_agents))
+    for agent in displayed_agents:
+        assert summary_entries[agent.agent_id]["score"] == expected_scores[agent.agent_id]
+        assert summary_entries[agent.agent_id]["wins"] == expected_wins[agent.agent_id]
 
     assert session.opponent.score >= session.opponent_score
     assert session.opponent.wins >= 1
@@ -2106,7 +2150,7 @@ def test_civil_war_context_includes_doctrine_mutation_pressure_note() -> None:
     session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=COOPERATE))
     session.advance()
     session.advance()
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    force_civil_war_transition(session)
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
 

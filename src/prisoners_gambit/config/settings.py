@@ -27,6 +27,7 @@ class Settings:
     auto_choose_round_actions: bool = False
     auto_choose_genome_edits: bool = False
     auto_choose_floor_vote: bool = False
+    auto_choose_successors: bool = False
 
     log_level: str = "INFO"
     log_to_console: bool = True
@@ -51,6 +52,7 @@ class Settings:
             auto_choose_round_actions=_as_bool(os.getenv("PG_AUTO_CHOOSE_ROUND_ACTIONS"), False),
             auto_choose_genome_edits=_as_bool(os.getenv("PG_AUTO_CHOOSE_GENOME_EDITS"), False),
             auto_choose_floor_vote=_as_bool(os.getenv("PG_AUTO_CHOOSE_FLOOR_VOTE"), False),
+            auto_choose_successors=_as_bool(os.getenv("PG_AUTO_CHOOSE_SUCCESSORS"), False),
             log_level=os.getenv("PG_LOG_LEVEL", "INFO"),
             log_to_console=_as_bool(os.getenv("PG_LOG_TO_CONSOLE"), True),
             log_to_file=_as_bool(os.getenv("PG_LOG_TO_FILE"), False),

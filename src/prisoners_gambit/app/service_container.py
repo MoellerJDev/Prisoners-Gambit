@@ -20,6 +20,7 @@ def build_run_application(settings: Settings) -> RunApplication:
         auto_choose_round_actions=settings.auto_choose_round_actions,
         auto_choose_genome_edits=settings.auto_choose_genome_edits,
         auto_choose_floor_vote=settings.auto_choose_floor_vote,
+        auto_choose_successors=settings.auto_choose_successors,
     )
 
     tournament = TournamentEngine(

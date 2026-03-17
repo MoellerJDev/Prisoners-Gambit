@@ -13,6 +13,7 @@ from prisoners_gambit.web.web_slice import FeaturedMatchWebSession
 from support.session_driver import (
     advance_through_transition_and_complete,
     decision_type,
+    force_civil_war_transition,
     pending_screen,
     reach_successor_choice,
     session_milestone,
@@ -70,7 +71,7 @@ def test_contract_completion_flow_semantics() -> None:
     session = FeaturedMatchWebSession(seed=21, rounds=2)
     session.start()
     reach_successor_choice(session)
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    force_civil_war_transition(session)
 
     advance_through_transition_and_complete(session, candidate_index=0)
 

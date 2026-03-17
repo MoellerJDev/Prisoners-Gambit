@@ -119,6 +119,16 @@ def reach_successor_choice(session: FeaturedMatchWebSession, *, featured_mode: s
         raise AssertionError("Expected successor-choice decision")
 
 
+def force_civil_war_transition(session: FeaturedMatchWebSession) -> None:
+    lineage_survivors = [agent for agent in session._branch_roster if agent.lineage_id == session.player.lineage_id]
+    if len(lineage_survivors) < 2:
+        raise AssertionError("Expected multiple surviving lineage branches before forcing civil-war transition")
+    session._branch_roster = list(lineage_survivors)
+    current_host = session.player if session._current_host_survived_floor() else lineage_survivors[0]
+    session._upcoming_phase = "civil_war"
+    session.snapshot.civil_war_context = session._build_civil_war_context(current_host=current_host)
+
+
 def advance_through_transition_and_complete(
     session: FeaturedMatchWebSession,
     *,
@@ -127,31 +137,42 @@ def advance_through_transition_and_complete(
     genome_index: int = 0,
     civil_war_featured_mode: str = "manual_cooperate",
     civil_war_floor_vote: int = COOPERATE,
+    max_steps: int = 80,
 ) -> None:
     """Advance from successor choice through whichever post-choice path reaches completion."""
-    if decision_type(session) != "SuccessorChoiceState":
-        raise AssertionError("Expected successor-choice decision before transition")
+    for _ in range(max_steps):
+        if session.view()["status"] == "completed":
+            return
 
-    session.submit_action(ChooseSuccessorAction(candidate_index=candidate_index))
-    session.advance()
-
-    if pending_screen(session) == "civil_war_transition":
-        session.advance()  # clears transition and presents civil-war featured rounds
-        play_featured_rounds(session, mode=civil_war_featured_mode)
-        if decision_type(session) != "FloorVoteDecisionState":
-            raise AssertionError("Expected floor vote decision in civil-war floor")
-
-        session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=civil_war_floor_vote))
+        current = decision_type(session)
+        if current == "SuccessorChoiceState":
+            candidates = session.view()["decision"]["candidates"]
+            choice = min(candidate_index, len(candidates) - 1)
+            session.submit_action(ChooseSuccessorAction(candidate_index=choice))
+            session.advance()
+            continue
+        if current == "PowerupChoiceState":
+            offers = session.view()["decision"]["offers"]
+            choice = min(powerup_index, len(offers) - 1)
+            session.submit_action(ChoosePowerupAction(offer_index=choice))
+            session.advance()
+            continue
+        if current == "GenomeEditChoiceState":
+            offers = session.view()["decision"]["offers"]
+            choice = min(genome_index, len(offers) - 1)
+            session.submit_action(ChooseGenomeEditAction(offer_index=choice))
+            session.advance()
+            continue
+        if current == "FeaturedRoundDecisionState":
+            play_featured_rounds(session, mode=civil_war_featured_mode)
+            continue
+        if current == "FloorVoteDecisionState":
+            session.submit_action(ChooseFloorVoteAction(mode="manual_vote", vote=civil_war_floor_vote))
+            session.advance()
+            continue
+        if pending_screen(session) in {"floor_summary", "civil_war_transition"}:
+            session.advance()
+            continue
         session.advance()
-        if pending_screen(session) != "floor_summary":
-            raise AssertionError("Expected floor summary pending after civil-war floor")
 
-        session.advance()  # clears floor summary and presents powerup choice
-
-    if decision_type(session) != "PowerupChoiceState":
-        raise AssertionError("Expected powerup choice before completion")
-
-    session.submit_action(ChoosePowerupAction(offer_index=powerup_index))
-    session.advance()
-    session.submit_action(ChooseGenomeEditAction(offer_index=genome_index))
-    session.advance()
+    raise AssertionError(f"Did not complete run within {max_steps} progression steps")

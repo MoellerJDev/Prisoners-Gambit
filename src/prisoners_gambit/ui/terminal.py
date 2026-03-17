@@ -47,11 +47,13 @@ class TerminalRenderer(Renderer):
         auto_choose_round_actions: bool = False,
         auto_choose_genome_edits: bool = False,
         auto_choose_floor_vote: bool = False,
+        auto_choose_successors: bool = False,
     ) -> None:
         self.auto_choose_powerups = auto_choose_powerups
         self.auto_choose_round_actions = auto_choose_round_actions
         self.auto_choose_genome_edits = auto_choose_genome_edits
         self.auto_choose_floor_vote = auto_choose_floor_vote
+        self.auto_choose_successors = auto_choose_successors
 
     def show_run_header(self, seed: int | None) -> None:
         print("=== Prisoner's Gambit ===")
@@ -272,6 +274,18 @@ class TerminalRenderer(Renderer):
         print("Choose a surviving descendant to continue as:")
         for index, candidate in enumerate(state.candidates, start=1):
             print(format_successor_candidate_view(index=index, candidate=candidate))
+
+        if self.auto_choose_successors:
+            best_index = max(
+                range(len(state.candidates)),
+                key=lambda idx: (
+                    state.candidates[idx].score,
+                    state.candidates[idx].wins,
+                    -idx,
+                ),
+            )
+            print(f"Auto-selecting option {best_index + 1}.")
+            return ChooseSuccessorAction(candidate_index=best_index)
 
         while True:
             raw = input(f"Select 1-{len(state.candidates)}: ").strip()
