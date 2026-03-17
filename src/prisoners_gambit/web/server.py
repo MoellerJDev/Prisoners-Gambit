@@ -42,7 +42,14 @@ _DEFAULT_PORT = 8765
 def _new_web_session() -> FeaturedMatchWebSession:
     settings = Settings.from_env()
     seed = settings.seed if settings.seed is not None else secrets.randbelow(2**63)
-    return FeaturedMatchWebSession(seed=seed, rounds=settings.rounds_per_match)
+    return FeaturedMatchWebSession(
+        seed=seed,
+        rounds=settings.rounds_per_match,
+        survivor_count=min(settings.survivor_count, 4),
+        floor_cap=settings.floors,
+        mutation_rate=settings.mutation_rate,
+        descendant_mutation_bonus=settings.descendant_mutation_bonus,
+    )
 
 
 def _current_save_secret() -> bytes:

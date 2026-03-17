@@ -84,6 +84,10 @@ def host_shift_summary(*, previous_host: str, chosen_name: str) -> str:
     return f"Host shifted from {previous_host} to {chosen_name}."
 
 
+def host_hold_summary(*, host_name: str) -> str:
+    return f"Host held by {host_name}."
+
+
 def civil_war_started_summary(*, thesis: str) -> str:
     return f"Civil war started: {thesis}"
 

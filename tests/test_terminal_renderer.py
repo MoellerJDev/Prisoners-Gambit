@@ -111,6 +111,71 @@ def test_terminal_successor_choice_displays_rich_candidate_fields(monkeypatch, c
     assert "Featured inference: Competing future" in out
 
 
+def test_terminal_successor_choice_autopicks_highest_scoring_candidate(capsys) -> None:
+    renderer = TerminalRenderer(auto_choose_successors=True)
+
+    action = renderer.resolve_successor_choice(
+        SuccessorChoiceState(
+            floor_number=3,
+            candidates=[
+                SuccessorCandidateView(
+                    name="Heir Alpha",
+                    lineage_depth=2,
+                    score=9,
+                    wins=2,
+                    branch_role="Safe heir",
+                    branch_doctrine="Reciprocal cooperator",
+                    shaping_causes=["Cooperative opener and reciprocity bias"],
+                    tags=["Cooperative"],
+                    descriptor="Reliable reciprocal responder",
+                    tradeoffs=["Safe vs explosive: Safe edge"],
+                    strengths=["Can stabilize alliances"],
+                    liabilities=["May lose to high-tempo cousins"],
+                    attractive_now="Attractive now: stabilizes mirrors.",
+                    danger_later="Danger later: may stall in races.",
+                    lineage_future="Implies slower stable lineage future.",
+                    succession_pitch="Take this heir to stabilize alliances before the mirror phase.",
+                    succession_risk="Choosing this line may lose ceiling in duel-heavy mirrors.",
+                    anti_score_note="Do not pick by score alone.",
+                    genome_summary="Open C, retaliate D",
+                    powerups=["Trust Dividend"],
+                ),
+                SuccessorCandidateView(
+                    name="Heir Beta",
+                    lineage_depth=3,
+                    score=14,
+                    wins=3,
+                    branch_role="Duel heir",
+                    branch_doctrine="Punishing opportunist",
+                    shaping_causes=["Aggressive opener and duel pressure"],
+                    tags=["Aggressive", "Punishing"],
+                    descriptor="Fast punishing branch",
+                    tradeoffs=["Tempo vs stability: Explosive edge"],
+                    strengths=["Pressures fragile cousins"],
+                    liabilities=["Can trigger retaliation cascades"],
+                    attractive_now="Attractive now: punishes slow branches.",
+                    danger_later="Danger later: mirror volatility rises.",
+                    lineage_future="Implies hardline lineage future.",
+                    succession_pitch="Take this heir to seize tempo before civil war begins.",
+                    succession_risk="Choosing this line increases mirror variance.",
+                    anti_score_note="Read the matchup, not just the current ladder.",
+                    genome_summary="Open D, punish C",
+                    powerups=["Opening Gambit"],
+                ),
+            ],
+            current_phase="ecosystem",
+            lineage_doctrine="Lineage trend: contested doctrine.",
+            threat_profile=["Aggressive"],
+            civil_war_pressure="rising",
+            featured_inference_summary=["Observed featured signals: Retaliated after pressure."],
+        )
+    )
+
+    out = capsys.readouterr().out
+    assert action.candidate_index == 1
+    assert "Auto-selecting option 2." in out
+
+
 def test_choose_round_action_warns_when_match_autopilot_unavailable(monkeypatch, capsys) -> None:
     renderer = TerminalRenderer()
     monkeypatch.setattr(

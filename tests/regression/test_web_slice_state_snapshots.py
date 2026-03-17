@@ -6,8 +6,14 @@ These tests intentionally validate stable semantics and structure rather than fr
 incidental content (exact names/order text) that may evolve during balancing.
 """
 
+from prisoners_gambit.core.interaction import ChooseGenomeEditAction, ChoosePowerupAction
 from support.builders import build_seeded_session
-from support.session_driver import advance_through_transition_and_complete, play_until_floor_summary, reach_successor_choice
+from support.session_driver import (
+    advance_through_transition_and_complete,
+    force_civil_war_transition,
+    play_until_floor_summary,
+    reach_successor_choice,
+)
 
 
 REQUIRED_COMPLETION_KEYS = {"outcome", "floor_number", "player_name", "seed"}
@@ -80,7 +86,7 @@ def test_regression_successor_transition_payload_contract() -> None:
 def test_regression_completion_snapshot_contract() -> None:
     session = build_seeded_session(seed=7, rounds=1)
     reach_successor_choice(session)
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    force_civil_war_transition(session)
     advance_through_transition_and_complete(session, candidate_index=0)
 
     view = session.view()
@@ -114,13 +120,18 @@ def test_regression_successor_transition_requires_civil_war_decision() -> None:
 def test_regression_civil_war_transition_occurs_when_outsiders_are_exhausted() -> None:
     session = build_seeded_session(seed=7, rounds=1)
     reach_successor_choice(session)
-    session.snapshot.floor_summary.heir_pressure.future_threats = []
+    force_civil_war_transition(session)
 
     from prisoners_gambit.core.interaction import ChooseSuccessorAction
 
     session.submit_action(ChooseSuccessorAction(candidate_index=0))
     session.advance()
+    assert session.view()["decision_type"] == "PowerupChoiceState"
+    session.submit_action(ChoosePowerupAction(offer_index=0))
+    session.advance()
+    session.submit_action(ChooseGenomeEditAction(offer_index=0))
+    session.advance()
 
     assert session.view()["pending_screen"] == "civil_war_transition"
-    assert session.view()["snapshot"]["current_phase"] == "civil_war"
-    assert session.view()["snapshot"]["current_floor"] == 2
+    assert session.view()["snapshot"]["current_phase"] == "ecosystem"
+    assert session.view()["snapshot"]["current_floor"] == 1

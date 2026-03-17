@@ -48,10 +48,10 @@ def build_civil_war_context(
     if doctrine_lane_counts["unstable"]:
         doctrine_pressure.append("Unstable branches can steal rounds but are brittle under mirror pressure.")
 
-    host_name = current_host.name if current_host is not None else "Your current host"
+    host_name = current_host.name if current_host is not None else "your current host"
     featured_framing = civil_war_featured_inference_context(featured_inference_signals or FeaturedInferenceSignals((), ()))
     thesis = (
-        f"Judgment phase: outsiders are gone. {host_name} now faces sibling branches shaped by your own lineage doctrine."
+        f"Judgment phase: outsiders are gone. Current host {host_name} now faces sibling branches shaped by your own lineage doctrine."
     )
 
     return CivilWarContext(

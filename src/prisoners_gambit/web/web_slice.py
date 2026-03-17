@@ -23,6 +23,7 @@ from prisoners_gambit.content.session_text import (
     floor_identity_pressure_reason,
     floor_pressure_label,
     heir_tag_fallback,
+    host_hold_summary,
     host_shift_summary,
     lineage_direction_text,
     no_solid_clue_read_this_floor,
@@ -99,6 +100,7 @@ from prisoners_gambit.systems.offers import (
     offer_category_hint,
     seed_run_house_doctrine,
 )
+from prisoners_gambit.systems.evolution import EvolutionEngine
 from prisoners_gambit.systems.progression import ProgressionEngine
 from prisoners_gambit.systems.tournament import TournamentEngine
 from prisoners_gambit.web.floor_summary_support import FloorContinuityContext, synthesize_floor_summary
@@ -139,10 +141,23 @@ _GENOME_EDIT_TYPES = {type(edit).__name__: type(edit) for edit in build_genome_e
 
 
 class FeaturedMatchWebSession:
-    def __init__(self, seed: int = 7, rounds: int = 3) -> None:
+    def __init__(
+        self,
+        seed: int = 7,
+        rounds: int = 3,
+        *,
+        survivor_count: int = 4,
+        floor_cap: int = 20,
+        mutation_rate: float = 0.15,
+        descendant_mutation_bonus: float = 1.75,
+    ) -> None:
         self.seed = seed
         self.rng = random.Random(seed)
         self.rounds = rounds
+        self.survivor_count = max(1, min(survivor_count, 4))
+        self.floor_cap = max(1, floor_cap)
+        self.mutation_rate = mutation_rate
+        self.descendant_mutation_bonus = descendant_mutation_bonus
         self.session = RunSession()
         self.snapshot = RunSnapshot()
         self.player = Agent(name="You", genome=self._default_genome(), is_player=True, lineage_id=1)
@@ -150,6 +165,7 @@ class FeaturedMatchWebSession:
         self.player.powerups.append(ComplianceDividend())
         self.opponent.powerups.append(CounterIntel())
         self._branch_roster: list[Agent] = self._build_initial_branch_roster()
+        self._target_population_size = len(self._branch_roster)
         self.opponent = self._select_floor_opponent()
         self.player_history: list[int] = []
         self.opponent_history: list[int] = []
@@ -162,6 +178,7 @@ class FeaturedMatchWebSession:
         self._match_autopilot_active = False
         self._pending_screen: str | None = None
         self._pending_message: str | None = None
+        self._upcoming_phase: str | None = None
         self._powerup_offers = []
         self._genome_offers = []
         self._successor_candidates: list[Agent] = []
@@ -175,6 +192,12 @@ class FeaturedMatchWebSession:
         self._current_floor_central_rival: str | None = None
         self._current_floor_new_central_rival: str | None = None
         self._progression = ProgressionEngine(rng=self.rng, offers_per_floor=3, featured_matches_per_floor=1)
+        self._evolution = EvolutionEngine(
+            survivor_count=self.survivor_count,
+            mutation_rate=self.mutation_rate,
+            descendant_mutation_bonus=self.descendant_mutation_bonus,
+            rng=self.rng,
+        )
         self._tournament = TournamentEngine(base_rounds_per_match=rounds, rng=self.rng)
 
     def serialize_state(self) -> dict:
@@ -184,6 +207,10 @@ class FeaturedMatchWebSession:
             "version": SAVE_STATE_VERSION,
             "seed": self.seed,
             "rounds": self.rounds,
+            "survivor_count": self.survivor_count,
+            "floor_cap": self.floor_cap,
+            "mutation_rate": self.mutation_rate,
+            "descendant_mutation_bonus": self.descendant_mutation_bonus,
             "rng_state": serialize_rng_state(self.rng.getstate()),
             "session": {
                 "status": self.session.status,
@@ -205,6 +232,7 @@ class FeaturedMatchWebSession:
             "match_autopilot_active": self._match_autopilot_active,
             "pending_screen": self._pending_screen,
             "pending_message": self._pending_message,
+            "upcoming_phase": self._upcoming_phase,
             "powerup_offers": [serialize_powerup(powerup) for powerup in self._powerup_offers],
             "genome_offers": [serialize_genome_edit(edit) for edit in self._genome_offers],
             "successor_candidates": [serialize_agent(agent) for agent in self._successor_candidates],
@@ -235,7 +263,14 @@ class FeaturedMatchWebSession:
             if payload.get("version") != SAVE_STATE_VERSION:
                 raise ValueError("Unsupported save state version")
 
-            session = cls(seed=int(payload["seed"]), rounds=int(payload["rounds"]))
+            session = cls(
+                seed=int(payload["seed"]),
+                rounds=int(payload["rounds"]),
+                survivor_count=int(payload.get("survivor_count", 4)),
+                floor_cap=int(payload.get("floor_cap", 20)),
+                mutation_rate=float(payload.get("mutation_rate", 0.15)),
+                descendant_mutation_bonus=float(payload.get("descendant_mutation_bonus", 1.75)),
+            )
             rng_state = deserialize_rng_state(payload["rng_state"])
             session.rng.setstate(rng_state)
 
@@ -254,6 +289,7 @@ class FeaturedMatchWebSession:
             session._match_autopilot_active = bool(payload["match_autopilot_active"])
             session._pending_screen = payload.get("pending_screen")
             session._pending_message = payload.get("pending_message")
+            session._upcoming_phase = payload.get("upcoming_phase")
             session._powerup_offers = [deserialize_powerup(entry, _POWERUP_TYPES) for entry in payload.get("powerup_offers", [])]
             session._genome_offers = [deserialize_genome_edit(entry, _GENOME_EDIT_TYPES) for entry in payload.get("genome_offers", [])]
             session._successor_candidates = [deserialize_agent(entry, powerup_types=_POWERUP_TYPES) for entry in payload.get("successor_candidates", [])]
@@ -402,12 +438,79 @@ class FeaturedMatchWebSession:
         if self.session.current_decision is not None:
             return None
         if self._pending_screen == "floor_summary":
-            return "successor_review" if self.floor_number == 1 else "reward_selection"
+            return "successor_review" if self._should_review_successor_options() else "reward_selection"
         if self._pending_screen == "civil_war_transition":
             return "civil_war_start"
         if self.session.status == "running":
             return "generic"
         return None
+
+    def _lineage_survivors(self) -> list[Agent]:
+        player_lineage_id = self.player.lineage_id
+        return [agent for agent in self._branch_roster if agent.lineage_id == player_lineage_id]
+
+    def _current_host_survived_floor(self) -> bool:
+        return any(agent.agent_id == self.player.agent_id for agent in self._branch_roster)
+
+    def _should_review_successor_options(self) -> bool:
+        lineage_survivors = self._lineage_survivors()
+        return len(lineage_survivors) > 1
+
+    def _post_summary_phase(self) -> str:
+        return self._upcoming_phase or self.snapshot.current_phase or "ecosystem"
+
+    def _build_civil_war_context(self, *, current_host: Agent | None) -> object:
+        context = build_civil_war_context(
+            branches=list(self._branch_roster),
+            current_host=current_host,
+            featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
+        )
+        _, doctrine_pressure_note = self._doctrine_state_framing()
+        context.doctrine_pressure = [doctrine_pressure_note, *context.doctrine_pressure][:4]
+        return context
+
+    def _record_host_choice(self, *, chosen: Agent, event_id: str, floor_number: int) -> None:
+        previous_host = self.player.name
+        if chosen is not self.player:
+            chosen.is_player = True
+            self.player.is_player = False
+            self.player = chosen
+        summary = (
+            host_hold_summary(host_name=chosen.name)
+            if previous_host == chosen.name
+            else host_shift_summary(previous_host=previous_host, chosen_name=chosen.name)
+        )
+        self._append_chronicle_entry(
+            event_id=event_id,
+            event_type="successor_choice",
+            floor_number=floor_number,
+            summary=summary,
+        )
+
+    def _complete_run(self, *, outcome: str) -> None:
+        completion = RunCompletion(
+            outcome=outcome,
+            floor_number=self.floor_number,
+            player_name=self.player.name,
+            seed=self.seed,
+        )
+        self.snapshot.completion = completion
+        self._pending_screen = None
+        self._pending_message = None
+        self._upcoming_phase = None
+        self._append_chronicle_entry(
+            event_id=f"run_outcome:{outcome}:{self.floor_number}",
+            event_type="run_outcome",
+            floor_number=self.floor_number,
+            summary=run_outcome_summary(
+                outcome=outcome,
+                floor_number=self.floor_number,
+                player_name=self.player.name,
+            ),
+        )
+        self.session.complete(completion, self.snapshot)
+        self.snapshot.session_status = "completed"
+        self._rebuild_dynasty_board()
 
     @property
     def should_autopilot_featured_match(self) -> bool:
@@ -607,6 +710,7 @@ class FeaturedMatchWebSession:
         base_vote = decision.prompt.suggested_vote if action.mode == "autopilot_vote" else action.vote
         if base_vote not in (COOPERATE, DEFECT):
             raise ValueError("Invalid floor vote")
+        current_phase = self.snapshot.current_phase or "ecosystem"
 
         total_agents = len(self._branch_roster)
         referendum_context = ReferendumContext(
@@ -707,7 +811,8 @@ class FeaturedMatchWebSession:
                     )
                 rival.score += rival_reward
 
-        summary_agents = self._branch_floor_ranking()
+        ranked = self._rank_agents(self._branch_roster)
+        summary_agents = self._branch_floor_ranking(ranked)
 
         synthesis = synthesize_floor_summary(
             floor_number=self.floor_number,
@@ -732,13 +837,6 @@ class FeaturedMatchWebSession:
         self._previous_central_rival = synthesis.continuity.previous_central_rival
         heir_pressure = synthesis.summary.heir_pressure
 
-        self.snapshot.session_status = "running"
-        self._pending_screen = "floor_summary"
-        next_step_kind = "successor_review" if self.floor_number == 1 else "reward_selection"
-        self._pending_message = pending_floor_complete_message(
-            floor_number=self.floor_number,
-            next_step_label=transition_action_label(next_step_kind),
-        )
         featured_note = (
             self.snapshot.floor_summary.featured_inference_summary[0]
             if self.snapshot.floor_summary.featured_inference_summary
@@ -766,10 +864,68 @@ class FeaturedMatchWebSession:
                 doctrine_note,
             ),
         )
+        if current_phase == "ecosystem":
+            survivors, _ = self._evolution.split_population(ranked)
+        else:
+            survivors, _ = self._evolution.split_population_civil_war(ranked)
+
+        lineage_survivors = [
+            agent
+            for agent in survivors
+            if agent.lineage_id == self.player.lineage_id
+        ]
+        if not lineage_survivors:
+            self._branch_roster = []
+            self._successor_candidates = []
+            self.snapshot.successor_options = None
+            self._complete_run(outcome="eliminated")
+            return
+
+        self._branch_roster = list(
+            lineage_survivors
+            if current_phase == "civil_war"
+            else survivors
+        )
+        self._successor_candidates = []
+        self.snapshot.successor_options = None
+        self.snapshot.civil_war_context = None
+        self._upcoming_phase = current_phase
+
+        if current_phase == "ecosystem":
+            outsiders_remaining = [
+                agent
+                for agent in survivors
+                if agent.lineage_id != self.player.lineage_id
+            ]
+            if not outsiders_remaining:
+                if len(lineage_survivors) == 1:
+                    self._branch_roster = list(lineage_survivors)
+                    self._record_host_choice(
+                        chosen=lineage_survivors[0],
+                        event_id=f"successor_choice:{self.floor_number}:sole_survivor",
+                        floor_number=self.floor_number,
+                    )
+                    self._complete_run(outcome="victory")
+                    return
+                self._branch_roster = list(lineage_survivors)
+                self._upcoming_phase = "civil_war"
+                current_host = self.player if self._current_host_survived_floor() else None
+                self.snapshot.civil_war_context = self._build_civil_war_context(current_host=current_host)
+
+        next_step_kind = "successor_review" if self._should_review_successor_options() else "reward_selection"
+        self.snapshot.session_status = "running"
+        self._pending_screen = "floor_summary"
+        self._pending_message = pending_floor_complete_message(
+            floor_number=self.floor_number,
+            next_step_label=transition_action_label(next_step_kind),
+        )
         self._rebuild_dynasty_board()
 
     def _begin_post_summary_flow(self) -> None:
-        if self.floor_number == 1:
+        lineage_survivors = self._lineage_survivors()
+        if not lineage_survivors:
+            return
+        if len(lineage_survivors) > 1:
             self._successor_candidates = self._build_successor_candidates()
             candidates = []
             top_score = max((agent.score for agent in self._successor_candidates), default=0)
@@ -780,13 +936,13 @@ class FeaturedMatchWebSession:
                 lineage_doctrine = self.snapshot.floor_summary.heir_pressure.branch_doctrine
                 for threat in self.snapshot.floor_summary.heir_pressure.future_threats:
                     threat_tags.update(threat.tags)
-            doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
+            doctrine_chip, _ = self._doctrine_state_framing()
             for agent in self._successor_candidates:
                 identity = analyze_agent_identity(agent)
                 assessment = assess_successor_candidate(
                     agent,
                     top_score=top_score,
-                    phase=self.snapshot.current_phase,
+                    phase=self._post_summary_phase(),
                     threat_tags=threat_tags,
                     lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
                 )
@@ -810,7 +966,7 @@ class FeaturedMatchWebSession:
             state = SuccessorChoiceState(
                 floor_number=self.floor_number,
                 candidates=candidates,
-                current_phase=self.snapshot.current_phase,
+                current_phase=self._post_summary_phase(),
                 lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
                 threat_profile=sorted(threat_tags),
                 civil_war_pressure=civil_war_pressure,
@@ -839,9 +995,23 @@ class FeaturedMatchWebSession:
             self.snapshot.session_status = "awaiting_decision"
             return
 
+        sole_survivor = lineage_survivors[0]
+        self._record_host_choice(
+            chosen=sole_survivor,
+            event_id=f"successor_choice:{self.floor_number}:sole_survivor_post_summary",
+            floor_number=self.floor_number,
+        )
+        self.snapshot.successor_options = None
+        self._successor_candidates = []
+        if self._post_summary_phase() == "civil_war":
+            self.snapshot.floor_identity = None
+            self.snapshot.civil_war_context = self._build_civil_war_context(current_host=self.player)
+        else:
+            self.snapshot.floor_identity = self._build_next_floor_identity_for_agent(sole_survivor)
         self._begin_powerup_choice()
 
     def _begin_powerup_choice(self) -> None:
+        phase = self._post_summary_phase()
         generated = generate_powerup_offer_set(
             3,
             self.rng,
@@ -849,7 +1019,7 @@ class FeaturedMatchWebSession:
                 owned_powerups=tuple(self.player.powerups),
                 genome=self.player.genome,
                 floor_number=self.floor_number,
-                phase=self.snapshot.current_phase,
+                phase=phase,
                 house_doctrine_family=self.snapshot.house_doctrine_family,
                 primary_doctrine_family=self.snapshot.primary_doctrine_family,
                 secondary_doctrine_family=self.snapshot.secondary_doctrine_family,
@@ -877,43 +1047,18 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid successor index")
         chosen = self._successor_candidates[action.candidate_index]
         chosen_view = decision.candidates[action.candidate_index]
-        previous_host = self.player.name
-        chosen.is_player = True
-        self.player.is_player = False
-        self.player = chosen
-        self._append_chronicle_entry(
+        self._record_host_choice(
+            chosen=chosen,
             event_id=f"successor_choice:{self.floor_number}:{action.candidate_index}",
-            event_type="successor_choice",
-            floor_number=1,
-            summary=host_shift_summary(previous_host=previous_host, chosen_name=chosen.name),
+            floor_number=self.floor_number,
         )
 
-        if self._should_start_civil_war():
+        if self._post_summary_phase() == "civil_war":
             self.snapshot.floor_identity = None
-            self.snapshot.current_phase = "civil_war"
-            self.snapshot.floor_vote_result = None
-            self.snapshot.civil_war_context = build_civil_war_context(
-                branches=list(self._successor_candidates),
-                current_host=chosen,
-                featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
-            )
-            doctrine_chip, doctrine_pressure_note = self._doctrine_state_framing()
-            self.snapshot.civil_war_context.doctrine_pressure = [doctrine_pressure_note, *self.snapshot.civil_war_context.doctrine_pressure][:4]
-            self.floor_number = 2
-            self.snapshot.current_floor = self.floor_number
-            self._pending_screen = "civil_war_transition"
-            self._pending_message = pending_civil_war_start_message(thesis=self.snapshot.civil_war_context.thesis)
-            self._append_chronicle_entry(
-                event_id="phase_transition:civil_war",
-                event_type="phase_transition",
-                floor_number=self.floor_number,
-                summary=civil_war_started_summary(thesis=self.snapshot.civil_war_context.thesis),
-                cause=self._lineage_cause_phrase(
-                    list(self.snapshot.civil_war_context.doctrine_pressure),
-                    self.snapshot.civil_war_context.thesis,
-                ),
-            )
-            self.snapshot.session_status = "running"
+            self.snapshot.civil_war_context = self._build_civil_war_context(current_host=chosen)
+            self._pending_screen = None
+            self._pending_message = None
+            self._begin_powerup_choice()
         else:
             self.snapshot.current_phase = "ecosystem"
             self.snapshot.civil_war_context = None
@@ -996,21 +1141,58 @@ class FeaturedMatchWebSession:
             key_signal=clue_signal,
         )
 
-    def _should_start_civil_war(self) -> bool:
+    def _build_next_floor_identity_for_agent(self, chosen: Agent) -> FloorIdentityState:
         floor_summary = self.snapshot.floor_summary
-        if floor_summary is None or floor_summary.heir_pressure is None:
-            return False
-        return len(floor_summary.heir_pressure.future_threats) == 0
+        threat_tags: set[str] = set()
+        lineage_doctrine: str | None = None
+        featured_inference_summary = list(floor_summary.featured_inference_summary) if floor_summary else []
+        if floor_summary and floor_summary.heir_pressure:
+            lineage_doctrine = floor_summary.heir_pressure.branch_doctrine
+            for threat in floor_summary.heir_pressure.future_threats:
+                threat_tags.update(threat.tags)
+
+        doctrine_chip, _ = self._doctrine_state_framing()
+        identity = analyze_agent_identity(chosen)
+        assessment = assess_successor_candidate(
+            chosen,
+            top_score=max((agent.score for agent in self._lineage_survivors()), default=chosen.score),
+            phase=self._post_summary_phase(),
+            threat_tags=threat_tags,
+            lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
+        )
+        candidate_view = to_successor_candidate_view(
+            agent=chosen,
+            identity=identity,
+            assessment=assessment,
+            featured_inference_context=successor_featured_inference_context(
+                candidate_tags=identity.tags,
+                featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
+            ),
+            featured_inference_brief=successor_featured_inference_brief(
+                candidate_tags=identity.tags,
+                featured_inference_signals=normalize_featured_inference_signals(self._floor_clue_log),
+            ),
+        )
+        synthetic_decision = SuccessorChoiceState(
+            floor_number=self.floor_number,
+            candidates=[candidate_view],
+            current_phase=self._post_summary_phase(),
+            lineage_doctrine=(f"{lineage_doctrine} | {doctrine_chip}" if lineage_doctrine else doctrine_chip),
+            threat_profile=sorted(threat_tags),
+            civil_war_pressure=civil_war_pressure_for_threat_tags(threat_tags),
+            featured_inference_summary=featured_inference_summary,
+        )
+        return self._build_next_floor_identity(decision=synthetic_decision, chosen=candidate_view)
 
     def _begin_civil_war_floor(self) -> None:
+        self.floor_number += 1
+        self.snapshot.current_floor = self.floor_number
+        self.snapshot.current_phase = "civil_war"
+        self.snapshot.floor_identity = None
+        self.snapshot.successor_options = None
+        self._upcoming_phase = None
         self._reset_floor_state_for_new_match()
-
-        rivals = [agent for agent in self._successor_candidates if agent.name != self.player.name]
-        if rivals:
-            self.opponent = max(rivals, key=lambda agent: (agent.score, agent.wins, -agent.agent_id))
-        else:
-            self.opponent = Agent(name=CIVIL_WAR_RIVAL_NAME, genome=self._opponent_genome())
-        self.opponent.is_player = False
+        self.opponent = self._select_floor_opponent()
 
         context = self.snapshot.civil_war_context
         doctrine_pressure = []
@@ -1037,6 +1219,7 @@ class FeaturedMatchWebSession:
         self.snapshot.current_phase = "ecosystem"
         self.snapshot.civil_war_context = None
         self.snapshot.successor_options = None
+        self._upcoming_phase = None
         self._pending_screen = None
         self._pending_message = None
 
@@ -1113,29 +1296,53 @@ class FeaturedMatchWebSession:
             raise ValueError("Invalid genome edit index")
         self.player.genome = self._genome_offers[action.offer_index].apply(self.player.genome)
 
-        if self.snapshot.current_phase == "civil_war":
-            completion = RunCompletion(
-                outcome="victory" if self.player_score >= self.opponent_score else "eliminated",
-                floor_number=self.floor_number,
-                player_name=self.player.name,
-                seed=self.seed,
-            )
-            self.snapshot.completion = completion
-            self._append_chronicle_entry(
-                event_id=f"run_outcome:{completion.outcome}",
-                event_type="run_outcome",
-                floor_number=self.floor_number,
-                summary=run_outcome_summary(
-                    outcome=completion.outcome,
-                    floor_number=self.floor_number,
-                    player_name=self.player.name,
-                ),
-            )
-            self.session.complete(completion, self.snapshot)
-            self.snapshot.session_status = "completed"
+        floor_config = self._current_floor_config()
+        self._progression.grant_ai_powerups(
+            survivors=self._branch_roster,
+            player=self.player,
+            floor_config=floor_config,
+        )
+
+        current_phase = self.snapshot.current_phase or "ecosystem"
+        upcoming_phase = self._post_summary_phase()
+        if upcoming_phase == "ecosystem":
+            if self.floor_number >= self.floor_cap:
+                self._complete_run(outcome="capped")
+            else:
+                self._branch_roster = self._evolution.repopulate(
+                    survivors=self._branch_roster,
+                    target_size=self._target_population_size,
+                )
+                self._begin_next_ecosystem_floor()
+                self.snapshot.session_status = "awaiting_decision"
+        elif current_phase == "ecosystem":
+            if len(self._branch_roster) == 1:
+                self._complete_run(outcome="victory")
+            else:
+                if self.snapshot.civil_war_context is None:
+                    self.snapshot.civil_war_context = self._build_civil_war_context(current_host=self.player)
+                self.snapshot.floor_identity = None
+                self.snapshot.floor_vote_result = None
+                self._pending_screen = "civil_war_transition"
+                self._pending_message = pending_civil_war_start_message(thesis=self.snapshot.civil_war_context.thesis)
+                self._append_chronicle_entry(
+                    event_id=f"phase_transition:civil_war:{self.floor_number + 1}",
+                    event_type="phase_transition",
+                    floor_number=self.floor_number + 1,
+                    summary=civil_war_started_summary(thesis=self.snapshot.civil_war_context.thesis),
+                    cause=self._lineage_cause_phrase(
+                        list(self.snapshot.civil_war_context.doctrine_pressure),
+                        self.snapshot.civil_war_context.thesis,
+                    ),
+                )
+                self.snapshot.session_status = "running"
+                self._upcoming_phase = None
         else:
-            self._begin_next_ecosystem_floor()
-            self.snapshot.session_status = "awaiting_decision"
+            if len(self._branch_roster) == 1:
+                self._complete_run(outcome="victory")
+            else:
+                self._begin_civil_war_floor()
+                self.snapshot.session_status = "awaiting_decision"
         self._rebuild_dynasty_board()
 
     def _rebuild_dynasty_board(self) -> None:
@@ -1297,9 +1504,20 @@ class FeaturedMatchWebSession:
                 elif result.right_score > result.left_score:
                     right.wins += 1
 
-    def _branch_floor_ranking(self) -> list[Agent]:
-        ranked = sorted(self._branch_roster, key=lambda agent: (agent.score, agent.wins, -agent.agent_id), reverse=True)
-        return ranked[:4]
+    def _rank_agents(self, agents: list[Agent]) -> list[Agent]:
+        return sorted(agents, key=lambda agent: (agent.score, agent.wins, -agent.agent_id), reverse=True)
+
+    def _branch_floor_ranking(self, ranked: list[Agent] | None = None) -> list[Agent]:
+        ranked_agents = self._rank_agents(self._branch_roster if ranked is None else ranked)
+        if len(ranked_agents) <= 4:
+            return ranked_agents
+        top_agents = list(ranked_agents[:4])
+        if any(agent.agent_id == self.player.agent_id for agent in top_agents):
+            return top_agents
+        current_host = next((agent for agent in ranked_agents if agent.agent_id == self.player.agent_id), None)
+        if current_host is None:
+            return top_agents
+        return self._rank_agents([*top_agents[:3], current_host])
 
     def _current_floor_config(self):
         config = self._progression.build_floor_config(self.floor_number)
@@ -1318,15 +1536,10 @@ class FeaturedMatchWebSession:
         lineage_branches = [
             agent
             for agent in self._branch_roster
-            if agent.lineage_id == self.player.lineage_id and agent is not self.player
+            if agent.lineage_id == self.player.lineage_id
         ]
-        if not lineage_branches:
-            new_heir = self.player.clone_for_offspring(self.player.genome)
-            new_heir.lineage_id = self.player.lineage_id
-            self._branch_roster.append(new_heir)
-            lineage_branches.append(new_heir)
         lineage_branches.sort(key=lambda agent: (agent.score, agent.wins, -agent.agent_id), reverse=True)
-        return lineage_branches[:3]
+        return lineage_branches[:4]
 
     @staticmethod
     def _default_genome() -> StrategyGenome:
